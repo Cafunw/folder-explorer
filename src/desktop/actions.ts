@@ -1,4 +1,4 @@
-import { api, iconUrl } from "../api";
+import { api } from "../api";
 import { t } from "../i18n";
 import { cellAt, gridAt, primaryGrid } from "../layout/grid";
 import { createFenceAt, createHeadingNear, HEADING_WIDTH, isFence } from "../layout/blocks";
@@ -24,15 +24,9 @@ import {
   type SortKey,
 } from "../layout/model";
 import {
-  desktopClassicOwn,
-  desktopMenu,
   headingMenu,
   ICON_SCALES,
-  itemMenu,
-  type DesktopState,
-  type ItemInfo,
   type MenuPick,
-  type MenuRequest,
 } from "../menu/model";
 import type { Placement } from "../types";
 import { enterJiggle } from "./Jiggle";
@@ -267,35 +261,23 @@ function toScreen(x: number, y: number): [number, number] {
   return [Math.round((env?.windowOrigin.x ?? 0) + x * k), Math.round((env?.windowOrigin.y ?? 0) + y * k)];
 }
 
-function desktopState(): DesktopState {
-  const s = get().settings;
-  return { iconScale: s.grid.iconScale, autoArrange: s.grid.autoArrange, showIcons: s.behavior.showIcons };
-}
-
-/** Folders and system folders open with a plain folder icon, like Windows' own menu. */
-const FOLDER_ICON = "C:\\Windows";
-
-async function openMenu(request: Pick<MenuRequest, "target" | "ids" | "paths" | "cell" | "spec">, at?: [number, number]) {
-  try {
-    await api.openMenu(request, at);
-  } catch (e) {
-    console.warn("menu", e);
-    toast(t.operationFailed);
-  }
-}
-
 /**
- * Right-click on one of our icons: a Windows 11 menu drawn by the app (`src/menu`), so it opens
- * instantly; the shell's side (Open with ▸, the classic menu behind "Daha fazla seçenek göster")
- * is prepared while it is on screen. A group (our virtual folder) opens its settings window.
+ * Files use their native Windows Shell menu. Virtual groups keep their settings dialog;
+ * headings use an OS-rendered popup because they have no corresponding Shell object.
  */
 export async function showItemMenu(id: string, at?: [number, number]) {
-  const { selection, itemMap, env, layout } = get();
+  const { selection, itemMap, layout } = get();
   if (isHeadingId(id)) {
     const h = layout.headings[id];
     if (!h) return;
     set({ selection: new Set([id]) });
-    await openMenu({ target: "items", ids: [id], paths: [], cell: null, spec: headingMenu(h) }, at);
+    try {
+      const chosen = await api.nativeMenu(headingMenu(h), at ?? null);
+      if (chosen) headingAction(chosen.slice("heading:".length), id);
+    } catch (e) {
+      console.warn("heading menu", e);
+      toast(t.operationFailed);
+    }
     return;
   }
   if (isFolderId(id)) {
@@ -307,23 +289,22 @@ export async function showItemMenu(id: string, at?: [number, number]) {
   const real = [id, ...picked.filter((i) => i !== id)].filter((i) => !isFolderId(i) && itemMap.has(i));
   if (!real.length) return;
   const items = real.map((i) => itemMap.get(i)!);
-  const k = env?.scaleFactor || 1;
-  const info: ItemInfo[] = items.map((it) => ({
-    kind: it.kind,
-    path: it.path,
-    isShortcut: it.isShortcut,
-    icon:
-      it.kind === "file"
-        ? { img: iconUrl(it.parsingName, 16 * k, it.iconVersion) }
-        : { img: iconUrl(it.kind === "folder" ? it.parsingName : FOLDER_ICON, 16 * k, "1") },
-  }));
-  await openMenu({ target: "items", ids: real, paths: items.map((i) => i.path), cell: null, spec: itemMenu(info) }, at);
+  try {
+    await api.itemContextMenu(items.map((i) => i.parsingName), at ?? null);
+  } catch (e) {
+    console.warn("shell menu", e);
+    toast(t.operationFailed);
+  }
 }
 
 /** Right-click on the empty desktop at (x, y) (window px). */
 export function showDesktopMenu(x: number, y: number, at?: [number, number]) {
   set({ selection: new Set(), rename: null });
-  void openMenu({ target: "desktop", ids: [], paths: [], cell: cellAtWindowPoint(x, y), spec: desktopMenu(desktopState()) }, at);
+  expectNewItem(cellAtWindowPoint(x, y));
+  api.desktopContextMenu(at ?? toScreen(x, y)).catch((e) => {
+    console.warn("desktop menu", e);
+    toast(t.operationFailed);
+  });
 }
 
 /** Shift+F10 / the menu key: the menu of the selection, or the desktop's under the pointer. */
@@ -350,7 +331,7 @@ async function verb(paths: string[], verbs: string[]) {
   if (!(await api.shellVerb(paths, verbs))) toast(t.notAvailableHere);
 }
 
-/** An entry of a menu was chosen (the menu window tells us; it has no access to the desktop's state). */
+/** Shared desktop actions used by keyboard shortcuts, search and native menu callbacks. */
 export async function runMenuAction(p: MenuPick): Promise<void> {
   const { id, ids, paths, cell } = p;
   const s = get().settings;
@@ -489,19 +470,6 @@ export async function runMenuAction(p: MenuPick): Promise<void> {
       case "personalize":
         await api.openItem("ms-settings:personalization");
         break;
-      case "more": {
-        // Windows' classic menu, built in the background while ours was open
-        const desktop = p.target === "desktop";
-        if (desktop) expectNewItem(cell);
-        const own = desktop ? desktopClassicOwn(desktopState(), p.canPaste) : undefined;
-        const chosen = await api.classicMenu(paths, p.at, own);
-        if (!chosen) break;
-        if (chosen.startsWith("own:")) await runMenuAction({ ...p, id: chosen.slice("own:".length) });
-        else if (chosen === "rename") startRename(ids[0]);
-        else if (chosen === "delete") deleteIds(ids);
-        else if (desktop && /^new/i.test(chosen)) expectNewItem(cell, true);
-        break;
-      }
     }
   } catch (e) {
     console.warn("menu action", id, e);

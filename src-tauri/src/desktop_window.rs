@@ -92,7 +92,7 @@ unsafe extern "system" fn find_defview_proc(hwnd: HWND, lparam: LPARAM) -> BOOL 
     BOOL(1)
 }
 
-fn find_defview() -> Option<HWND> {
+pub(crate) fn find_defview() -> Option<HWND> {
     unsafe {
         if let Ok(progman) = FindWindowW(w!("Progman"), None) {
             if let Ok(dv) = FindWindowExW(Some(progman), None, w!("SHELLDLL_DefView"), None) {
@@ -120,8 +120,45 @@ pub fn find_listview() -> Option<HWND> {
     }
 }
 
+/// Explorer owns and draws this menu, including Windows 11's modern menu and its New submenu.
+/// The hidden icon view's selection must be cleared so a previous Explorer selection cannot
+/// turn an empty-desktop click into an unrelated file menu.
+pub fn show_context_menu(at: POINT) -> Result<(), String> {
+    crate::explorer_menu::cancel_observer();
+    util::run_sta(move || unsafe {
+        let dv = find_defview().ok_or("Windows masaüstü görünümü bulunamadı")?;
+        let lv = find_listview().ok_or("Windows masaüstü simge görünümü bulunamadı")?;
+        let sw: IShellWindows = CoCreateInstance(&ShellWindows, None, CLSCTX_ALL).map_err(|e| e.message())?;
+        let mut loc = VARIANT::default();
+        (*loc.Anonymous.Anonymous).vt = VT_I4;
+        let mut hwnd_i = 0i32;
+        let disp = sw.FindWindowSW(&loc, &VARIANT::default(), SWC_DESKTOP, &mut hwnd_i, SWFO_NEEDDISPATCH)
+            .map_err(|e| e.message())?;
+        let sp: IServiceProvider = disp.cast().map_err(|e| e.message())?;
+        let browser: IShellBrowser = sp.QueryService(&SID_STopLevelBrowser).map_err(|e| e.message())?;
+        let view = browser.QueryActiveShellView().map_err(|e| e.message())?;
+        view.SelectItem(std::ptr::null(), windows::Win32::UI::Shell::SVSI_DESELECTOTHERS.0 as u32)
+            .map_err(|e| e.message())?;
+
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(dv, Some(&mut pid));
+        let _ = AllowSetForegroundWindow(pid);
+        let root = GetAncestor(dv, GA_ROOT);
+        if !root.is_invalid() {
+            let _ = SetForegroundWindow(root);
+            let _ = SetWindowPos(root, Some(HWND_BOTTOM), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+        // WM_CONTEXTMENU packs signed screen coordinates into two 16-bit words.
+        let position = ((at.x as u32 & 0xffff) | ((at.y as u32 & 0xffff) << 16)) as i32 as isize;
+        PostMessageW(Some(dv), WM_CONTEXTMENU, WPARAM(lv.0 as usize), LPARAM(position))
+            .map_err(|e| e.message())
+    })?
+}
+
 fn set_windows_icons_visible(visible: bool) {
+    if visible { crate::explorer_menu::restore_view(); }
     if let Some(lv) = find_listview() {
+        if !visible && crate::explorer_menu::is_staged(lv) { return; }
         unsafe {
             let is_visible = IsWindowVisible(lv).as_bool();
             if is_visible != visible {
@@ -156,7 +193,25 @@ fn enable_dark_menus(hwnd: HWND) {
 
 /// Private message: "close gracefully" (sent by `--quit`, e.g. from the uninstaller).
 const WM_FE_QUIT: u32 = WM_APP + 0x2F;
+/// Windows' Yeni ▸ Folder Explorer grubu runs `--new-group`, which posts this to the running desktop.
+const WM_FE_NEWGROUP: u32 = WM_APP + 0x30;
 const DESKTOP_TITLE: windows::core::PCWSTR = w!("Folder Explorer Masaüstü");
+
+/// `--new-group`: ask the running desktop for a new group. False when Folder Explorer is not running.
+pub fn post_new_group() -> bool {
+    unsafe {
+        let Ok(h) = FindWindowW(None, DESKTOP_TITLE) else { return false };
+        if h.is_invalid() {
+            return false;
+        }
+        // Started from Explorer's menu we may pass the foreground on; the running desktop needs it
+        // to show the group's name box in front of the Explorer window.
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(h, Some(&mut pid));
+        let _ = AllowSetForegroundWindow(pid);
+        PostMessageW(Some(h), WM_FE_NEWGROUP, WPARAM(0), LPARAM(0)).is_ok()
+    }
+}
 
 /// Ask a running instance to quit, wait up to 6 s for it, then make sure icons are visible.
 pub fn quit_running_instance() {
@@ -1069,6 +1124,12 @@ unsafe extern "system" fn subclass_proc(
         WM_FE_QUIT => {
             if let Some(app) = util::app() {
                 crate::windows_mgr::quit(&app);
+            }
+            return LRESULT(0);
+        }
+        WM_FE_NEWGROUP => {
+            if let Some(app) = util::app() {
+                crate::windows_mgr::new_group(&app);
             }
             return LRESULT(0);
         }

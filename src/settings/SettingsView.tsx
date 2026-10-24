@@ -1002,6 +1002,9 @@ function BehaviorSec({ s, update }: SecProps) {
         <Row title={t.startWithWindows} desc={t.startWithWindowsDesc}>
           <Toggle on={be.startWithWindows} onChange={(v) => set({ startWithWindows: v })} />
         </Row>
+        <Row title={t.newMenuEntry} desc={t.newMenuEntryDesc}>
+          <Toggle on={be.newMenuEntry} onChange={(v) => set({ newMenuEntry: v })} />
+        </Row>
       </div>
     </>
   );

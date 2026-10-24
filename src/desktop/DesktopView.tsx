@@ -61,7 +61,14 @@ export function DesktopView() {
     const keep = (p: Promise<() => void>) =>
       p.then((u) => (disposed ? u() : unsubs.push(u))).catch((e) => console.error(e));
 
-    initDesktop().catch((e) => console.error("init", e));
+    const newGroup = () => {
+      useDesk.setState({ panel: null });
+      newEmptyFolder(null);
+    };
+    initDesktop()
+      .then(() => !disposed && api.takeLaunchNewGroup())
+      .then((pending) => pending && newGroup())
+      .catch((e) => console.error("init", e));
     if (import.meta.env.DEV) startDiag();
     keep(on<Quiet>("quiet-changed", applyQuiet));
     api.getQuiet().then(applyQuiet).catch(() => {});
@@ -84,10 +91,8 @@ export function DesktopView() {
     keep(
       on<{ action: string }>("tray-action", (p) => {
         if (p.action === "toggle-lock") toggleLock();
-        else if (p.action === "new-group") {
-          useDesk.setState({ panel: null });
-          newEmptyFolder(null);
-        } else if (p.action === "add-app") useDesk.setState({ dialog: { kind: "addApp", placement: null }, panel: null });
+        else if (p.action === "new-group") newGroup();
+        else if (p.action === "add-app") useDesk.setState({ dialog: { kind: "addApp", placement: null }, panel: null });
       }),
     );
     keep(

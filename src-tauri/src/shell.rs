@@ -167,61 +167,6 @@ pub fn open_terminal(dir: String) -> Result<(), String> {
     })
 }
 
-/// Whether Windows Terminal is installed (its "Terminalde Aç" entry is shown only then).
-pub fn has_terminal() -> bool {
-    std::env::var("LOCALAPPDATA")
-        .map(|d| Path::new(&d).join("Microsoft\\WindowsApps\\wt.exe").exists())
-        .unwrap_or(false)
-}
-
-/// Windows Terminal's exe, whose icon Windows shows next to "Terminalde Aç" (the Start-menu item's
-/// logo has a transparent margin and looks too small). Found through the package repository
-/// (read-only).
-pub fn terminal_app() -> Option<String> {
-    use windows::core::PWSTR;
-    use windows::Win32::Foundation::ERROR_SUCCESS;
-    use windows::Win32::System::Registry::{
-        RegCloseKey, RegEnumKeyExW, RegGetValueW, RegOpenKeyExW, HKEY, HKEY_CURRENT_USER, KEY_READ, RRF_RT_REG_SZ,
-    };
-    const PACKAGES: PCWSTR =
-        w!("Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages");
-    unsafe {
-        let mut key = HKEY::default();
-        if RegOpenKeyExW(HKEY_CURRENT_USER, PACKAGES, Some(0), KEY_READ, &mut key) != ERROR_SUCCESS {
-            return None;
-        }
-        let mut names = Vec::new();
-        for i in 0.. {
-            let mut name = [0u16; 256];
-            let mut len = name.len() as u32;
-            if RegEnumKeyExW(key, i, Some(PWSTR(name.as_mut_ptr())), &mut len, None, None, None, None) != ERROR_SUCCESS {
-                break;
-            }
-            names.push(String::from_utf16_lossy(&name[..len as usize]));
-        }
-        let mut found = None;
-        'families: for family in ["Microsoft.WindowsTerminal_", "Microsoft.WindowsTerminalPreview_"] {
-            // newest version last
-            for n in names.iter().rev().filter(|n| n.starts_with(family) && n.ends_with("__8wekyb3d8bbwe")) {
-                let mut buf = vec![0u16; 1024];
-                let mut size = (buf.len() * 2) as u32;
-                let rc = RegGetValueW(key, &HSTRING::from(n.as_str()), w!("PackageRootFolder"), RRF_RT_REG_SZ, None, Some(buf.as_mut_ptr() as *mut _), Some(&mut size));
-                if rc != ERROR_SUCCESS {
-                    continue;
-                }
-                let root = String::from_utf16_lossy(&buf[..size as usize / 2]);
-                let exe = Path::new(root.trim_end_matches('\0')).join("WindowsTerminal.exe");
-                if exe.exists() {
-                    found = Some(exe.to_string_lossy().into_owned());
-                    break 'families;
-                }
-            }
-        }
-        let _ = RegCloseKey(key);
-        found
-    }
-}
-
 /// Files on the clipboard (CF_HDROP) and whether they were cut.
 pub fn clipboard_paths() -> Result<(Vec<String>, bool), String> {
     use windows::Win32::System::Com::{DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL};
@@ -263,12 +208,6 @@ pub fn clipboard_paths() -> Result<(Vec<String>, bool), String> {
         }
         Ok((paths, cut))
     })?
-}
-
-pub fn can_paste() -> bool {
-    use windows::Win32::System::DataExchange::IsClipboardFormatAvailable;
-    use windows::Win32::System::Ole::CF_HDROP;
-    unsafe { IsClipboardFormatAvailable(CF_HDROP.0 as u32).is_ok() }
 }
 
 /// "Yapıştır" on the desktop: the clipboard's files are copied, or moved after "Kes". With

@@ -16,27 +16,27 @@ UI language: Turkish. All UI strings live in `src/i18n.ts`.
 
 This is the foundation of the architecture; everything else follows from it.
 
-* **Windows' real desktop and Explorer are not touched.** The desktop window takes the mouse
-  everywhere, including the empty desktop, and draws its own right-click menus that look and behave
-  exactly like Windows 11's (same entries, words, shortcuts, metrics, acrylic). Every entry runs the
-  same Windows action through public shell APIs (`IContextMenu` verbs, Windows' own New menu
-  `CLSID_NewMenu`, `SHAssocEnumHandlers`, `SHOpenWithDialog`, `ms-settings:`), and
-  "Daha fazla seçenek göster" opens **Windows' own classic menu** (see *Context menus*). Nothing is
-  forwarded, faked, injected or hooked.
+* **Native context menus.** Empty-desktop right-clicks are sent to Explorer's desktop view as
+  `WM_CONTEXTMENU` after clearing its hidden selection. Explorer owns the actual menu (including
+  the Windows 11 menu and New submenu). Desktop files, folders, shortcuts and system items use
+  Explorer's default item menu. Live-folder entries outside the desktop use their native classic
+  Shell menu. Virtual headings use a native Win32 popup; groups keep
+  their settings dialog. There are no `menu` / `menusub` webviews or CSS menu replicas.
 * **No registry changes, no Explorer process changes, no hooks on system menus.** The app writes no
   registry values (the "start with Windows" option is a shortcut in the Startup folder), registers no
-  shell extensions, never injects into or patches Explorer and never hooks its menus. The only
+  shell extensions, never injects into or patches Explorer and never hooks its menus. **One
+  exception, chosen by the user:** "Yeni grup oluştur" in Windows' Yeni ▸ menu
+  (`behavior.newMenuEntry`, Ayarlar ▸ Davranış, on by default; see *Yeni ▸ menu entry*) — the
+  standard per-user ShellNew keys, removed when the setting is turned off and on uninstall. The only
   listeners are passive, out-of-context `WinEventHook`s (observe-only, callbacks run in our own
   process: foreground changes; windows Explorer shows and top-level z-order changes it makes; in
   game mode move/size ends, minimize start/end and location changes of the foreground window's
   process) that keep our window directly above the desktop and detect fullscreen apps, a shell
   change notification (`SHChangeNotifyRegister`) for the Recycle Bin and a power-setting
-  notification (battery saver) — subscriptions of our windows that end with the process. Entries that *earlier versions*
-  wrote (the "Yeni ▸ Grup" New-menu entry, a Run value) are removed once at startup
-  (`legacy.rs`) and by the uninstaller, so Windows is back to normal.
-* **Menus are built on demand, never registered.** The classic menus come from the public
-  `IContextMenu` API of the items (or of the desktop folder's view object for the background) on our
-  own STA thread; nothing is added to Windows' menus.
+  notification (battery saver) — subscriptions of our windows that end with the process. A Run
+  value that *earlier versions* wrote is removed at startup (`legacy.rs`) and by the uninstaller.
+* **Menus are built on demand.** No system-menu hooks or Explorer injection. The native New
+  submenu contains the optional per-user ShellNew entry described below.
 * **When the app is closed or disabled the Windows desktop is completely normal.** The one thing
   the product needs is to hide Windows' *icon list* while we show our own icons (otherwise every
   icon would appear twice). That is a single reversible `ShowWindow(SW_HIDE)` on the
@@ -44,15 +44,14 @@ This is the foundation of the architecture; everything else follows from it.
   tray, and by a watchdog process, and an Explorer restart or reboot always brings the icons back.
   Reading the original icon positions (`IFolderView::GetItemPosition`) is read-only.
 
-The previous implementations broke or bent this rule and were removed: forwarding menus to
-Explorer's hidden desktop view and a "Yeni ▸ Grup" registry entry (archived in
-`docs/archive/before-core-rule-explorer-forwarding.zip`), then an input pass-through that let clicks
-on the empty desktop fall through to Explorer (its menus took a second to open).
+Earlier menu implementations are archived in
+`docs/archive/before-core-rule-explorer-forwarding.zip`. The current native desktop forwarding
+replaces the later app-drawn menu implementation at the user's request.
 
 ### Input
 The transparent desktop window covers the whole screen and takes all input (`enforce_exstyle` keeps
 it layered and strips `WS_EX_TRANSPARENT`). A press on the empty desktop starts the rubber-band
-selection, a right-click there opens our desktop menu. Files dropped from other apps are handled by
+selection, a right-click there opens Explorer's native desktop menu. Files dropped from other apps are handled by
 Tauri's drag-drop events (`externalDrop.ts`); other dropped data (links, text) is not taken.
 
 Wiring in `src/desktop/interaction.ts`, the pure parts (geometry, timing, zoom maths, copy / move
@@ -100,8 +99,6 @@ rule) in `src/desktop/input.ts` (tested):
 | label      | url                         | notes |
 |------------|-----------------------------|-------|
 | `desktop`  | `index.html?view=desktop`   | Created by Rust at startup. Covers the bounding box of all monitors (physical px). No decorations, **transparent** (the real wallpaper — incl. slideshows and Wallpaper Engine — shows through), `WS_EX_TOOLWINDOW`, kept directly above the shell desktop (Progman) in z-order. The UI only paints a wallpaper when the user picks a custom one (image/colour/gradient). |
-| `menu`     | `index.html?view=menu`      | Created hidden 2 s after start (so the first right-click is instant). The right-click menu (`src/menu/MenuView.tsx`): frameless, DWM acrylic (`DWMSBT_TRANSIENTWINDOW`, also while inactive), rounded corners + shadow, always-on-top, skip taskbar, theme = the app's. It measures itself and calls `place_menu` (at the cursor, flipped to stay inside the work area); it has the keyboard; it hides on focus loss / Esc. It tells the desktop window what was chosen (`menu-action`); it has no access to the desktop's state. Its webview rests while hidden (see *Hidden webviews*). |
-| `menusub`  | `index.html?view=menusub`   | Same look; the open submenu, beside its entry. Never takes the focus (`focusable(false)` → `WS_EX_NOACTIVATE`), so the menu keeps the keyboard; it only draws and reports the mouse to `menu`. Windows plays no opening animation for a window shown without activation, so it fades in itself (`WS_EX_LAYERED` opacity, 150 ms). |
 | `search`   | `index.html?view=search`    | Created lazily. Frameless, transparent + acrylic, always-on-top, skip taskbar, ~680x480 logical, centered on the monitor under the cursor. Hidden (not closed) when dismissed; its webview is then suspended (see *Hidden webviews*). |
 | `settings` | `index.html?view=settings`  | Created lazily. Normal decorated window ~1000x700 logical, mica. Closing it destroys it. |
 
@@ -188,13 +185,8 @@ rule) in `src/desktop/input.ts` (tested):
 WebView2 does not notice when its window is hidden. Hidden webviews are told (`with_webview` →
 `ICoreWebView2Controller`, crate `webview2-com`), queued in order with tao's show / hide and with the
 events sent to the page:
-* `menu` / `menusub`: `SetIsVisible(false)` + memory target low (`ICoreWebView2_19`) when the menu
-  closes (and right after they are created); `SetIsVisible(true)` + normal in `open_menu`, before
-  `menu-open` is sent, and again in `place_menu`. No `TrySuspend`, so the menu opens without thawing a
-  frozen renderer. The submenu fade-in is unaffected (the native window's layered alpha).
 * `search`: `SetIsVisible(false)` + memory low when hidden, `TrySuspend` 5 s later (a pending invoke
-  reaches the page first); `Resume` + `SetIsVisible(true)` before it is shown. Like the menu (which
-  shows itself with `place_menu` after measuring), the window itself appears only when the page
+  reaches the page first); `Resume` + `SetIsVisible(true)` before it is shown. The window appears only when the page
   says it painted (`reveal_search`, after a rAF + task; fallback 400 ms in Rust, 120 ms in JS).
 * `desktop`: suspended while every monitor is covered (game mode) or the Windows icons are shown
   instead (tray toggle).
@@ -214,12 +206,8 @@ Diagnostics (`diag.rs` → `fe-debug.log`, `src/desktop/diag.ts`) exist in debug
 the heavy JS monitors (rAF gap, 50 ms tile check) only with `localStorage["fe.diag"] = "1"`.
 
 ### Frontend cost (rules for contributors)
-* **One bundle per window.** `src/main.tsx` dynamic-imports only the view of its window
-  (`?view=`), so the menu / search / settings webviews never parse the desktop (or settings) code.
-  Vite build, JS per window (CSS): desktop 602 KB (33 KB), settings 432 KB (25 KB), search 316 KB
-  (17 KB), menu 287 KB (19 KB) — before, every window loaded all 674 KB (48 KB). Keep cross-view
-  imports small (a view importing from another view's folder pulls that code into its chunk). The
-  menu is pre-created, so its one extra chunk request happens long before the first right-click.
+* **One bundle per window.** Desktop, search and settings views load independently from
+  `src/main.tsx`. Native menus have no webview, JavaScript or CSS bundle. Keep cross-view imports small.
 * **Narrow store subscriptions.** Per-tile components (`Tile`, `Positioned`, `FolderGlyph` /
   `useFolderLook`, `ItemImage`, `EntryTile`, `Fence`) select primitives or `useShallow` slices,
   never `s.settings` / `s.layout` / `d.drag` as a whole (normalizeSettings makes new objects on every
@@ -333,10 +321,10 @@ type BackupInfo = { name: string; createdAt: number; size: number };
 | `list_desktop_items` | – | `DesktopItem[]` | user desktop + public desktop (skip hidden/system files and `desktop.ini`) + visible system icons (Recycle Bin, This PC, User files, Network, Control Panel per `HideDesktopIcons\NewStartPanel`) |
 | `get_windows_layout` | – | `WindowsLayout` | snapshot captured at startup before hiding icons |
 | `open_item` | `{ path }` | `()` | `ShellExecuteExW` "open"; system items via `explorer.exe shell:::{CLSID}` |
-| `open_menu` | `{ request, at?: [x, y] }` | `()` | opens the `menu` window; `request` = `{ target: "items" \| "desktop", ids, paths, cell, spec }` (`src/menu/model.ts`), Rust adds `at` (physical px, default the cursor), `work`, `scale`, `accent { dark, light }` (system accent, `AccentPalette`), `canPaste`, `hasTerminal`. Then prepares the shell side on the menu thread and emits `menu-extra` twice: Open with ▸ / New ▸ first, then the classic menu (built in the background, so "Daha fazla" opens at once). |
-| `place_menu` | `{ label, x, y, w, h, fade? }` | `()` | the menu windows place themselves: client area exactly at x, y, w × h (physical px; `SetWindowPos`, since tao would add a caption's height) and show (`menu` focused, `menusub` not; `fade` = a newly opened submenu fades in) |
-| `take_menu_request` / `hide_menu` | – / `{ label? }` | `request \| null` / `()` | the menu pulls the request it was opened with (the event can arrive before it listens) / hides one or both menu windows |
-| `classic_menu` | `{ paths, at, own? }` | `string \| null` | Windows' classic menu ("Daha fazla seçenek göster") for `paths` (empty = the desktop background), with `own` entries on top (the desktop's View ▸ / Sort by ▸ / Refresh / Paste). Returns `"own:<id>"`, `"rename"` / `"delete"` (NOT invoked, the UI does them so they can be undone), or the verb it ran. |
+| `desktop_context_menu` | `{ at: [x, y] }` | `()` | Explorer displays its actual desktop background context menu at physical screen coordinates. |
+| `item_context_menu` | `{ paths, at }` | `()` | Explorer opens the default desktop-item menu; paths are parsing names, clicked item first. |
+| `classic_menu` | `{ paths, at }` | `string \| null` | Classic native Shell menu for non-desktop live-folder entries; rename/delete return to their undo flow. |
+| `native_menu` | `{ items, at }` | `string \| null` | Native Win32 popup for app-only headings/dividers; returns the selected action ID. |
 | `shell_verb` | `{ paths, verbs }` | `boolean` | runs the first of `verbs` (`pintohome`, `pintohomefile`, `PinToStartScreen`, `Windows.ModernShare`, `empty`, `properties`, `runas`, `opencontaining`…) the item's classic menu offers; false = none |
 | `new_item` | `{ id }` | `()` | an entry of Windows' New ▸ list (`menu-extra.newItems`), on the desktop |
 | `open_with` | `{ paths, index }` | `()` | Open with ▸ app `index` (`menu-extra.openWith`), `null` = Windows' "Başka bir uygulama seçin" dialog |
@@ -383,6 +371,7 @@ type BackupInfo = { name: string; createdAt: number; size: number };
 | `show_search` | `{ initial?: string }` | `()` | positions / resumes the search window and emits `search-open { initial }` to it; a hidden window is shown by `reveal_search` (or after 400 ms), an open one is focused |
 | `reveal_search` | – | `()` | the search page painted the new query (after `search-open` / on mount): show + focus the window. Without it a webview just resumed from `TrySuspend` showed 1–2 blank acrylic frames. |
 | `take_search_initial` | – | `string` | the search window calls it on mount (first `search-open` may fire before it listens) |
+| `take_launch_new_group` | – | `boolean` | the desktop calls it once after `initDesktop`: true (once) when the process was started with `--new-group`; the desktop is raised and makes a new empty group |
 | `hide_search` | – | `()` | |
 | `raise_desktop` | `{ raised: boolean }` | `()` | |
 | `set_windows_icons_mode` | `{ enabled: boolean }` | `()` | true = hide our desktop window and show the Windows icons again (tray toggle) |
@@ -719,7 +708,8 @@ Group kinds / displays in the UI (`src/desktop/`):
 | flag | what it does |
 |---|---|
 | `--quit` | posts a private message to a running instance's desktop window, which quits gracefully (restoring the Windows icons); waits for the process to exit. Used by the installer hooks. |
-| `--clean-legacy` | removes what earlier versions wrote into Windows (the "Yeni ▸ Grup" New-menu keys, a Run value that points to our exe), prints what it found. Also runs in the background at every start. |
+| `--new-group` | run by Windows' Yeni ▸ Yeni grup oluştur: posts a private message to the running desktop window (after `AllowSetForegroundWindow` for it), which comes to the front with a new empty group being named (same as the tray's "Yeni grup"). Not running: the app starts and does the same once the desktop is ready (`take_launch_new_group`). |
+| `--clean-legacy` | removes what earlier versions wrote into Windows (a Run value that points to our exe), prints what it found. Also runs in the background at every start. |
 | `--delayed-start <s>` | internal: sleep `<s>` seconds before starting (the app restarts itself this way after an Explorer restart). |
 | `--show-icons` | makes the Windows desktop icons visible again and exits (safety net). |
 | `--watchdog <pid>` | internal: waits for `<pid>` to exit, then shows the Windows icons. |
@@ -732,45 +722,52 @@ Group kinds / displays in the UI (`src/desktop/`):
 `npm run tauri build` → `src-tauri/target/release/bundle/nsis/Folder Explorer_<ver>_x64-setup.exe`
 (per-user install, Turkish UI). `src-tauri/installer-hooks.nsh` runs `--quit` before installing
 over / uninstalling a running copy and `--show-icons` on uninstall. It writes nothing into Windows'
-shell. On uninstall it removes the Startup shortcut and, for older versions, the entries they added
-(Run value, "Yeni ▸ Grup" keys). "Start with Windows" (`behavior.startWithWindows`, off by default)
+shell. On uninstall it removes the Startup shortcut, the Yeni ▸ menu keys and the Run value of older
+versions. "Start with Windows" (`behavior.startWithWindows`, off by default)
 is a shortcut `Folder Explorer.lnk` in the user's Startup folder (`startup.rs`), never a registry
 value; dev builds never create it.
 
-## Context menus
-Both menus are drawn by the app (`src/menu`: `model.ts` says what is in them, `MenuView.tsx` draws
-them, `actions.ts → runMenuAction` does what was chosen), entry for entry like Windows 11's own in
-Turkish, measured at 125 %: entries 28 px + 2 px margins, separators 9 px, command bar 70 px, the
-shortcut hints in one left-aligned column, Segoe Fluent Icons with the accent-coloured parts,
-submenus after 250 ms, full keyboard (arrows, Enter, Esc, Home/End).
+## Yeni ▸ menu entry
+`shell_new.rs` keeps Windows' New menu in step with `behavior.newMenuEntry` (on by default), on
+every `apply_settings` (start and each settings save; release builds only — a dev build would point
+Windows at `target\debug`). On: `HKCU\Software\Classes\.fegroup` (default `FolderExplorer.Group`)
+with `ShellNew` `Command` = `"<exe>" --new-group`, `MenuText` = "Yeni grup oluştur", `IconPath` = `<exe>,0`, and
+`HKCU\Software\Classes\FolderExplorer.Group` (default = "Yeni grup oluştur" — the text Windows
+shows — plus `DefaultIcon`). Off: both trees are deleted. It writes only when something differs
+(e.g. the exe moved) and then sends `SHChangeNotify(SHCNE_ASSOCCHANGED)` so Explorer rebuilds its
+New menu. The entry appears in Explorer's and Windows 11's Yeni ▸ menu and in Windows' classic
+menu. The command creates a virtual group; it does not create a .fegroup file.
 
-* **Empty desktop:** command bar Yapıştır (only with files on the clipboard); Görünüm ▸ (Büyük /
-  Orta boyutlu / Küçük simgeler = `grid.iconScale` 2 / 1 / 0.67, checked only at that size (a
-  Ctrl+wheel size in between checks none), Simgeleri otomatik düzenle,
-  Simgeleri kılavuza hizala (always on), Masaüstü simgelerini göster = `behavior.showIcons`),
-  Sıralama ölçütü ▸ (Ad, Boyut, Öğe türü, Değiştirme tarihi; that monitor), Yenile, Simgeleri
-  düzenle (ours: the icon edit mode, `editicons`; also in the command palette), Yeni ▸ (Windows'
-  own list with its icons, plus our Grup), Görüntü ayarları, Kişiselleştir, Terminalde Aç (when
-  Windows Terminal is installed), Daha fazla seçenek göster. New items land in the right-clicked
-  cell and start being renamed.
-* **Our icons** (file, folder, shortcut, system icon, several at once): command bar Kes, Kopyala,
-  Yeniden adlandır (one item), Paylaş (files only), Sil; then Aç, Birlikte aç ▸ (Windows' apps for
-  the type + "Başka bir uygulama seçin"), Yeni sekmede / pencerede aç, Hızlı erişime / Başlangıç'a
-  sabitle, Yönetici olarak çalıştır, Dosya konumunu aç, Sık Kullanılanlara ekle, Şuna sıkıştır ▸
-  (ZIP / 7z / TAR), Yol olarak kopyala, Özellikler, Terminalde Aç, Geri Dönüşüm Kutusu'nu Boşalt —
-  each only where Windows shows it. Rename and Delete are done by the UI so they can be undone.
-* **"Daha fazla seçenek göster"** opens Windows' own classic menu (`classic_menu`): every shell
-  extension (WinRAR, Git, Notepad++…), Telefonuma Gönder, Şununla paylaş ▸. It is built while our
-  menu is on screen, so it opens at once. Entries of other apps are only there, not in our menu.
-* **A group** (virtual folder): its settings window (name, colour, look, "Grubu dağıt",
-  "İçindekilerle birlikte sil"). Ctrl+E opens the same window for the selected icon. A fence: the
-  same window from its title bar / empty body (right-click) or its edit button; its children have
-  their normal item menus.
-* **A heading / divider** (`headingMenu`, target `"items"` with the `h:` id and no paths; entry ids
-  `heading:*`): command bar Düzenle, Sil; Düzenle (F2), Hizala ▸ Sol / Orta, Biçim ▸ Başlık / Ayraç,
-  Altı çizili (titles), Sil.
-* **Yeni ▸** also has Kutu (Fences), Başlık, Ayraç (`newfence`, `newheading`, `newdivider`; the
-  command palette has them too: Yeni kutu / başlık / ayraç, placed on the primary monitor's page).
-* Keyboard on the desktop: Shift+F10 / menu key, Alt+Enter (Özellikler), Ctrl+C / X / V,
-  Ctrl+Shift+C (Yol olarak kopyala), F2, Delete, F5, arrows / Home / End / PageUp / PageDown (see
-  *Input*).
+## Context menus
+* **Empty desktop:** Explorer owns the actual default Windows menu, reached through
+  `desktop_context_menu` / `desktop_window::show_context_menu`. Selection in the hidden Windows
+  icon view is cleared first so an unrelated selected file cannot supply the menu. Coordinates
+  are physical screen pixels (including negative monitor coordinates). The app does not change
+  Explorer's icon positions or make its hidden icon list visible to open the background menu.
+* **Desktop files/folders/shortcuts/system icons:** `item_context_menu` calls
+  `explorer_menu::show_items`. It selects every requested parsing name in Explorer's desktop
+  view and lets Explorer open its default menu, including the modern Windows 11 menu with
+  **Show more options**. It never directly invokes the classic-menu route.
+  Explorer requires its icon list visible and the clicked item under the requested screen
+  point: while creating the menu, the list window is temporarily transparent and shifted;
+  no individual icon positions are changed. A guard restores visibility, style, alpha and the
+  window's original position once the menu appears (or on error). Saved scalar HWND properties
+  also let the existing quit/panic/watchdog restoration recover after abrupt termination.
+  The app's hide guard ignores this brief staging interval. A bounded menu observer hands native
+  inline rename back to the app's visible editor and restores keyboard focus when appropriate;
+  it stops when the menu closes or another menu supersedes it.
+* **Live-folder entries:** `classic_menu` uses IContextMenu/TrackPopupMenuEx, because these items
+  are not in Explorer's desktop view. The existing rename/delete undo handlers remain.* **New group:** Windows' New submenu has **Yeni grup oluştur**, registered by `shell_new.rs`
+  in release builds when `behavior.newMenuEntry` is enabled. It runs `--new-group`, which signals
+  the running app or launches it, waits for desktop initialization, and creates/edits a virtual
+  group. The same entry works from Explorer; no physical .fegroup file is created.
+* **Virtual groups/fences:** their existing settings dialog; they have no underlying Shell item.
+* **Headings/dividers:** `native_menu` renders Edit, Align, Style, Underline and Delete using
+  Win32 menus, with the current radio/check states; it never includes desktop Shell entries.
+* Custom creation commands (smart/live/frequent group, fence, heading, divider) and icon edit
+  mode remain in the command palette and existing controls. The native desktop menu's View/Sort
+  commands belong to Explorer's icon view; app icon layout remains controlled by app settings,
+  Ctrl+wheel, keyboard shortcuts and the command palette.
+* `--item-menu-test <paths...>` verifies modern/classic menu identity and that both the view window and icon positions are restored, then dismisses the test menu.
+* Shift+F10 / menu key invokes the same native path as right-click. Existing keyboard actions
+  (Alt+Enter, Ctrl+C/X/V, F2, Delete, F5) remain available.

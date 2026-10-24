@@ -5,9 +5,7 @@
   "windows": [
     "desktop",
     "search",
-    "settings",
-    "menu",
-    "menusub"
+    "settings"
   ],
   "permissions": [
     "core:default",

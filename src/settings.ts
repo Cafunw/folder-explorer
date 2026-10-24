@@ -80,6 +80,7 @@ export const DEFAULT_SETTINGS: Settings = {
     ctrlWheelZoom: true,
     quickLook: true,
     dropOnApp: true,
+    newMenuEntry: true,
   },
 };
 
@@ -269,6 +270,7 @@ export function normalizeSettings(raw: unknown): Settings {
       ctrlWheelZoom: bool(be.ctrlWheelZoom, d.behavior.ctrlWheelZoom),
       quickLook: bool(be.quickLook, d.behavior.quickLook),
       dropOnApp: bool(be.dropOnApp, d.behavior.dropOnApp),
+      newMenuEntry: bool(be.newMenuEntry, d.behavior.newMenuEntry),
     },
   };
 }

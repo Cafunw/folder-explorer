@@ -23,8 +23,6 @@ const load: () => Promise<ComponentType> =
     ? () => import("./search/SearchView").then((m) => m.SearchView)
     : view === "settings"
       ? () => import("./settings/SettingsView").then((m) => m.SettingsView)
-      : view === "menu" || view === "menusub"
-        ? () => import("./menu/MenuView").then((m) => m.MenuView)
-        : () => import("./desktop/DesktopView").then((m) => m.DesktopView);
+      : () => import("./desktop/DesktopView").then((m) => m.DesktopView);
 
 load().then((View) => createRoot(document.getElementById("root")!).render(<View />));

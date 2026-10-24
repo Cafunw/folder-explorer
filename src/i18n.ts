@@ -564,6 +564,8 @@ export const t = {
   quickLookSettingDesc: "Seçili öğeyi Boşluk tuşu önizler; ← → ile sonrakine geçilir",
   dropOnApp: "Uygulamaya bırakınca aç",
   dropOnAppDesc: "Bir dosyayı uygulama simgesine bırakmak onu o uygulamayla açar (Shift: grup yapar)",
+  newMenuEntry: "Windows'un Yeni menüsünde",
+  newMenuEntryDesc: "Windows masaüstünde veya Dosya Gezgini'nde sağ tık ▸ Yeni ▸ Yeni grup oluştur. Kayıt defterine yazar; kapatınca silinir",
 
   hSearchSources: "Kaynaklar",
   srcCalculator: "Hesap makinesi",

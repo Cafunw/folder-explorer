@@ -6,6 +6,7 @@ mod ctxmenu;
 mod desktop_window;
 mod diag;
 mod env;
+mod explorer_menu;
 mod hello;
 mod icons;
 mod items;
@@ -14,6 +15,7 @@ mod live;
 mod quiet;
 mod selftest;
 mod shell;
+mod shell_new;
 mod startup;
 mod store;
 mod util;
@@ -61,6 +63,12 @@ pub fn quit_running() {
     desktop_window::quit_running_instance();
 }
 
+/// `folder-explorer.exe --new-group` (Windows' Yeni ▸ Folder Explorer grubu): hand over to the
+/// running desktop. False when it is not running (then the app starts and makes the group itself).
+pub fn new_group() -> bool {
+    desktop_window::post_new_group()
+}
+
 /// `folder-explorer.exe --selftest [outdir]` / `--fileops-test <dir>`: diagnostics without Tauri.
 pub fn selftest(args: &[String]) {
     selftest::run(args);
@@ -75,7 +83,9 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            if !args.iter().any(|a| a == "--autostart") {
+            if args.iter().any(|a| a == "--new-group") {
+                windows_mgr::new_group(app);
+            } else if !args.iter().any(|a| a == "--autostart") {
                 let _ = windows_mgr::open_settings(app);
             }
         }))
@@ -95,10 +105,9 @@ pub fn run() {
             commands::list_desktop_items,
             commands::get_windows_layout,
             commands::open_item,
-            commands::open_menu,
-            commands::place_menu,
-            commands::take_menu_request,
-            commands::hide_menu,
+            commands::desktop_context_menu,
+            commands::item_context_menu,
+            commands::native_menu,
             commands::classic_menu,
             commands::shell_verb,
             commands::new_item,
@@ -151,6 +160,7 @@ pub fn run() {
             commands::open_settings_window,
             commands::show_search,
             commands::take_search_initial,
+            commands::take_launch_new_group,
             commands::hide_search,
             commands::reveal_search,
             commands::raise_desktop,
@@ -158,11 +168,6 @@ pub fn run() {
             commands::quit_app,
         ])
         .on_window_event(|window, event| {
-            if let WindowEvent::Focused(true) = event {
-                if window.label() == windows_mgr::MENU_SUB {
-                    windows_mgr::menu_sub_focused(window.app_handle());
-                }
-            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "desktop" {
                     api.prevent_close();
@@ -181,8 +186,11 @@ pub fn run() {
             let handle = app.handle().clone();
             util::set_app(handle.clone());
             store::init();
-            // Remove what earlier versions wrote into Windows (New-menu entry, Run value).
+            // Remove what earlier versions wrote into Windows (Run value).
             legacy::clean_up();
+            if std::env::args().any(|a| a == "--new-group") {
+                windows_mgr::set_launch_new_group();
+            }
             // Must happen before the Windows icons are hidden.
             desktop_window::init_windows_layout();
             desktop_window::create(&handle)?;
@@ -190,7 +198,6 @@ pub fn run() {
             wallpaper::start_watch();
             let _ = wallpaper::get_wallpapers();
             windows_mgr::setup_tray(&handle)?;
-            windows_mgr::prepare_menu(&handle);
             let settings = store::settings();
             windows_mgr::apply_settings(&handle, &settings);
             Ok(())
