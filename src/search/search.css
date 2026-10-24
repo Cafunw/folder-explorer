@@ -88,6 +88,22 @@
   color: #fff;
 }
 
+.search-glyph {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+
+.search-row[data-kind="calc"] .search-name {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .search-text {
   display: flex;
   flex-direction: column;

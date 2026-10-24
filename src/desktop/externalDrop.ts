@@ -4,21 +4,42 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api, isTauri } from "../api";
 import { t } from "../i18n";
 import { cellAt, cellKey, gridAt, iconBox } from "../layout/grid";
-import { clone, isFolderId, mergeIntoNewFolder, moveIntoFolder, moveToCell, occupancy } from "../layout/model";
+import { isFence } from "../layout/blocks";
+import { clone, isFolderId, isHeadingId, mergeIntoNewFolder, moveIntoFolder, moveToCell, occupancy, removeIds } from "../layout/model";
 import type { Placement } from "../types";
 import { currentPanelFolder } from "./actions";
 import { RECYCLE_ID, useDrag, type DropTarget } from "./dnd";
+import { dropEffect } from "./input";
+import { dropKindOf, dropOnApp, heldKeys, realDirOf, refreshHeldKeys, warmDropKinds } from "./interaction";
 import { panelGrid } from "./registry";
-import { commit, expectItemAt, refreshItems, replaceLayout, toast, useDesk } from "./store";
+import {
+  baseName,
+  commit,
+  dirName,
+  expectItemAt,
+  recordFileOpOnly,
+  refreshItems,
+  replaceLayout,
+  toast,
+  undo,
+  useDesk,
+  type FileOp,
+} from "./store";
 
 const desk = () => useDesk.getState();
 
-function targetAt(x: number, y: number): DropTarget {
+type Keys = { ctrl: boolean; shift: boolean };
+
+function targetAt(x: number, y: number, keys: Keys = heldKeys()): DropTarget {
   const st = desk();
   if (st.panel && panelGrid.panelEl) {
     const r = panelGrid.panelEl.getBoundingClientRect();
     if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
-      const f = currentPanelFolder();
+      for (const tab of panelGrid.tabs.values()) {
+        const tr = tab.el.getBoundingClientRect();
+        if (x >= tr.left && x <= tr.right && y >= tr.top && y <= tr.bottom) return { kind: "into", folderId: tab.folderId };
+      }
+      const f = panelGrid.folderId ?? currentPanelFolder();
       return f ? { kind: "into", folderId: f } : null;
     }
     return null;
@@ -32,14 +53,44 @@ function targetAt(x: number, y: number): DropTarget {
   const occ = occupancy(st.layout).get(cellKey(g.monitorId, page, c, r));
   const placement: Placement = { m: g.monitorId, p: page, c, r };
   if (!occ) return { kind: "cell", placement, displaced: null };
+  // a fence takes the files like a group (all its cells); a heading's cells give the nearest free one
+  if (isFence(st.layout, occ)) return { kind: "into", folderId: occ };
+  if (isHeadingId(occ)) return { kind: "cell", placement, displaced: null };
   const box = iconBox(g, c, r);
   const pad = g.iconSize * 0.2;
   const inCenter = lx >= box.x - pad && lx <= box.x + box.w + pad && ly >= box.y - pad && ly <= box.y + box.h + pad;
   if (!inCenter) return { kind: "cell", placement, displaced: null };
   if (isFolderId(occ)) return { kind: "into", folderId: occ };
   if (occ === RECYCLE_ID) return { kind: "recycle", id: occ };
-  if (st.itemMap.get(occ)?.kind === "folder") return { kind: "real", id: occ };
+  // a folder (or a shortcut to one) takes the files; an app opens them (Shift: a group, as before)
+  const file = dropKindOf(occ);
+  if (file?.kind === "dir") return { kind: "real", id: occ };
+  if (file?.kind === "app" && st.settings.behavior.dropOnApp && !keys.shift) return { kind: "app", id: occ };
   return { kind: "merge", id: occ };
+}
+
+/**
+ * Files from another app dropped into a real folder (a folder icon, a live group's folder): like
+ * Explorer, the same volume moves and another copies, Ctrl copies, Shift moves. Moves can be undone.
+ */
+async function dropIntoDir(paths: string[], dir: string, keys: Keys) {
+  const d = dir.replace(/[\\/]+$/, "");
+  const key = d.toLowerCase();
+  // files already there and the folder itself stay where they are
+  const src = paths.filter((p) => dirName(p).toLowerCase() !== key && p.replace(/[\\/]+$/, "").toLowerCase() !== key);
+  if (!src.length) return;
+  const copy = src.filter((p) => dropEffect(p, d, keys) === "copy");
+  const move = src.filter((p) => !copy.includes(p));
+  if (copy.length) await api.copyIntoFolder(copy, d);
+  if (move.length) {
+    await api.moveIntoFolder(move, d);
+    const op: FileOp = { kind: "move", moves: move.map((p) => ({ from: p, to: `${d}\\${baseName(p, true)}` })) };
+    // icons of our desktop that went with it leave the layout in the same undo step
+    const gone = move.map((p) => p.toLowerCase()).filter((id) => desk().itemMap.has(id));
+    if (gone.length) commit(removeIds(desk().layout, gone), op);
+    else recordFileOpOnly(op);
+  }
+  toast(move.length ? t.moved : t.copied, move.length ? { label: t.undo, run: () => void undo() } : undefined);
 }
 
 function toCss(pos: { x: number; y: number }) {
@@ -49,7 +100,7 @@ function toCss(pos: { x: number; y: number }) {
 
 const drive = (p: string) => p.slice(0, 2).toLowerCase();
 
-async function handleDrop(paths: string[], target: DropTarget) {
+async function handleDrop(paths: string[], target: DropTarget, keys: Keys) {
   const st = desk();
   if (!target || !st.env || paths.length === 0) return;
   try {
@@ -59,11 +110,27 @@ async function handleDrop(paths: string[], target: DropTarget) {
       return;
     }
     if (target.kind === "real") {
-      const dir = st.itemMap.get(target.id)?.path;
-      if (dir) {
-        await api.moveIntoFolder(paths, dir);
-        toast(t.moved);
+      const dir = realDirOf(target.id);
+      if (dir) await dropIntoDir(paths, dir, keys);
+      return;
+    }
+    if (target.kind === "app") {
+      const self = st.itemMap.get(target.id)?.path.toLowerCase();
+      await dropOnApp(target.id, paths.filter((p) => p.toLowerCase() !== self));
+      return;
+    }
+    const group = target.kind === "into" ? st.layout.folders[target.folderId] : undefined;
+    if (group?.kind === "frequent") {
+      toast(t.grp.frequentNoDrop);
+      return;
+    }
+    if (group?.kind === "live") {
+      // like a real folder: the files go into the live group's folder (not the ones already there)
+      if (!group.source) {
+        toast(t.grp.liveNoSource);
+        return;
       }
+      await dropIntoDir(paths, group.source, keys);
       return;
     }
 
@@ -133,12 +200,20 @@ export async function setupExternalDrop(): Promise<() => void> {
       return;
     }
     const { x, y } = toCss(p.position);
-    const target = targetAt(x, y);
     if (p.type === "drop") {
       useDrag.setState({ external: null });
-      handleDrop(p.paths, target);
-    } else {
-      useDrag.setState({ external: target });
+      // the event carries no modifier keys: ask for them (Ctrl copies / Shift moves, Shift on an app = group)
+      const paths = p.paths;
+      api
+        .keyState()
+        .catch(() => heldKeys())
+        .then((keys) => handleDrop(paths, targetAt(x, y, keys), keys));
+      return;
     }
+    if (p.type === "enter") warmDropKinds();
+    const target = targetAt(x, y);
+    // Shift turns an app target into a group: keep the key state fresh while over an app
+    if ((target?.kind === "app" || target?.kind === "merge") && dropKindOf(target.id)?.kind === "app") refreshHeldKeys();
+    useDrag.setState({ external: target });
   });
 }

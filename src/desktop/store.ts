@@ -1,19 +1,24 @@
 import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import { api } from "../api";
 import { t } from "../i18n";
 import { computeGrids, type GridMap } from "../layout/grid";
 import {
+  anchorToEdges,
   autoArrange,
   emptyLayout,
   forgetHomes,
   importWindowsLayout,
   isFolderId,
+  isHeadingId,
   normalizeLayout,
   reconcile,
   remapIds,
 } from "../layout/model";
+import { collectSmart, newItemIds, recordOpen as countOpen, smartChanged } from "../layout/smart";
 import { applyTheme, DEFAULT_SETTINGS, normalizeSettings } from "../settings";
-import type { DesktopItem, Environment, Layout, Placement, Settings, WallpaperInfo } from "../types";
+import type { DesktopItem, Environment, Layout, Placement, Quiet, Settings, WallpaperInfo } from "../types";
+import { playSound } from "./sounds";
 
 // ---------------------------------------------------------------- types
 
@@ -34,6 +39,8 @@ export type PanelState = {
   stack: string[]; // folder ids, top-level first
   monitorId: string;
   origin: { x: number; y: number; w: number; h: number } | null; // window coords of the folder tile
+  /** the tile the panel grows from when it is not stack[0]'s (a group inside a fence) */
+  from?: string;
   editTitle: boolean;
   dir: 1 | -1;
   openedAt: number;
@@ -41,8 +48,10 @@ export type PanelState = {
 
 export type DialogState =
   | { kind: "addApp"; placement: Placement | null }
-  | { kind: "customize"; id: string }
+  | { kind: "customize"; id: string; focus?: "rule" | "source" }
   | { kind: "confirmDeleteFolder"; folderIds: string[]; files: string[] }
+  | { kind: "quicklook"; id: string }
+  | { kind: "unlock"; id: string } // a locked group asks for Windows Hello / its PIN (locks.ts)
   | null;
 
 export type RenameState = { id: string; where: "desktop" | "panel" } | null;
@@ -65,6 +74,7 @@ type DeskState = {
   rename: RenameState;
   toasts: Toast[];
   raised: boolean;
+  quiet: Quiet; // game / battery mode (Rust `quiet-changed`)
   iconBust: number;
   canUndo: boolean;
   canRedo: boolean;
@@ -86,6 +96,7 @@ export const useDesk = create<DeskState>(() => ({
   rename: null,
   toasts: [],
   raised: false,
+  quiet: { game: false, battery: false, covered: [] },
   iconBust: 0,
   canUndo: false,
   canRedo: false,
@@ -112,18 +123,18 @@ export function saveSettings(next: Settings) {
 // ---------------------------------------------------------------- pending placements for new items
 
 const pending = new Map<string, { pl: Placement; until: number }>();
-let newItemHook: { placement: Placement | null; until: number } | null = null;
+let newItemHook: { placement: Placement | null; rename: boolean; until: number } | null = null;
 
 export function expectItemAt(id: string, pl: Placement) {
   pending.set(id, { pl, until: Date.now() + 20000 });
 }
 
 /**
- * The user right-clicked the empty desktop at `placement` (Windows' own menu opened there): whatever
- * brand-new item appears next (New ▸ Folder, Paste…) lands near that spot.
+ * Something on the desktop menu is about to create items (New ▸, Paste, Compress): whatever brand-new
+ * items appear next land near `placement`; with `rename`, a single new item starts being renamed.
  */
-export function expectNewItem(placement: Placement | null) {
-  newItemHook = { placement, until: Date.now() + 20000 };
+export function expectNewItem(placement: Placement | null, rename = false) {
+  newItemHook = { placement, rename, until: Date.now() + 20000 };
 }
 
 function pendingMap(): Map<string, Placement> {
@@ -150,6 +161,9 @@ function syncHistoryFlags() {
 export function commit(next: Layout, fileOp?: FileOp, priority?: Set<string>) {
   const { layout: before, settings, grids } = get();
   let after = next;
+  // a new smart group / changed rule collects the matching loose items in the same undo step
+  const smart = smartChanged(before, after);
+  if (smart.length) after = collectSmart(after, get().items, Date.now(), { groups: smart });
   if (settings.grid.autoArrange) after = autoArrange(after, grids, priority);
   if (after === before) return;
   after = forgetHomes(before, after);
@@ -166,6 +180,15 @@ export function replaceLayout(next: Layout) {
   if (next === get().layout) return;
   set({ layout: next });
   scheduleSave();
+}
+
+/** Open counts aren't undoable: history entries take the current ones. */
+const withUsage = (l: Layout): Layout => ({ ...l, usage: get().layout.usage });
+
+/** An item was opened (here or from the search window): counts for frequent groups, no undo entry. */
+export function recordOpen(id: string) {
+  const l = get().layout;
+  replaceLayout(countOpen(l, id));
 }
 
 export function recordFileOpOnly(fileOp: FileOp) {
@@ -201,7 +224,7 @@ export async function undo() {
   historyBusy = true;
   try {
     if (e.fileOp) await revert(e.fileOp);
-    set({ layout: e.before });
+    set({ layout: withUsage(e.before) });
     redoStack.push(e);
     await refreshItems();
     scheduleSave();
@@ -222,7 +245,7 @@ export async function redo() {
   historyBusy = true;
   try {
     if (e.fileOp) await reapply(e.fileOp);
-    set({ layout: e.after });
+    set({ layout: withUsage(e.after) });
     undoStack.push(e);
     await refreshItems();
     scheduleSave();
@@ -269,19 +292,31 @@ function applyItems(renames: { from: string; to: string }[] = []) {
   let layout = get().layout;
   if (renames.length) layout = remapIds(layout, new Map(renames.map((r) => [r.from, r.to])));
 
-  // brand-new items from Windows' own New menu land where the user right-clicked
+  // brand-new items from the New menu / Paste land where the user right-clicked
+  let renameId: string | null = null;
   if (newItemHook && newItemHook.until > Date.now() && prevMap.size > 0) {
     const fresh = items.filter((i) => !prevMap.has(i.id) && !layout.remembered[i.id] && !pending.has(i.id));
     if (fresh.length > 0) {
       if (newItemHook.placement) for (const it of fresh) expectItemAt(it.id, newItemHook.placement);
+      if (newItemHook.rename && fresh.length === 1) renameId = fresh[0].id;
       newItemHook = null;
     }
   }
 
-  if (Object.keys(grids).length) layout = reconcile(layout, items, grids, pendingMap());
-  const sel = new Set([...get().selection].filter((id) => itemMap.has(id) || isFolderId(id)));
+  if (Object.keys(grids).length) {
+    const pend = pendingMap();
+    // items that just appeared go into matching smart groups, unless the user put them somewhere
+    const fresh = newItemIds(layout, items);
+    for (const id of pend.keys()) fresh.delete(id);
+    layout = reconcile(layout, items, grids, pend);
+    if (fresh.size) layout = collectSmart(layout, items, Date.now(), { only: fresh });
+  }
+  const sel = new Set([...get().selection].filter((id) => itemMap.has(id) || isFolderId(id) || isHeadingId(id)));
   set({ items, itemMap, selection: sel });
   replaceLayout(get().settings.grid.autoArrange ? autoArrange(layout, grids) : layout);
+  if (renameId && get().layout.placements[renameId] && !get().panel) {
+    set({ rename: { id: renameId, where: "desktop" }, selection: new Set([renameId]) });
+  }
 }
 
 // ---------------------------------------------------------------- settings / environment
@@ -292,12 +327,20 @@ export function applySettings(next: Settings) {
   set({ settings: next });
   const env = get().env;
   const gridChanged =
+    prev.grid.autoSize !== next.grid.autoSize ||
     prev.grid.cellWidth !== next.grid.cellWidth ||
     prev.grid.cellHeight !== next.grid.cellHeight ||
     prev.grid.iconSize !== next.grid.iconSize ||
+    prev.grid.iconScale !== next.grid.iconScale ||
+    prev.grid.labels !== next.grid.labels ||
+    prev.grid.labelLines !== next.grid.labelLines ||
+    prev.labels.size !== next.labels.size ||
     prev.grid.autoArrange !== next.grid.autoArrange;
   if (env && gridChanged) {
-    set({ grids: computeGrids(env, next) });
+    const grids = computeGrids(env, next);
+    const anchored = anchorToEdges(get().layout, get().grids, grids);
+    set({ grids });
+    replaceLayout(anchored);
   }
   if (gridChanged || prev.behavior.showSystemIcons !== next.behavior.showSystemIcons) {
     if (get().ready) applyItems();
@@ -316,6 +359,14 @@ export async function refreshWallpapers() {
   } catch (e) {
     console.error("get_wallpapers", e);
   }
+}
+
+/** `:root[data-quiet="game" | "battery"]` (absent when not quiet; game wins) + the store field. */
+export function applyQuiet(q: Quiet) {
+  const mode = q.game ? "game" : q.battery ? "battery" : "";
+  if (mode) document.documentElement.dataset.quiet = mode;
+  else delete document.documentElement.dataset.quiet;
+  set({ quiet: q });
 }
 
 // ---------------------------------------------------------------- boot
@@ -349,12 +400,20 @@ export async function initDesktop() {
 
   applyTheme(settings);
   const grids = computeGrids(env, settings);
+  // First run, or the first start with automatic size: the Windows positions / the stored layout
+  // were made for the manual cell size (Windows' spacing on a first run), so carry them over.
+  const migrating =
+    settings.grid.autoSize && (state.settings as { grid?: { autoSize?: unknown } } | null)?.grid?.autoSize === undefined;
+  const madeFor = migrating ? computeGrids(env, { ...settings, grid: { ...settings.grid, autoSize: false } }) : grids;
   rawItems = items;
   const visible = filterItems(items, settings);
   if (wl && !layout.importedFromWindows) {
-    layout = importWindowsLayout(layout, wl, env, grids, visible);
+    layout = importWindowsLayout(layout, wl, env, madeFor, visible);
   }
+  if (madeFor !== grids) layout = anchorToEdges(layout, madeFor, grids);
+  const fresh = newItemIds(layout, visible);
   layout = reconcile(layout, visible, grids);
+  if (fresh.size) layout = collectSmart(layout, visible, Date.now(), { only: fresh });
   if (settings.grid.autoArrange) layout = autoArrange(layout, grids);
 
   set({
@@ -367,7 +426,7 @@ export async function initDesktop() {
     ready: true,
   });
   scheduleSave();
-  if (firstRun) api.saveSettings(settings).catch(() => {});
+  if (firstRun || migrating) api.saveSettings(settings).catch(() => {});
   refreshWallpapers();
 }
 
@@ -386,15 +445,33 @@ export function dirName(path: string) {
 }
 
 export function displayName(id: string): string {
-  const { layout, itemMap } = get();
-  const c = layout.custom[id]?.name;
-  if (c) return c;
-  if (isFolderId(id)) return layout.folders[id]?.name ?? "";
-  return itemMap.get(id)?.name ?? "";
+  return nameIn(get(), id);
 }
 
+/** `displayName` of a given state, for selectors: `useDesk((s) => nameIn(s, id))`. */
+export function nameIn(s: { layout: Layout; itemMap: Map<string, DesktopItem> }, id: string): string {
+  const c = s.layout.custom[id]?.name;
+  if (c) return c;
+  if (isFolderId(id)) return s.layout.folders[id]?.name ?? "";
+  return s.itemMap.get(id)?.name ?? "";
+}
+
+/** settings.animation, re-rendering only when one of its values changes (for `spring` / `tween`). */
+export const useAnimation = () => useDesk(useShallow((s) => s.settings.animation));
+
+const osReducedMotion = typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+// Windows' "Animation effects" switch: re-evaluate the selectors when it changes
+osReducedMotion?.addEventListener("change", () => set({}));
+
+/** No motion: the setting, a quiet mode (game / battery) or Windows' "Animation effects" off. */
+export const reducedMotion = (s: DeskState) =>
+  s.settings.animation.reduceMotion || s.quiet.game || s.quiet.battery || !!osReducedMotion?.matches;
+export const useReducedMotion = () => useDesk(reducedMotion);
+
 export function setPage(monitorId: string, page: number) {
-  const pages = { ...get().pages, [monitorId]: Math.max(0, page) };
+  const p = Math.max(0, page);
+  if ((get().pages[monitorId] ?? 0) !== p) playSound("page");
+  const pages = { ...get().pages, [monitorId]: p };
   set({ pages });
 }
 

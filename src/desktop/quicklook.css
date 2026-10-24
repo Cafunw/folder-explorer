@@ -1,0 +1,308 @@
+/* ------------------------------------------------------------ Quick Look */
+
+.ql-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 74;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.ql-card {
+  position: fixed;
+  z-index: 75;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--card-bg);
+  backdrop-filter: blur(40px) saturate(1.8);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  color: var(--fg);
+}
+
+:root[data-quiet] .ql-card {
+  backdrop-filter: none;
+  background: rgb(var(--glass-rgb));
+}
+
+.ql-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ql-head-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.ql-head-icon img,
+.ql-cell-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ql-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.ql-name,
+.ql-sub,
+.ql-row-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ql-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ql-sub {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.ql-btn {
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  border-radius: 8px;
+  padding: 5px 12px;
+  color: var(--fg);
+  font: inherit;
+}
+
+.ql-btn:hover {
+  background: var(--hover);
+}
+
+.ql-btn.icon {
+  padding: 5px 7px;
+  display: grid;
+  place-items: center;
+}
+
+.ql-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.ql-fill {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.ql-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.ql-center {
+  margin: auto;
+  color: var(--fg-dim);
+}
+
+.ql-more,
+.ql-count {
+  padding: 8px 12px;
+  color: var(--fg-faint);
+  font-size: 11.5px;
+  text-align: center;
+}
+
+.ql-count {
+  text-align: left;
+  padding: 4px 8px 6px;
+}
+
+.ql-textwrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ql-text {
+  flex: 1;
+  margin: 0;
+  padding: 14px 18px;
+  overflow: auto;
+  font: 12.5px/1.55 "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  tab-size: 4;
+  user-select: text;
+  -webkit-user-select: text;
+  scrollbar-width: thin;
+}
+
+.ql-list {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 10px;
+  scrollbar-width: thin;
+}
+
+.ql-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.ql-row:hover,
+.ql-cell:hover {
+  background: var(--hover);
+}
+
+.ql-row img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.ql-row-meta {
+  min-width: 72px;
+  text-align: right;
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ql-grid {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 12px 8px;
+  align-content: start;
+  scrollbar-width: thin;
+}
+
+.ql-grid .ql-more {
+  grid-column: 1 / -1;
+}
+
+.ql-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  border-radius: 10px;
+}
+
+.ql-cell-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+}
+
+.ql-cell-name {
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ql-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 26px;
+  overflow: auto;
+}
+
+.ql-thumb {
+  width: 200px;
+  height: 200px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.ql-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.25));
+}
+
+.ql-props {
+  margin: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 14px;
+  font-size: 12.5px;
+}
+
+.ql-prop {
+  display: contents;
+}
+
+.ql-props dt {
+  color: var(--fg-dim);
+  text-align: right;
+}
+
+.ql-props dd {
+  margin: 0;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ql-audio {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 20px;
+}
+
+.ql-audio img {
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+}
+
+.ql-audio audio {
+  width: 90%;
+}
+
+.ql-foot {
+  padding: 7px 14px;
+  border-top: 1px solid var(--line);
+  color: var(--fg-faint);
+  font-size: 11px;
+  text-align: center;
+}

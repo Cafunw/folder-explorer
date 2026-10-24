@@ -8,6 +8,10 @@ fn main() {
         let secs: u64 = args.get(i + 1).and_then(|s| s.parse().ok()).unwrap_or(3);
         std::thread::sleep(std::time::Duration::from_secs(secs));
     }
+    if let Some(i) = args.iter().position(|a| a == "--watchdog-launch") {
+        folder_explorer_lib::launch_watchdog(args.get(i + 1));
+        return;
+    }
     if let Some(i) = args.iter().position(|a| a == "--watchdog") {
         folder_explorer_lib::watchdog(args.get(i + 1));
         return;
@@ -25,7 +29,7 @@ fn main() {
         folder_explorer_lib::show_icons();
         return;
     }
-    if args.iter().any(|a| a == "--selftest" || a == "--fileops-test" || a == "--ztest" || a == "--restore" || a == "--store-test") {
+    if args.iter().any(|a| a == "--selftest" || a == "--fileops-test" || a == "--ztest" || a == "--restore" || a == "--store-test" || a == "--menutest") {
         folder_explorer_lib::selftest(&args);
         return;
     }

@@ -1,10 +1,7 @@
+import type { ComponentType } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 import { isTauri } from "./api";
-import { DesktopView } from "./desktop/DesktopView";
-import { MenuView } from "./menu/MenuView";
-import { SearchView } from "./search/SearchView";
-import { SettingsView } from "./settings/SettingsView";
 
 const view =
   new URLSearchParams(window.location.search).get("view") ??
@@ -20,6 +17,14 @@ window.addEventListener("contextmenu", (e) => {
   if (!t || (t.tagName !== "INPUT" && t.tagName !== "TEXTAREA")) e.preventDefault();
 });
 
-createRoot(document.getElementById("root")!).render(
-  view === "search" ? <SearchView /> : view === "settings" ? <SettingsView /> : view === "menu" ? <MenuView /> : <DesktopView />,
-);
+// Every window loads this page; each one only fetches, parses and keeps its own view's code.
+const load: () => Promise<ComponentType> =
+  view === "search"
+    ? () => import("./search/SearchView").then((m) => m.SearchView)
+    : view === "settings"
+      ? () => import("./settings/SettingsView").then((m) => m.SettingsView)
+      : view === "menu" || view === "menusub"
+        ? () => import("./menu/MenuView").then((m) => m.MenuView)
+        : () => import("./desktop/DesktopView").then((m) => m.DesktopView);
+
+load().then((View) => createRoot(document.getElementById("root")!).render(<View />));

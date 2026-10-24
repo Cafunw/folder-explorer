@@ -21,6 +21,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 notify = "8"
 png = "0.17"
+# same version as tauri's own (WebView2 suspend / memory target of hidden webviews)
+webview2-com = "0.39"
+# the async types of the windows crate (Windows Hello for locked groups)
+windows-future = "0.3"
 
 [profile.dev]
 opt-level = 1
@@ -38,6 +42,10 @@ strip = true
 [dependencies.windows]
 version = "0.62"
 features = [
+  "Foundation",
+  "Security_Credentials_UI",
+  "Win32_System_WinRT",
+  "Win32_Devices_Display",
   "Win32_Foundation",
   "Win32_Graphics_Gdi",
   "Win32_Media",
@@ -50,8 +58,11 @@ features = [
   "Win32_System_Console",
   "Win32_System_LibraryLoader",
   "Win32_System_Ole",
+  "Win32_System_Power",
   "Win32_Security",
   "Win32_System_Registry",
+  "Win32_System_Search",
+  "Win32_System_Search_Common",
   "Win32_System_SystemServices",
   "Win32_System_Threading",
   "Win32_System_Variant",

@@ -1,4 +1,5 @@
 import { motion, useTransform } from "motion/react";
+import { useShallow } from "zustand/react/shallow";
 import { isFolderId } from "../layout/model";
 import { ghost, useDrag } from "./dnd";
 import { displayName, useDesk } from "./store";
@@ -6,15 +7,22 @@ import { FolderGlyph, ItemImage } from "./Tile";
 import { ICON_TOP } from "../layout/grid";
 
 export function DragLayer() {
-  const drag = useDrag((d) => d.drag);
+  // not the whole drag: a new target re-renders the ghost only when the target's kind changes
+  const drag = useDrag(
+    useShallow((d) =>
+      d.drag ? { ids: d.drag.ids, primary: d.drag.primary, cellW: d.drag.cellW, size: d.drag.size, kind: d.drag.target?.kind } : null,
+    ),
+  );
   const marquee = useDrag((d) => d.marquee);
-  const settings = useDesk((s) => s.settings);
+  const labels = useDesk((s) => s.settings.grid.labels);
   const x = useTransform(ghost.x, (v) => v - ghost.offX);
   const y = useTransform(ghost.y, (v) => v - ghost.offY);
 
-  const cellW = settings.grid.cellWidth;
-  const size = settings.grid.iconSize;
-  const merging = drag?.target?.kind === "merge" || drag?.target?.kind === "into";
+  const cellW = drag?.cellW ?? 0;
+  const size = drag?.size ?? 0;
+  const kind = drag?.kind;
+  // the target tile shows what happens ("<App> ile aç" for an app): the ghost shrinks, no label
+  const merging = kind === "merge" || kind === "into" || kind === "app";
 
   return (
     <>
@@ -57,7 +65,7 @@ export function DragLayer() {
                 </div>
                 {drag.ids.length > 1 && <div className="drag-badge">{drag.ids.length}</div>}
               </div>
-              {settings.grid.labels && !merging && (
+              {labels && !merging && (
                 <div className="tile-label" style={{ WebkitLineClamp: 2, opacity: 0.95 }}>
                   {displayName(drag.primary)}
                 </div>
@@ -73,7 +81,7 @@ export function DragLayer() {
 function GhostImage({ id, size }: { id: string; size: number }) {
   return (
     <div style={{ width: size, height: size, display: "grid", placeItems: "center" }} className="tile-icon">
-      {isFolderId(id) ? <FolderGlyph folderId={id} size={size} /> : <ItemImage id={id} size={size} />}
+      {isFolderId(id) ? <FolderGlyph folderId={id} size={size} /> : <ItemImage id={id} size={size} plate />}
     </div>
   );
 }

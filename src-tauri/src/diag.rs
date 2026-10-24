@@ -4,6 +4,17 @@
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// `diag!(...)`: like `format!`, logged in debug builds only. In release builds the arguments are
+/// never evaluated (the branch is a constant `false`), so hot paths pay nothing.
+#[macro_export]
+macro_rules! diag {
+    ($($arg:tt)*) => {
+        if cfg!(debug_assertions) {
+            $crate::diag::log(&format!($($arg)*));
+        }
+    };
+}
+
 pub fn log(msg: &str) {
     if !cfg!(debug_assertions) {
         return;

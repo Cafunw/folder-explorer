@@ -1,34 +1,32 @@
-//! Shell operations: open, context menus, "New" menu, file operations, recycle bin,
-//! OLE drag-out, Start-menu apps and shortcut creation.
+//! Shell operations: open, clipboard, file operations, recycle bin, OLE drag-out, Start-menu apps
+//! and shortcut creation. The right-click menus are in `ctxmenu.rs`.
 
-use std::cell::RefCell;
 use std::collections::HashSet;
 use std::ffi::c_void;
 use std::path::Path;
 
 use serde::Serialize;
-use windows::core::{w, Interface, GUID, HSTRING, PCSTR, PCWSTR, PSTR};
-use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, PROPERTYKEY, SIZE, WPARAM};
+use windows::core::{w, Interface, GUID, HSTRING, PCSTR, PCWSTR};
+use windows::Win32::Foundation::{COLORREF, HWND, POINT, PROPERTYKEY, SIZE};
 use windows::Win32::Graphics::Gdi::{DeleteObject, GetObjectW, BITMAP, HGDIOBJ};
 use windows::Win32::System::Com::{CoCreateInstance, IDataObject, IPersistFile, CLSCTX_ALL, CLSCTX_INPROC_SERVER};
-use windows::Win32::System::Ole::{DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE};
+use windows::Win32::System::Ole::{DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_SHIFT};
 use windows::Win32::UI::Shell::Common::ITEMIDLIST;
 use windows::Win32::UI::Shell::{
-    FileOperation, IContextMenu, IContextMenu2, IContextMenu3, IDragSourceHelper, IEnumShellItems,
+    FileOperation, IContextMenu, IDragSourceHelper, IEnumShellItems,
     IFileOperation, IShellFolder, IShellItem, IShellItem2, IShellLinkW, ILFindLastID, ILFree,
     SHBindToParent, SHCreateItemFromParsingName, SHCreateShellItemArrayFromIDLists, SHDoDragDrop,
     SHGetKnownFolderItem, SHParseDisplayName, ShellExecuteExW, ShellLink, BHID_DataObject, BHID_EnumItems,
-    BHID_SFUIObject, CMF_CANRENAME, CMF_EXTENDEDVERBS, CMF_NORMAL, CMINVOKECOMMANDINFO,
+    BHID_SFUIObject, CMF_NORMAL, CMINVOKECOMMANDINFO,
     CMINVOKECOMMANDINFOEX, CMIC_MASK_PTINVOKE, FOFX_RECYCLEONDELETE, FOF_ALLOWUNDO, FOF_NOCONFIRMMKDIR,
-    FOF_RENAMEONCOLLISION, FOLDERID_AppsFolder, FOLDERID_RecycleBinFolder, GCS_VERBW, KF_FLAG_DEFAULT,
+    FOF_RENAMEONCOLLISION, FOLDERID_AppsFolder, FOLDERID_RecycleBinFolder, KF_FLAG_DEFAULT,
     SEE_MASK_NOASYNC, SHDRAGIMAGE, SHELLEXECUTEINFOW, SIGDN_NORMALDISPLAY, SIGDN_PARENTRELATIVEEDITING,
     SIGDN_PARENTRELATIVEPARSING,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AllowSetForegroundWindow, CreatePopupMenu, DestroyMenu, GetAncestor, GetCursorPos,
-    SetForegroundWindow, TrackPopupMenuEx, WindowFromPoint, ASFW_ANY, GA_ROOT, HMENU, SW_SHOWNORMAL,
-    TPM_RETURNCMD, TPM_RIGHTBUTTON, WM_MENUCHAR,
+    AllowSetForegroundWindow, CreatePopupMenu, DestroyMenu, GetAncestor, GetCursorPos, WindowFromPoint, ASFW_ANY,
+    GA_ROOT, SW_SHOWNORMAL,
 };
 
 use crate::{desktop_window, icons, items, util};
@@ -43,35 +41,8 @@ const PKEY_DELETED_FROM: PROPERTYKEY =
 const PKEY_DATE_DELETED: PROPERTYKEY =
     PROPERTYKEY { fmtid: GUID::from_u128(0x9b174b33_40ff_11d2_a27e_00c04fc30871), pid: 3 };
 
-thread_local! {
-    /// Context menu currently tracked on this (the UI) thread; owner-drawn / lazily built
-    /// submenus need WM_INITMENUPOPUP etc. forwarded to it.
-    static ACTIVE_MENU: RefCell<Option<IContextMenu>> = const { RefCell::new(None) };
-}
-
-/// Called from the desktop window subclass for menu messages.
-pub fn forward_menu_msg(msg: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
-    let cm = ACTIVE_MENU.with(|m| m.borrow().clone())?;
-    unsafe {
-        if let Ok(cm3) = cm.cast::<IContextMenu3>() {
-            let mut res = LRESULT(0);
-            if cm3.HandleMenuMsg2(msg, wparam, lparam, Some(&mut res)).is_ok() {
-                return Some(res);
-            }
-        }
-        if msg != WM_MENUCHAR {
-            if let Ok(cm2) = cm.cast::<IContextMenu2>() {
-                if cm2.HandleMenuMsg(msg, wparam, lparam).is_ok() {
-                    return Some(LRESULT(0));
-                }
-            }
-        }
-    }
-    None
-}
-
 /// Owned absolute PIDL.
-struct Pidl(*mut ITEMIDLIST);
+pub(crate) struct Pidl(pub(crate) *mut ITEMIDLIST);
 
 impl Drop for Pidl {
     fn drop(&mut self) {
@@ -92,7 +63,7 @@ pub fn fs_norm(path: &str) -> String {
     }
 }
 
-fn parse_pidl(path: &str) -> Result<Pidl, String> {
+pub(crate) fn parse_pidl(path: &str) -> Result<Pidl, String> {
     let path = &fs_norm(path);
     let mut p: *mut ITEMIDLIST = std::ptr::null_mut();
     unsafe {
@@ -101,7 +72,7 @@ fn parse_pidl(path: &str) -> Result<Pidl, String> {
     Ok(Pidl(p))
 }
 
-fn parent_key(path: &str) -> String {
+pub(crate) fn parent_key(path: &str) -> String {
     if path.starts_with("::") {
         "::desktop".into()
     } else {
@@ -119,18 +90,6 @@ fn modifier_mask() -> u32 {
             m |= CMIC_MASK_CONTROL_DOWN;
         }
         m
-    }
-}
-
-unsafe fn command_verb(cm: &IContextMenu, id: usize) -> Option<String> {
-    let mut buf = [0u16; 260];
-    cm.GetCommandString(id, GCS_VERBW, None, PSTR(buf.as_mut_ptr() as *mut u8), buf.len() as u32)
-        .ok()?;
-    let s = util::wide_to_string(&buf);
-    if s.is_empty() {
-        None
-    } else {
-        Some(s)
     }
 }
 
@@ -157,90 +116,179 @@ unsafe fn invoke_verb(cm: &IContextMenu, verb_a: &'static [u8], verb_w: PCWSTR, 
     cm.InvokeCommand(&info as *const _ as *const CMINVOKECOMMANDINFO).map_err(|e| e.message())
 }
 
-/// Tracks `menu` at the cursor with `cm` as the active handler. Returns the 0-based command id.
-pub(crate) unsafe fn track(cm: &IContextMenu, menu: HMENU, hwnd: HWND, at: Option<POINT>) -> (Option<usize>, POINT) {
-    let mut pt = POINT::default();
-    match at {
-        Some(p) => pt = p,
-        None => {
-            let _ = GetCursorPos(&mut pt);
-        }
-    }
-    ACTIVE_MENU.with(|m| *m.borrow_mut() = Some(cm.clone()));
-    let _ = SetForegroundWindow(hwnd);
-    let cmd = TrackPopupMenuEx(menu, (TPM_RETURNCMD | TPM_RIGHTBUTTON).0, pt.x, pt.y, hwnd, None).0;
-    ACTIVE_MENU.with(|m| *m.borrow_mut() = None);
-    if cmd > 0 {
-        (Some((cmd - 1) as usize), pt)
-    } else {
-        (None, pt)
-    }
-}
-
 // ---------------------------------------------------------------------------
 
-pub fn open_item(path: String) -> Result<(), String> {
+/// ShellExecuteEx of `path` (a file, folder, "::{CLSID}" system item or URI such as
+/// "ms-settings:display") with `verb` (None = the default one).
+fn execute(path: &str, verb: Option<&str>, params: Option<&str>) -> Result<(), String> {
     let hwnd_v = desktop_window::desktop_hwnd_value();
+    let (path, verb, params) = (path.to_string(), verb.map(str::to_string), params.map(str::to_string));
     util::run_sta(move || unsafe {
         let _ = AllowSetForegroundWindow(ASFW_ANY);
-        let file = if path.starts_with("::") { format!("shell:{path}") } else { path.clone() };
+        let file = if path.starts_with("::") { format!("shell:{path}") } else { fs_norm(&path) };
         let file_w = HSTRING::from(file.as_str());
-        let is_fs = !path.starts_with("::") && !path.to_lowercase().starts_with("shell:");
-        let dir = if is_fs { util::parent_dir(&path) } else { String::new() };
+        let dir = if Path::new(&path).is_absolute() { util::parent_dir(&path) } else { String::new() };
         let dir_w = HSTRING::from(dir.as_str());
+        let verb_w = verb.as_deref().map(HSTRING::from);
+        let params_w = params.as_deref().map(HSTRING::from);
         let mut sei: SHELLEXECUTEINFOW = std::mem::zeroed();
         sei.cbSize = std::mem::size_of::<SHELLEXECUTEINFOW>() as u32;
         sei.fMask = SEE_MASK_NOASYNC;
         sei.hwnd = util::hwnd_from(hwnd_v);
         sei.lpFile = PCWSTR(file_w.as_ptr());
+        sei.lpVerb = verb_w.as_ref().map(|v| PCWSTR(v.as_ptr())).unwrap_or(PCWSTR::null());
+        sei.lpParameters = params_w.as_ref().map(|v| PCWSTR(v.as_ptr())).unwrap_or(PCWSTR::null());
         sei.lpDirectory = if dir.is_empty() { PCWSTR::null() } else { PCWSTR(dir_w.as_ptr()) };
         sei.nShow = SW_SHOWNORMAL.0;
         ShellExecuteExW(&mut sei).map_err(|e| e.message())
     })?
 }
 
-/// Native item context menu. Must run on the UI thread.
-pub fn shell_menu_main(paths: Vec<String>, at: Option<POINT>) -> Result<Option<String>, String> {
-    let hwnd = desktop_window::desktop_hwnd();
+pub fn open_item(path: String) -> Result<(), String> {
+    execute(&path, None, None)
+}
+
+/// The first of `verbs` that works ("opennewtab", "opennewwindow"…), else the default verb.
+pub fn open_with_verb(path: String, verbs: Vec<String>) -> Result<(), String> {
+    for v in &verbs {
+        if execute(&path, Some(v), None).is_ok() {
+            return Ok(());
+        }
+    }
+    execute(&path, None, None)
+}
+
+/// "Terminalde Aç": Windows Terminal in `dir` (the console host when Terminal is missing).
+pub fn open_terminal(dir: String) -> Result<(), String> {
+    let quoted = format!("-d \"{}\"", dir.trim_end_matches('\\'));
+    execute("wt.exe", None, Some(&quoted)).or_else(|_| {
+        let cmd = format!("/k cd /d \"{dir}\"");
+        execute("cmd.exe", None, Some(&cmd))
+    })
+}
+
+/// Whether Windows Terminal is installed (its "Terminalde Aç" entry is shown only then).
+pub fn has_terminal() -> bool {
+    std::env::var("LOCALAPPDATA")
+        .map(|d| Path::new(&d).join("Microsoft\\WindowsApps\\wt.exe").exists())
+        .unwrap_or(false)
+}
+
+/// Windows Terminal's exe, whose icon Windows shows next to "Terminalde Aç" (the Start-menu item's
+/// logo has a transparent margin and looks too small). Found through the package repository
+/// (read-only).
+pub fn terminal_app() -> Option<String> {
+    use windows::core::PWSTR;
+    use windows::Win32::Foundation::ERROR_SUCCESS;
+    use windows::Win32::System::Registry::{
+        RegCloseKey, RegEnumKeyExW, RegGetValueW, RegOpenKeyExW, HKEY, HKEY_CURRENT_USER, KEY_READ, RRF_RT_REG_SZ,
+    };
+    const PACKAGES: PCWSTR =
+        w!("Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages");
     unsafe {
-        let pidls: Vec<(String, Pidl)> = paths
-            .iter()
-            .filter_map(|p| parse_pidl(p).ok().map(|pidl| (p.clone(), pidl)))
-            .collect();
-        let Some((first_path, first)) = pidls.first() else {
-            return Err("öğe bulunamadı".into());
-        };
-        let mut last: *mut ITEMIDLIST = std::ptr::null_mut();
-        let folder: IShellFolder = SHBindToParent(first.0, Some(&mut last)).map_err(|e| e.message())?;
-        let key = parent_key(first_path);
-        let mut children: Vec<*const ITEMIDLIST> = vec![last as *const _];
-        for (p, pidl) in pidls.iter().skip(1) {
-            if parent_key(p) == key {
-                children.push(ILFindLastID(pidl.0) as *const _);
+        let mut key = HKEY::default();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, PACKAGES, Some(0), KEY_READ, &mut key) != ERROR_SUCCESS {
+            return None;
+        }
+        let mut names = Vec::new();
+        for i in 0.. {
+            let mut name = [0u16; 256];
+            let mut len = name.len() as u32;
+            if RegEnumKeyExW(key, i, Some(PWSTR(name.as_mut_ptr())), &mut len, None, None, None, None) != ERROR_SUCCESS {
+                break;
             }
+            names.push(String::from_utf16_lossy(&name[..len as usize]));
         }
-        let cm: IContextMenu = folder.GetUIObjectOf(hwnd, &children, None).map_err(|e| e.message())?;
-        let menu = CreatePopupMenu().map_err(|e| e.message())?;
-        let mut flags = CMF_NORMAL | CMF_CANRENAME;
-        if GetKeyState(VK_SHIFT.0 as i32) < 0 {
-            flags |= CMF_EXTENDEDVERBS;
-        }
-        cm.QueryContextMenu(menu, 0, 1, 0x7FFF, flags).ok().map_err(|e| e.message())?;
-        let (cmd, pt) = track(&cm, menu, hwnd, at);
-        let result = match cmd {
-            None => Ok(None),
-            Some(id) => {
-                let verb = command_verb(&cm, id);
-                match verb.as_deref().map(|v| v.to_ascii_lowercase()) {
-                    Some(v) if v == "rename" => Ok(Some("rename".to_string())),
-                    Some(v) if v == "delete" => Ok(Some("delete".to_string())),
-                    _ => invoke_id(&cm, id, hwnd, pt).map(|_| Some(verb.unwrap_or_default())),
+        let mut found = None;
+        'families: for family in ["Microsoft.WindowsTerminal_", "Microsoft.WindowsTerminalPreview_"] {
+            // newest version last
+            for n in names.iter().rev().filter(|n| n.starts_with(family) && n.ends_with("__8wekyb3d8bbwe")) {
+                let mut buf = vec![0u16; 1024];
+                let mut size = (buf.len() * 2) as u32;
+                let rc = RegGetValueW(key, &HSTRING::from(n.as_str()), w!("PackageRootFolder"), RRF_RT_REG_SZ, None, Some(buf.as_mut_ptr() as *mut _), Some(&mut size));
+                if rc != ERROR_SUCCESS {
+                    continue;
+                }
+                let root = String::from_utf16_lossy(&buf[..size as usize / 2]);
+                let exe = Path::new(root.trim_end_matches('\0')).join("WindowsTerminal.exe");
+                if exe.exists() {
+                    found = Some(exe.to_string_lossy().into_owned());
+                    break 'families;
                 }
             }
-        };
-        let _ = DestroyMenu(menu);
-        result
+        }
+        let _ = RegCloseKey(key);
+        found
     }
+}
+
+/// Files on the clipboard (CF_HDROP) and whether they were cut.
+pub fn clipboard_paths() -> Result<(Vec<String>, bool), String> {
+    use windows::Win32::System::Com::{DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL};
+    use windows::Win32::System::DataExchange::RegisterClipboardFormatW;
+    use windows::Win32::System::Memory::{GlobalLock, GlobalUnlock};
+    use windows::Win32::System::Ole::{OleGetClipboard, OleInitialize, ReleaseStgMedium, CF_HDROP};
+    use windows::Win32::UI::Shell::{DragQueryFileW, HDROP};
+    util::run_sta(move || unsafe {
+        OleInitialize(None).map_err(|e| e.message())?;
+        let dobj = OleGetClipboard().map_err(|e| e.message())?;
+        let fmt = |cf: u16| FORMATETC {
+            cfFormat: cf,
+            ptd: std::ptr::null_mut(),
+            dwAspect: DVASPECT_CONTENT.0,
+            lindex: -1,
+            tymed: TYMED_HGLOBAL.0 as u32,
+        };
+        let mut paths = Vec::new();
+        if let Ok(mut m) = dobj.GetData(&fmt(CF_HDROP.0)) {
+            let hdrop = HDROP(m.u.hGlobal.0);
+            let n = DragQueryFileW(hdrop, u32::MAX, None);
+            for i in 0..n {
+                let len = DragQueryFileW(hdrop, i, None) as usize;
+                let mut buf = vec![0u16; len + 1];
+                DragQueryFileW(hdrop, i, Some(&mut buf));
+                paths.push(util::wide_to_string(&buf));
+            }
+            ReleaseStgMedium(&mut m);
+        }
+        let mut cut = false;
+        let effect = RegisterClipboardFormatW(w!("Preferred DropEffect"));
+        if let Ok(mut m) = dobj.GetData(&fmt(effect as u16)) {
+            let p = GlobalLock(m.u.hGlobal) as *const u32;
+            if !p.is_null() {
+                cut = (*p & DROPEFFECT_MOVE.0) != 0 && (*p & DROPEFFECT_COPY.0) == 0;
+                let _ = GlobalUnlock(m.u.hGlobal);
+            }
+            ReleaseStgMedium(&mut m);
+        }
+        Ok((paths, cut))
+    })?
+}
+
+pub fn can_paste() -> bool {
+    use windows::Win32::System::DataExchange::IsClipboardFormatAvailable;
+    use windows::Win32::System::Ole::CF_HDROP;
+    unsafe { IsClipboardFormatAvailable(CF_HDROP.0 as u32).is_ok() }
+}
+
+/// "Yapıştır" on the desktop: the clipboard's files are copied, or moved after "Kes". With
+/// `shortcuts` ("Kısayol yapıştır") shortcuts to them are created instead. Returns the new paths.
+pub fn paste(shortcuts: bool) -> Result<Vec<String>, String> {
+    let (paths, cut) = clipboard_paths()?;
+    if paths.is_empty() {
+        return Ok(vec![]);
+    }
+    if shortcuts {
+        let desktop = util::user_desktop_dir();
+        return Ok(paths
+            .iter()
+            .filter_map(|p| {
+                let name = Path::new(p).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                create_shortcut_in(desktop.clone(), p.clone(), format!("{name} - Kısayol")).ok()
+            })
+            .collect());
+    }
+    transfer(paths, if cut { Transfer::Move } else { Transfer::Copy })
 }
 
 /// Explorer's Copy / Cut: puts the files on the clipboard (cut = "Preferred DropEffect" move). This uses
@@ -555,6 +603,30 @@ pub fn move_into_folder(paths: Vec<String>, target_dir: String) -> Result<(), St
     })?
 }
 
+/// Like `move_into_folder`, but copies (a drop from another volume or with Ctrl).
+pub fn copy_into_folder(paths: Vec<String>, target_dir: String) -> Result<(), String> {
+    util::run_sta(move || unsafe {
+        let op = file_op()?;
+        op.SetOperationFlags(FOF_ALLOWUNDO | FOF_NOCONFIRMMKDIR).map_err(|e| e.message())?;
+        let dest = shell_item(&target_dir)?;
+        let target_norm = util::norm_path(&target_dir);
+        let mut any = false;
+        for p in &paths {
+            if p.starts_with("::") || util::norm_path(p) == target_norm {
+                continue;
+            }
+            let item = shell_item(p)?;
+            op.CopyItem(&item, &dest, PCWSTR::null(), None).map_err(|e| e.message())?;
+            any = true;
+        }
+        if any {
+            perform(&op)
+        } else {
+            Ok(())
+        }
+    })?
+}
+
 fn volume_of(p: &str) -> String {
     let n = p.replace('/', "\\").to_lowercase();
     if let Some(rest) = n.strip_prefix("\\\\") {
@@ -572,8 +644,24 @@ fn dir_names(dir: &str) -> HashSet<String> {
         .unwrap_or_default()
 }
 
+/// How files come onto the desktop.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Transfer {
+    /// a drop from another app: moved on the same volume, else copied (`copy` forces a copy)
+    Drop { copy: bool },
+    /// "Yapıştır" after "Kopyala": always a copy, items already on the desktop get " - Kopya"
+    Copy,
+    /// "Yapıştır" after "Kes"
+    Move,
+}
+
 /// Copies (or moves, Explorer-style on the same volume) external files onto the user desktop.
 pub fn import_dropped(paths: Vec<String>, copy: bool) -> Result<Vec<String>, String> {
+    transfer(paths, Transfer::Drop { copy })
+}
+
+/// Puts `paths` onto the user desktop. Returns the resulting paths, in order.
+pub fn transfer(paths: Vec<String>, mode: Transfer) -> Result<Vec<String>, String> {
     let desktop = util::user_desktop_dir();
     let public = util::public_desktop_dir();
     util::run_sta(move || unsafe {
@@ -585,12 +673,17 @@ pub fn import_dropped(paths: Vec<String>, copy: bool) -> Result<Vec<String>, Str
         let before = dir_names(&desktop);
         for p in &paths {
             let parent = util::parent_dir(p);
-            if util::same_dir(&parent, &desktop) || util::same_dir(&parent, &public) {
+            let on_desktop = util::same_dir(&parent, &desktop) || util::same_dir(&parent, &public);
+            if on_desktop && mode != Transfer::Copy {
                 result.push(Some(p.clone()));
                 continue;
             }
             let item = shell_item(p)?;
-            let do_copy = copy || volume_of(p) != volume_of(&desktop);
+            let do_copy = match mode {
+                Transfer::Drop { copy } => copy || volume_of(p) != volume_of(&desktop),
+                Transfer::Copy => true,
+                Transfer::Move => false,
+            };
             if do_copy {
                 op.CopyItem(&item, &dest, PCWSTR::null(), None).map_err(|e| e.message())?;
             } else {
@@ -633,13 +726,7 @@ pub fn import_dropped(paths: Vec<String>, copy: bool) -> Result<Vec<String>, Str
 pub fn drag_out_main(paths: Vec<String>) -> Result<String, String> {
     let hwnd = desktop_window::desktop_hwnd();
     unsafe {
-        let pidls: Vec<Pidl> = paths.iter().filter_map(|p| parse_pidl(p).ok()).collect();
-        if pidls.is_empty() {
-            return Err("öğe bulunamadı".into());
-        }
-        let ptrs: Vec<*const ITEMIDLIST> = pidls.iter().map(|p| p.0 as *const _).collect();
-        let array = SHCreateShellItemArrayFromIDLists(&ptrs).map_err(|e| e.message())?;
-        let data: IDataObject = array.BindToHandler(None, &BHID_DataObject).map_err(|e| e.message())?;
+        let data = files_data_object(&paths)?;
         if let Ok(helper) = CoCreateInstance::<_, IDragSourceHelper>(&CLSID_DRAG_DROP_HELPER, None, CLSCTX_INPROC_SERVER) {
             if let Ok(hbmp) = icons::shell_bitmap(&paths[0], 96) {
                 let mut bm = BITMAP::default();
@@ -663,17 +750,131 @@ pub fn drag_out_main(paths: Vec<String>) -> Result<String, String> {
             DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK,
         )
         .map_err(|e| e.message())?;
-        Ok(if effect.0 & DROPEFFECT_MOVE.0 != 0 {
-            "move"
-        } else if effect.0 & DROPEFFECT_COPY.0 != 0 {
-            "copy"
-        } else if effect.0 & DROPEFFECT_LINK.0 != 0 {
-            "link"
-        } else {
-            "none"
-        }
-        .to_string())
+        Ok(effect_name(effect))
     }
+}
+
+fn effect_name(effect: DROPEFFECT) -> String {
+    if effect.0 & DROPEFFECT_MOVE.0 != 0 {
+        "move"
+    } else if effect.0 & DROPEFFECT_COPY.0 != 0 {
+        "copy"
+    } else if effect.0 & DROPEFFECT_LINK.0 != 0 {
+        "link"
+    } else {
+        "none"
+    }
+    .to_string()
+}
+
+/// A shell data object for files (any folders; what Explorer puts into a drag).
+unsafe fn files_data_object(paths: &[String]) -> Result<IDataObject, String> {
+    let pidls: Vec<Pidl> = paths.iter().filter_map(|p| parse_pidl(p).ok()).collect();
+    if pidls.is_empty() {
+        return Err("öğe bulunamadı".into());
+    }
+    let ptrs: Vec<*const ITEMIDLIST> = pidls.iter().map(|p| p.0 as *const _).collect();
+    let array = SHCreateShellItemArrayFromIDLists(&ptrs).map_err(|e| e.message())?;
+    array.BindToHandler(None, &BHID_DataObject).map_err(|e| e.message())
+}
+
+/// Drops `paths` onto the item `target` exactly as Explorer does when files are dropped on it: an
+/// app (`.exe`, a shortcut to one) opens them, a folder takes them. The item's own drop target
+/// (`IShellFolder::GetUIObjectOf` on its parent folder, `IID_IDropTarget`) gets DragEnter /
+/// DragOver / Drop with a shell data object of the files, the left button and copy | move | link
+/// allowed. Runs on its own STA thread with OLE, which keeps pumping messages after the drop
+/// until it has been quiet for a moment (drop handlers may finish asynchronously). Returns the
+/// effect ("copy" | "move" | "link" | "none").
+pub fn drop_on_item(target: String, paths: Vec<String>) -> Result<String, String> {
+    use windows::Win32::System::Ole::{OleInitialize, OleUninitialize};
+    let owner = desktop_window::desktop_hwnd_value();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("fe-drop".into())
+        .spawn(move || {
+            let _com = util::ComApartment::sta();
+            let ole = unsafe { OleInitialize(None) }.is_ok();
+            let result = unsafe { drop_sta(&target, &paths, util::hwnd_from(owner)) };
+            let done = result.is_ok();
+            let _ = tx.send(result);
+            if done {
+                pump_until_quiet(std::time::Duration::from_millis(1500), std::time::Duration::from_secs(60));
+            }
+            if ole {
+                unsafe { OleUninitialize() };
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    rx.recv().map_err(|_| "bırakma iş parçacığı yanıt vermedi".to_string())?
+}
+
+unsafe fn drop_sta(target: &str, paths: &[String], owner: HWND) -> Result<String, String> {
+    use windows::Win32::Foundation::POINTL;
+    use windows::Win32::System::Ole::{IDropTarget, DROPEFFECT_NONE};
+    use windows::Win32::System::SystemServices::MK_LBUTTON;
+    let item = parse_pidl(target)?;
+    let mut last: *mut ITEMIDLIST = std::ptr::null_mut();
+    let folder: IShellFolder = SHBindToParent(item.0, Some(&mut last)).map_err(|e| e.message())?;
+    let drop_target: IDropTarget =
+        folder.GetUIObjectOf(owner, &[last as *const ITEMIDLIST], None).map_err(|e| e.message())?;
+    let data = files_data_object(paths)?;
+    let mut cursor = POINT::default();
+    let _ = GetCursorPos(&mut cursor);
+    let pt = POINTL { x: cursor.x, y: cursor.y };
+    let allowed = DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK;
+    let mut effect = allowed;
+    drop_target.DragEnter(&data, MK_LBUTTON, pt, &mut effect).map_err(|e| e.message())?;
+    if effect != DROPEFFECT_NONE {
+        effect = allowed;
+        drop_target.DragOver(MK_LBUTTON, pt, &mut effect).map_err(|e| e.message())?;
+    }
+    if effect == DROPEFFECT_NONE {
+        let _ = drop_target.DragLeave();
+        return Ok("none".into());
+    }
+    let mut done = allowed;
+    drop_target.Drop(&data, MK_LBUTTON, pt, &mut done).map_err(|e| e.message())?;
+    Ok(effect_name(done))
+}
+
+/// Dispatches this thread's messages until none came for `quiet` (at most `max` in all).
+fn pump_until_quiet(quiet: std::time::Duration, max: std::time::Duration) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, MsgWaitForMultipleObjects, PeekMessageW, TranslateMessage, MSG, PM_REMOVE, QS_ALLINPUT,
+    };
+    let end = std::time::Instant::now() + max;
+    let mut idle_since = std::time::Instant::now();
+    let mut msg = MSG::default();
+    loop {
+        unsafe {
+            while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+                idle_since = std::time::Instant::now();
+            }
+        }
+        let now = std::time::Instant::now();
+        let idle_end = idle_since + quiet;
+        if now >= idle_end || now >= end {
+            break;
+        }
+        let wait = idle_end.min(end) - now;
+        unsafe { MsgWaitForMultipleObjects(None, false, wait.as_millis() as u32 + 1, QS_ALLINPUT) };
+    }
+}
+
+#[derive(Serialize, Clone, Copy, Debug, Default)]
+pub struct KeyState {
+    pub ctrl: bool,
+    pub shift: bool,
+    pub alt: bool,
+}
+
+/// The modifier keys held right now (read-only; for drops from other apps, whose events carry none).
+pub fn key_state() -> KeyState {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_MENU};
+    let down = |vk: u16| unsafe { (GetAsyncKeyState(vk as i32) as u16) & 0x8000 != 0 };
+    KeyState { ctrl: down(VK_CONTROL.0), shift: down(VK_SHIFT.0), alt: down(VK_MENU.0) }
 }
 
 pub fn cursor_over_foreign_window() -> bool {
@@ -788,4 +989,352 @@ pub fn create_url_shortcut_in(dir: &str, url: String, name: String) -> Result<St
     let content = format!("[InternetShortcut]\r\nURL={url}\r\n");
     std::fs::write(&path, content).map_err(|e| e.to_string())?;
     Ok(path)
+}
+
+// ---------------------------------------------------------------------------
+// Read-only lookups for Quick Look and the search window (nothing here writes or resolves).
+
+fn mtime_ms(md: &std::fs::Metadata) -> u64 {
+    md.modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntryInfo {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub size: u64,
+    pub modified: u64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DirPreview {
+    pub entries: Vec<DirEntryInfo>,
+    /// all visible entries, also those beyond `entries`
+    pub total: usize,
+}
+
+/// Quick Look of a real folder: its first `limit` entries, folders first, then by name. Hidden and
+/// system entries are left out like in Explorer's default view.
+pub fn list_dir_preview(path: String, limit: usize) -> Result<DirPreview, String> {
+    use std::os::windows::fs::MetadataExt;
+    const HIDDEN_OR_SYSTEM: u32 = 0x2 | 0x4;
+    let mut entries = Vec::new();
+    let mut total = 0;
+    for e in std::fs::read_dir(fs_norm(&path)).map_err(|e| e.to_string())?.flatten() {
+        let Ok(md) = e.metadata() else { continue };
+        if md.file_attributes() & HIDDEN_OR_SYSTEM != 0 {
+            continue;
+        }
+        total += 1;
+        if entries.len() < 5000 {
+            entries.push(DirEntryInfo {
+                name: e.file_name().to_string_lossy().into_owned(),
+                path: e.path().to_string_lossy().into_owned(),
+                is_dir: md.is_dir(),
+                size: if md.is_dir() { 0 } else { md.len() },
+                modified: mtime_ms(&md),
+            });
+        }
+    }
+    entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+    entries.truncate(limit.clamp(1, 1000));
+    Ok(DirPreview { entries, total })
+}
+
+#[derive(Serialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ShortcutInfo {
+    pub target: String,
+    pub args: String,
+    pub work_dir: String,
+    pub description: String,
+    /// the target is a directory (a local one; network targets are never checked)
+    pub is_dir: bool,
+}
+
+/// Where a shortcut points: `.lnk` through IShellLinkW (loaded only, never resolved or saved),
+/// `.url` from its `URL=` line. None for other files.
+pub fn shortcut_target(path: String) -> Result<Option<ShortcutInfo>, String> {
+    let path = fs_norm(&path);
+    let lower = path.to_lowercase();
+    if lower.ends_with(".url") {
+        let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+        let text = String::from_utf8_lossy(&bytes);
+        return Ok(text.lines().find_map(|l| {
+            l.trim().strip_prefix("URL=").map(|u| ShortcutInfo { target: u.trim().to_string(), ..Default::default() })
+        }));
+    }
+    if !lower.ends_with(".lnk") {
+        return Ok(None);
+    }
+    util::run_sta(move || unsafe { read_link(&path).map(Some) })?
+}
+
+/// Needs STA.
+unsafe fn read_link(path: &str) -> Result<ShortcutInfo, String> {
+    use windows::Win32::System::Com::STGM_READ;
+    use windows::Win32::UI::Shell::{SHGetNameFromIDList, SIGDN_DESKTOPABSOLUTEEDITING};
+    let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).map_err(|e| e.message())?;
+    let pf: IPersistFile = link.cast().map_err(|e| e.message())?;
+    pf.Load(&HSTRING::from(path), STGM_READ).map_err(|e| e.message())?;
+    let text = |f: &dyn Fn(&mut [u16]) -> windows::core::Result<()>| {
+        let mut buf = vec![0u16; 1024];
+        if f(&mut buf).is_ok() {
+            util::wide_to_string(&buf)
+        } else {
+            String::new()
+        }
+    };
+    let mut target = text(&|b| link.GetPath(b, std::ptr::null_mut(), 0));
+    if target.is_empty() {
+        // apps and other shell items have an ID list but no path
+        if let Ok(p) = link.GetIDList() {
+            let pidl = Pidl(p);
+            if !pidl.0.is_null() {
+                target = SHGetNameFromIDList(pidl.0, SIGDN_DESKTOPABSOLUTEEDITING).map(|p| util::take_pwstr(p)).unwrap_or_default();
+            }
+        }
+    }
+    let is_dir = Path::new(&target).is_absolute() && !remote_path(&target) && Path::new(&target).is_dir();
+    Ok(ShortcutInfo {
+        target,
+        is_dir,
+        args: text(&|b| link.GetArguments(b)),
+        work_dir: text(&|b| link.GetWorkingDirectory(b)),
+        description: text(&|b| link.GetDescription(b)),
+    })
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentFile {
+    pub name: String,
+    pub path: String,
+    /// when it was last used (the Recent shortcut's time), ms
+    pub modified: u64,
+}
+
+/// Network paths are skipped: checking them can hang for seconds when the server is gone.
+fn remote_path(path: &str) -> bool {
+    use windows::Win32::Storage::FileSystem::GetDriveTypeW;
+    const DRIVE_REMOTE: u32 = 4;
+    if path.starts_with("\\\\") {
+        return true;
+    }
+    let b = path.as_bytes();
+    if b.len() < 2 || b[1] != b':' || !b[0].is_ascii_alphabetic() {
+        return false;
+    }
+    let root = HSTRING::from(format!("{}:\\", &path[..1]));
+    unsafe { GetDriveTypeW(&root) == DRIVE_REMOTE }
+}
+
+/// Recently used files: the shortcuts in the user's Recent folder, newest first. Missing targets,
+/// folders and network paths are left out.
+pub fn list_recent(limit: usize) -> Result<Vec<RecentFile>, String> {
+    use windows::Win32::UI::Shell::FOLDERID_Recent;
+    let dir = util::known_folder(&FOLDERID_Recent).ok_or("Son kullanılanlar klasörü bulunamadı")?;
+    let mut links: Vec<(u64, std::path::PathBuf)> = std::fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter(|e| e.path().extension().map(|x| x.eq_ignore_ascii_case("lnk")).unwrap_or(false))
+        .filter_map(|e| e.metadata().ok().map(|m| (mtime_ms(&m), e.path())))
+        .collect();
+    links.sort_by(|a, b| b.0.cmp(&a.0));
+    let limit = limit.clamp(1, 200);
+    util::run_sta(move || unsafe {
+        let mut out = Vec::new();
+        let mut seen = HashSet::new();
+        for (when, lnk) in links {
+            if out.len() >= limit {
+                break;
+            }
+            let Ok(info) = read_link(&lnk.to_string_lossy()) else { continue };
+            let target = info.target;
+            if target.is_empty() || remote_path(&target) || !seen.insert(target.to_lowercase()) {
+                continue;
+            }
+            let p = Path::new(&target);
+            if !p.is_file() {
+                continue;
+            }
+            let name = p.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+            out.push(RecentFile { name, path: target.clone(), modified: when });
+        }
+        out
+    })
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FoundFile {
+    pub name: String,
+    pub path: String,
+    pub parsing_name: String,
+    pub is_dir: bool,
+}
+
+static SEARCH_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static SEARCHES_RUNNING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+const SEARCH_TIMEOUT_MS: u64 = 1500;
+const PKEY_ITEM_NAME_DISPLAY: PROPERTYKEY =
+    PROPERTYKEY { fmtid: GUID::from_u128(0xb725f130_47ef_101a_a5f1_02608c9eebac), pid: 10 };
+const PKEY_DATE_MODIFIED: PROPERTYKEY =
+    PROPERTYKEY { fmtid: GUID::from_u128(0xb725f130_47ef_101a_a5f1_02608c9eebac), pid: 14 };
+
+/// The Windows Search service is not disabled (read-only registry check). Without it the search
+/// folder would crawl the disk instead of asking the index.
+fn search_service_enabled() -> bool {
+    use windows::Win32::Foundation::ERROR_SUCCESS;
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD};
+    let mut start = 0u32;
+    let mut size = 4u32;
+    let rc = unsafe {
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            w!("SYSTEM\\CurrentControlSet\\Services\\WSearch"),
+            w!("Start"),
+            RRF_RT_REG_DWORD,
+            None,
+            Some(&mut start as *mut u32 as *mut c_void),
+            Some(&mut size),
+        )
+    };
+    rc == ERROR_SUCCESS && start != 4
+}
+
+/// Build output, caches and package folders that the index holds as well.
+fn noise_path(path: &str) -> bool {
+    let p = path.to_lowercase();
+    let dirs = p.rsplit_once('\\').map(|(d, _)| d).unwrap_or("");
+    dirs.split('\\').any(|seg| {
+        (seg.len() > 1 && seg.starts_with('.'))
+            || matches!(seg, "node_modules" | "__pycache__" | "site-packages" | "appdata" | "$recycle.bin")
+    }) || p.contains("\\target\\debug\\")
+        || p.contains("\\target\\release\\")
+}
+
+/// Files whose name has words starting with the query's words, from the Windows Search index under
+/// the user profile (a shell search folder via ISearchFolderItemFactory), newest first. Waits at most
+/// SEARCH_TIMEOUT_MS; a newer search stops older ones; empty when the search service is off.
+pub fn search_files(query: String, limit: usize) -> Vec<FoundFile> {
+    use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
+    use std::sync::{Arc, Mutex};
+    let query = query.trim().to_string();
+    if query.chars().count() < 3 || !search_service_enabled() {
+        return vec![];
+    }
+    let gen = SEARCH_GEN.fetch_add(1, SeqCst) + 1;
+    // older searches stop at their next result; give them a moment
+    for _ in 0..15 {
+        if SEARCHES_RUNNING.load(SeqCst) < 2 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    if SEARCHES_RUNNING.load(SeqCst) >= 2 || SEARCH_GEN.load(SeqCst) != gen {
+        return vec![];
+    }
+    let Ok(scope) = std::env::var("USERPROFILE") else { return vec![] };
+    let found = Arc::new(Mutex::new(Vec::new()));
+    let cancel = Arc::new(AtomicBool::new(false));
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (sink, stop) = (found.clone(), cancel.clone());
+    let limit = limit.clamp(1, 100);
+    SEARCHES_RUNNING.fetch_add(1, SeqCst);
+    let spawned = std::thread::Builder::new().name("fe-search".into()).spawn(move || {
+        struct Running;
+        impl Drop for Running {
+            fn drop(&mut self) {
+                SEARCHES_RUNNING.fetch_sub(1, SeqCst);
+            }
+        }
+        let _running = Running;
+        let _com = util::ComApartment::sta();
+        let keep_going = || !stop.load(SeqCst) && SEARCH_GEN.load(SeqCst) == gen;
+        unsafe {
+            if let Ok(folder) = search_folder(&query, &scope) {
+                collect_found(&folder, limit, &keep_going, &sink);
+            }
+        }
+        let _ = tx.send(());
+    });
+    if spawned.is_err() {
+        SEARCHES_RUNNING.fetch_sub(1, SeqCst);
+        return vec![];
+    }
+    let _ = rx.recv_timeout(std::time::Duration::from_millis(SEARCH_TIMEOUT_MS));
+    cancel.store(true, SeqCst);
+    let out = found.lock().map(|v| v.clone()).unwrap_or_default();
+    out
+}
+
+/// A shell search folder for `query` below `scope`. Needs STA.
+unsafe fn search_folder(query: &str, scope: &str) -> windows::core::Result<IShellItem> {
+    use windows::Win32::System::Search::Common::{COP_WORD_STARTSWITH, CT_AND_CONDITION};
+    use windows::Win32::System::Search::{ConditionFactory, ICondition, IConditionFactory2, CONDITION_CREATION_DEFAULT};
+    use windows::Win32::UI::Shell::{
+        ISearchFolderItemFactory, IShellItemArray, SHCreateShellItemArrayFromShellItem, SearchFolderItemFactory, SORTCOLUMN,
+        SORT_DESCENDING,
+    };
+    let factory: ISearchFolderItemFactory = CoCreateInstance(&SearchFolderItemFactory, None, CLSCTX_INPROC_SERVER)?;
+    factory.SetDisplayName(w!("Folder Explorer"))?;
+    let root: IShellItem = SHCreateItemFromParsingName(&HSTRING::from(scope), None)?;
+    let roots: IShellItemArray = SHCreateShellItemArrayFromShellItem(&root)?;
+    factory.SetScope(&roots)?;
+    let conditions: IConditionFactory2 = CoCreateInstance(&ConditionFactory, None, CLSCTX_INPROC_SERVER)?;
+    let words = query
+        .split_whitespace()
+        .map(|word| {
+            conditions
+                .CreateStringLeaf::<_, _, ICondition>(
+                    &PKEY_ITEM_NAME_DISPLAY,
+                    COP_WORD_STARTSWITH,
+                    &HSTRING::from(word),
+                    PCWSTR::null(),
+                    CONDITION_CREATION_DEFAULT,
+                )
+                .map(Some)
+        })
+        .collect::<windows::core::Result<Vec<_>>>()?;
+    let all: ICondition = conditions.CreateCompoundFromArray(CT_AND_CONDITION, &words, CONDITION_CREATION_DEFAULT)?;
+    factory.SetCondition(&all)?;
+    factory.SetSortColumns(&[SORTCOLUMN { propkey: PKEY_DATE_MODIFIED, direction: SORT_DESCENDING }])?;
+    factory.GetShellItem()
+}
+
+unsafe fn collect_found(folder: &IShellItem, limit: usize, keep_going: &dyn Fn() -> bool, sink: &std::sync::Mutex<Vec<FoundFile>>) {
+    use windows::Win32::System::SystemServices::{SFGAO_FOLDER, SFGAO_STREAM};
+    use windows::Win32::UI::Shell::SIGDN_FILESYSPATH;
+    let Ok(en) = folder.BindToHandler::<_, IEnumShellItems>(None, &BHID_EnumItems) else { return };
+    for _ in 0..400 {
+        if !keep_going() {
+            break;
+        }
+        let mut arr: [Option<IShellItem>; 1] = [None];
+        let mut fetched = 0u32;
+        if en.Next(&mut arr, Some(&mut fetched)).is_err() || fetched == 0 {
+            break;
+        }
+        let Some(item) = arr[0].take() else { break };
+        let path = item.GetDisplayName(SIGDN_FILESYSPATH).map(|p| util::take_pwstr(p)).unwrap_or_default();
+        if path.is_empty() || noise_path(&path) {
+            continue;
+        }
+        let name = item.GetDisplayName(SIGDN_NORMALDISPLAY).map(|p| util::take_pwstr(p)).unwrap_or_default();
+        let attrs = item.GetAttributes(SFGAO_FOLDER | SFGAO_STREAM).map(|a| a.0).unwrap_or(0);
+        let is_dir = attrs & SFGAO_FOLDER.0 != 0 && attrs & SFGAO_STREAM.0 == 0;
+        let Ok(mut found) = sink.lock() else { break };
+        found.push(FoundFile { name, parsing_name: path.clone(), path, is_dir });
+        if found.len() >= limit {
+            break;
+        }
+    }
 }

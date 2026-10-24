@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, iconUrl, mediaUrl } from "../api";
 import { t } from "../i18n";
 import { primaryGrid } from "../layout/grid";
-import { isFolderId, renameFolder, setCustom, setFolderColor, setFolderLook } from "../layout/model";
+import { isFolderId, renameFolder, setCustom, setFolderColor, setFolderLook, updateFolder } from "../layout/model";
 import { FOLDER_COLORS, spring } from "../settings";
-import type { FolderLook, StartApp } from "../types";
+import type { FolderLook, OpenStyle, StartApp } from "../types";
 import { askDeleteFolderDeep, deleteFolderDeep, deleteIds } from "./actions";
+import { GroupOptions, UnlockDialog } from "./GroupDialogs";
+import { draftOf, patchOf, type GroupDraft } from "./kinds";
 import { commit, expectItemAt, refreshItems, toast, useDesk } from "./store";
 import { FolderGlyph, ItemImage } from "./Tile";
 
@@ -23,7 +25,7 @@ export function Dialogs() {
 
   return (
     <AnimatePresence>
-      {dialog && (
+      {dialog && dialog.kind !== "quicklook" && (
         <motion.div key="dlg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
           <div
             className="dialog-backdrop"
@@ -38,7 +40,9 @@ export function Dialogs() {
             style={
               dialog.kind === "customize" && isFolderId(dialog.id)
                 ? { left: cx - 250, top: cy - 330, width: 500, maxHeight: "86vh" }
-                : { left: cx - 220, top: cy - 260 }
+                : dialog.kind === "unlock"
+                  ? { left: cx - 160, top: cy - 230, width: 320 }
+                  : { left: cx - 220, top: cy - 260 }
             }
             initial={{ opacity: 0, scale: 0.94, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -52,7 +56,8 @@ export function Dialogs() {
             }}
           >
             {dialog.kind === "addApp" && <AddApp placement={dialog.placement} onClose={close} />}
-            {dialog.kind === "customize" && <Customize id={dialog.id} onClose={close} />}
+            {dialog.kind === "customize" && <Customize id={dialog.id} focus={dialog.focus} onClose={close} />}
+            {dialog.kind === "unlock" && <UnlockDialog key={dialog.id} id={dialog.id} onClose={close} />}
             {dialog.kind === "confirmDeleteFolder" && (
               <Confirm
                 title={t.confirmDeleteFolderTitle}
@@ -213,6 +218,14 @@ function AddApp({ placement, onClose }: { placement: import("../types").Placemen
 
 // ---------------------------------------------------------------- folder: per-folder look
 
+const OPEN_STYLES: [OpenStyle, string][] = [
+  ["zoom", t.openZoom],
+  ["spring", t.openSpring],
+  ["flip", t.openFlip],
+  ["blur", t.openBlur],
+  ["fade", t.openFade],
+];
+
 function LookRow({
   label,
   hint,
@@ -240,13 +253,14 @@ function LookRow({
   );
 }
 
-function FolderCustomize({ id, onClose }: { id: string; onClose: () => void }) {
+function FolderCustomize({ id, focus, onClose }: { id: string; focus?: "rule" | "source"; onClose: () => void }) {
   const folder = useDesk((s) => s.layout.folders[id]);
   const settings = useDesk((s) => s.settings);
   const [name, setName] = useState(folder?.name ?? "");
   const [color, setColor] = useState<string | null>(folder?.color ?? null);
   const [look, setLook] = useState<FolderLook>(folder?.look ?? {});
-  if (!folder) return null;
+  const [kinds, setKinds] = useState<GroupDraft | null>(() => (folder ? draftOf(folder) : null));
+  if (!folder || !kinds) return null;
 
   const eff = {
     opacity: look.opacity ?? settings.transparency.folderTile,
@@ -282,6 +296,7 @@ function FolderCustomize({ id, onClose }: { id: string; onClose: () => void }) {
     if (n && n !== folder.name) l = renameFolder(l, id, n);
     if (color !== folder.color) l = setFolderColor(l, id, color);
     l = setFolderLook(l, id, look);
+    l = updateFolder(l, useDesk.getState().grids, id, patchOf(kinds));
     commit(l);
     onClose();
   };
@@ -310,6 +325,16 @@ function FolderCustomize({ id, onClose }: { id: string; onClose: () => void }) {
             ))}
           </div>
         </div>
+
+        <GroupOptions
+          id={id}
+          draft={kinds}
+          onChange={setKinds}
+          focus={focus}
+          onSourceChosen={(n) => {
+            if (!name.trim() || name === t.newFolderName || name === t.grp.newLive) setName(n);
+          }}
+        />
 
         <div className="look-section">{t.lookSection}</div>
         <LookRow label={t.tileOpacity} hint={t.tileOpacityHint} overridden={look.opacity !== undefined} onReset={() => reset("opacity")}>
@@ -348,6 +373,20 @@ function FolderCustomize({ id, onClose }: { id: string; onClose: () => void }) {
               </button>
             ))}
           </div>
+        </LookRow>
+        <LookRow label={t.openAnimLabel} overridden={look.openStyle !== undefined} onReset={() => reset("openStyle")}>
+          <select
+            className="input"
+            style={{ width: "auto" }}
+            value={look.openStyle ?? settings.animation.openStyle}
+            onChange={(e) => patch({ openStyle: e.target.value as OpenStyle })}
+          >
+            {OPEN_STYLES.map(([st, label]) => (
+              <option key={st} value={st}>
+                {label}
+              </option>
+            ))}
+          </select>
         </LookRow>
         <LookRow label={t.panelOpacityLabel} overridden={look.panelOpacity !== undefined} onReset={() => reset("panelOpacity")}>
           <input type="range" min={0} max={1} step={0.01} value={eff.panelOpacity} onChange={(e) => patch({ panelOpacity: Number(e.target.value) })} />
@@ -391,8 +430,8 @@ function FolderCustomize({ id, onClose }: { id: string; onClose: () => void }) {
 
 // ---------------------------------------------------------------- customize
 
-function Customize({ id, onClose }: { id: string; onClose: () => void }) {
-  if (isFolderId(id)) return <FolderCustomize id={id} onClose={onClose} />;
+function Customize({ id, focus, onClose }: { id: string; focus?: "rule" | "source"; onClose: () => void }) {
+  if (isFolderId(id)) return <FolderCustomize id={id} focus={focus} onClose={onClose} />;
   return <ItemCustomize id={id} onClose={onClose} />;
 }
 

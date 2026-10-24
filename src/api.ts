@@ -3,8 +3,13 @@ import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   BackupInfo,
   DesktopItem,
+  DirPreview,
   Environment,
+  FoundFile,
   PersistedState,
+  Quiet,
+  RecentFile,
+  ShortcutInfo,
   StartApp,
   WallpaperInfo,
   WindowsLayout,
@@ -18,32 +23,56 @@ const realApi = {
   listDesktopItems: () => invoke<DesktopItem[]>("list_desktop_items"),
   getWindowsLayout: () => invoke<WindowsLayout>("get_windows_layout"),
   openItem: (path: string) => invoke<void>("open_item", { path }),
-  showShellMenu: (paths: string[], at?: [number, number]) => invoke<string | null>("show_shell_menu", { paths, at }),
-  showItemMenu: (request: unknown, width: number, height: number) =>
-    invoke<void>("show_item_menu", { request, width, height }),
+  openMenu: (request: unknown, at?: [number, number]) => invoke<void>("open_menu", { request, at }),
+  placeMenu: (label: string, x: number, y: number, w: number, h: number, fade = false) =>
+    invoke<void>("place_menu", { label, x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h), fade }),
   takeMenuRequest: () => invoke<unknown>("take_menu_request"),
-  hideMenu: () => invoke<void>("hide_menu"),
+  hideMenu: (label?: string) => invoke<void>("hide_menu", { label }),
+  classicMenu: (paths: string[], at: [number, number] | null, own?: unknown[]) =>
+    invoke<string | null>("classic_menu", { paths, at, own }),
+  shellVerb: (paths: string[], verbs: string[]) => invoke<boolean>("shell_verb", { paths, verbs }),
+  newItem: (id: number) => invoke<void>("new_item", { id }),
+  openWith: (paths: string[], index: number | null) => invoke<void>("open_with", { paths, index }),
+  openVerb: (path: string, verbs: string[]) => invoke<void>("open_verb", { path, verbs }),
+  openTerminal: (dir: string) => invoke<void>("open_terminal", { dir }),
+  compress: (paths: string[], format: string) => invoke<string>("compress", { paths, format }),
+  pasteFiles: (shortcuts: boolean) => invoke<string[]>("paste_files", { shortcuts }),
   clipboardFiles: (paths: string[], cut: boolean) => invoke<void>("clipboard_files", { paths, cut }),
   copyText: (text: string) => invoke<void>("copy_text", { text }),
   showProperties: (path: string) => invoke<void>("show_properties", { path }),
   runAsAdmin: (path: string) => invoke<void>("run_as_admin", { path }),
   debugLog: (line: string) => invoke<void>("debug_log", { line }),
-  setInputRegions: (all: boolean, rects: number[][]) => invoke<void>("set_input_regions", { all, rects }),
   recycle: (paths: string[]) => invoke<void>("recycle", { paths }),
   restoreFromRecycle: (paths: string[]) => invoke<string[]>("restore_from_recycle", { paths }),
   renameItem: (path: string, newName: string) => invoke<string>("rename_item", { path, newName }),
   moveIntoFolder: (paths: string[], targetDir: string) =>
     invoke<void>("move_into_folder", { paths, targetDir }),
+  copyIntoFolder: (paths: string[], targetDir: string) =>
+    invoke<void>("copy_into_folder", { paths, targetDir }),
+  dropOnItem: (target: string, paths: string[]) => invoke<string>("drop_on_item", { target, paths }),
+  keyState: () => invoke<{ ctrl: boolean; shift: boolean; alt: boolean }>("key_state"),
   importDropped: (paths: string[], copy: boolean) =>
     invoke<string[]>("import_dropped", { paths, copy }),
   startDragOut: (paths: string[]) => invoke<string>("start_drag_out", { paths }),
   cursorOverForeignWindow: () => invoke<boolean>("cursor_over_foreign_window"),
   listStartApps: () => invoke<StartApp[]>("list_start_apps"),
+  listDirPreview: (path: string, limit?: number) => invoke<DirPreview>("list_dir_preview", { path, limit }),
+  listFolder: (dir: string) => invoke<DesktopItem[]>("list_folder", { dir }),
+  watchFolder: (dir: string) => invoke<void>("watch_folder", { dir }),
+  unwatchFolder: (dir: string) => invoke<void>("unwatch_folder", { dir }),
+  knownFolders: () =>
+    invoke<{ downloads: string | null; documents: string | null; pictures: string | null }>("known_folders"),
+  helloAvailable: () => invoke<boolean>("hello_available"),
+  helloVerify: (message: string) => invoke<boolean>("hello_verify", { message }),
+  shortcutTarget: (path: string) => invoke<ShortcutInfo | null>("shortcut_target", { path }),
+  listRecent: (limit?: number) => invoke<RecentFile[]>("list_recent", { limit }),
+  searchFiles: (query: string, limit?: number) => invoke<FoundFile[]>("search_files", { query, limit }),
   createShortcut: (parsingName: string, name: string) =>
     invoke<string>("create_shortcut", { parsingName, name }),
   createUrlShortcut: (url: string, name: string) =>
     invoke<string>("create_url_shortcut", { url, name }),
   getWallpapers: () => invoke<WallpaperInfo[]>("get_wallpapers"),
+  getQuiet: () => invoke<Quiet>("get_quiet"),
   loadState: () => invoke<PersistedState>("load_state"),
   saveLayout: (layout: unknown) => invoke<void>("save_layout", { layout }),
   saveSettings: (settings: unknown) => invoke<void>("save_settings", { settings }),
@@ -53,9 +82,13 @@ const realApi = {
   importState: (path: string) => invoke<PersistedState>("import_state", { path }),
   importMedia: (path: string, kind: "icon" | "wallpaper") =>
     invoke<string>("import_media", { path, kind }),
+  importIconPack: (dir: string) => invoke<{ name: string; map: Record<string, string> }>("import_icon_pack", { dir }),
+  exportTheme: (path: string, theme: unknown) => invoke<void>("export_theme", { path, theme }),
+  importTheme: (path: string) => invoke<unknown>("import_theme", { path }),
   openSettingsWindow: () => invoke<void>("open_settings_window"),
   showSearch: (initial?: string) => invoke<void>("show_search", { initial: initial ?? "" }),
   hideSearch: () => invoke<void>("hide_search"),
+  revealSearch: () => invoke<void>("reveal_search"),
   takeSearchInitial: () => invoke<string>("take_search_initial"),
   raiseDesktop: (raised: boolean) => invoke<void>("raise_desktop", { raised }),
   setWindowsIconsMode: (enabled: boolean) => invoke<void>("set_windows_icons_mode", { enabled }),
@@ -73,10 +106,32 @@ const mockApi: typeof realApi = {
   saveLayout: async (l: unknown) => mock.mockSave("layout", l),
   saveSettings: async (s: unknown) => mock.mockSave("settings", s),
   getWallpapers: async () => mock.mockWallpapers(),
+  getQuiet: async () => ({ game: false, battery: false, covered: [] }),
   listStartApps: async () => mock.mockApps,
+  listDirPreview: async () => ({ entries: [], total: 0 }),
+  listFolder: async (dir: string) => mock.mockFolder(dir),
+  knownFolders: async () => ({
+    downloads: "C:\\Users\\demo\\Downloads",
+    documents: "C:\\Users\\demo\\Documents",
+    pictures: "C:\\Users\\demo\\Pictures",
+  }),
+  helloAvailable: async () => false,
+  helloVerify: async () => false,
+  // the preview's ".lnk" apps point at an exe (drop-on-app works in the browser too)
+  shortcutTarget: async (p: string) =>
+    /\.lnk$/i.test(p)
+      ? { target: `C:\\Program Files\\${p.replace(/^.*\\|\.lnk$/gi, "")}\\app.exe`, args: "", workDir: "", description: "", isDir: false }
+      : null,
+  keyState: async () => ({ ctrl: false, shift: false, alt: false }),
+  dropOnItem: async () => "copy",
+  listRecent: async () => [],
+  searchFiles: async () => [],
   listBackups: async () => [],
   cursorOverForeignWindow: async () => false,
-  showShellMenu: async () => null,
+  classicMenu: async () => null,
+  shellVerb: async () => false,
+  pasteFiles: async () => [],
+  compress: async (p: string[]) => p[0] + ".zip",
   restoreFromRecycle: async () => [],
   importDropped: async (p: string[]) => p,
   renameItem: async (p: string, n: string) => p.replace(/[^\\]+$/, n),
@@ -108,4 +163,15 @@ export function wallpaperUrl(monitorId: string, version: string) {
 
 export function mediaUrl(path: string) {
   return `${feBase("media")}?p=${encodeURIComponent(path)}`;
+}
+
+/** A file below a desktop folder (or a root registered with `icons::allow_root`), with Range support. */
+export function previewUrl(path: string) {
+  return `${feBase("preview")}?p=${encodeURIComponent(path)}`;
+}
+
+/** Large shell thumbnail (physical px, up to 1024). */
+export function thumbUrl(path: string, sizePx: number, version: string) {
+  const s = Math.max(16, Math.min(1024, Math.round(sizePx)));
+  return `${feBase("thumb")}?p=${encodeURIComponent(path)}&s=${s}&v=${encodeURIComponent(version)}`;
 }

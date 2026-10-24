@@ -1,0 +1,495 @@
+/* Group kinds / displays: tile badges, the stack fan, tabs, notices, the options and unlock dialogs. */
+
+/* ------------------------------------------------------------ tile glyph */
+
+.lock-mark {
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.92);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.glyph-badge,
+.glyph-count {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(16, 16, 20, 0.58);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.glyph-count {
+  padding: 0 3px;
+  background: #f59e0b;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-fallback {
+  width: 70%;
+  height: 70%;
+  border-radius: 22%;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ------------------------------------------------------------ stack fan */
+
+.fan-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.fan-item {
+  position: absolute;
+}
+
+.fan-item .tile-icon {
+  border-radius: 22%;
+  transition: background 120ms;
+}
+
+.fan-item[data-selected="true"] .tile-icon {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.fan-item:hover .tile-icon {
+  transform: scale(1.06);
+}
+
+.fan-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 220px;
+  padding: 3px 10px 4px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(20, 20, 24, 0.72);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+:root[data-quiet] .fan-label {
+  backdrop-filter: none;
+  background: rgba(20, 20, 24, 0.86);
+}
+
+/* ------------------------------------------------------------ panel: tabs, notices */
+
+.group-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 0 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.group-tab {
+  flex: none;
+  max-width: 180px;
+  padding: 7px 14px 8px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+
+.group-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.group-tab[data-active="true"] {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-weight: 600;
+}
+
+.group-tab[data-drop="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.group-tab input {
+  width: 120px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+}
+
+.group-tab-add {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 0 4px 2px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+
+.group-tab-add:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.group-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 0 18px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.group-note span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-note button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 8px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.group-note button:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.group-note .path {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-weight: 400;
+  text-align: left;
+  text-decoration: underline dotted rgba(255, 255, 255, 0.5);
+}
+
+.group-note .path:hover {
+  background: transparent;
+  color: #fff;
+}
+
+.panel-locked {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ------------------------------------------------------------ customize: kind / display / lock */
+
+.kind-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.kind-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--input-bg);
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+
+.kind-chip:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.kind-chip[data-active="true"] {
+  border-color: var(--accent);
+  background: var(--accent-softer);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.kind-hint {
+  margin: 2px 0 8px;
+  font-size: 11.5px;
+  color: var(--fg-faint);
+}
+
+.kind-box {
+  margin: 6px 0 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+}
+
+.rule-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 26px;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.rule-row .rule-value {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rule-row .input,
+.kind-box select.input {
+  padding: 5px 8px;
+  min-width: 0;
+}
+
+.rule-row select.input {
+  appearance: auto;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.rule-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+.rule-foot .count {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
+  padding: 3px 2px;
+  color: var(--accent);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.source-path {
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--input-bg);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.source-path[data-empty="true"] {
+  color: var(--fg-faint);
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-row .btn {
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+.lock-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.lock-note {
+  margin-top: 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--fg-faint);
+}
+
+.pin-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+
+.form-error {
+  font-size: 12px;
+  color: #ff6b6b;
+}
+
+/* ------------------------------------------------------------ unlock dialog */
+
+.unlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 22px 18px;
+}
+
+.unlock .unlock-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background: var(--accent-softer);
+  color: var(--accent);
+}
+
+.unlock h2 {
+  padding: 0;
+  text-align: center;
+}
+
+.unlock .unlock-sub {
+  min-height: 18px;
+  font-size: 12.5px;
+  color: var(--fg-dim);
+  text-align: center;
+}
+
+.unlock .unlock-sub[data-error="true"] {
+  color: #ff6b6b;
+}
+
+.pin-dots {
+  display: flex;
+  gap: 10px;
+  height: 14px;
+  margin: 4px 0;
+}
+
+.pin-dots i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid var(--fg-dim);
+}
+
+.pin-dots i[data-on="true"] {
+  background: var(--fg);
+  border-color: var(--fg);
+}
+
+.pin-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 62px);
+  gap: 8px;
+}
+
+.pin-pad button {
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--input-bg);
+  font-size: 17px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.pin-pad button:hover {
+  background: var(--hover);
+}
+
+.pin-pad button.ok {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+.pin-pad button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.unlock .actions {
+  padding: 6px 0 0;
+}

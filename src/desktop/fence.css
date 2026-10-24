@@ -1,0 +1,332 @@
+/* ------------------------------------------------------------ fences */
+
+.fence {
+  position: absolute;
+  overflow: hidden;
+  color: #fff;
+  transition: opacity 140ms ease, outline-color 120ms ease;
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+}
+
+/* quiet modes (game / battery): no backdrop blur */
+:root[data-quiet] .fence {
+  backdrop-filter: none !important;
+}
+
+.fence[data-selected="true"] {
+  outline-color: color-mix(in srgb, var(--accent) 75%, transparent);
+}
+
+.fence[data-drop="true"] {
+  outline-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 5px var(--accent-soft) !important;
+}
+
+.fence[data-moving="true"] {
+  opacity: 0.45;
+}
+
+.fence-title {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 0 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  cursor: grab;
+  user-select: none;
+}
+
+.fence[data-collapsed="false"] .fence-title {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.fence-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fence-count {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.fence-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+
+.fence-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.fence-edit {
+  opacity: 0;
+}
+
+.fence:hover .fence-edit,
+.fence[data-selected="true"] .fence-edit {
+  opacity: 0.7;
+}
+
+.fence-fold svg {
+  transform: rotate(90deg);
+  transition: transform 140ms ease;
+}
+
+.fence-fold[data-collapsed="true"] svg {
+  transform: rotate(0deg);
+}
+
+.fence-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: rgba(20, 20, 24, 0.92);
+  color: #fff;
+  font: inherit;
+  outline: none;
+}
+
+.fence-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.fence-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.fence-locked {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fence-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.55) 50%, rgba(255, 255, 255, 0.55) 58%, transparent 58%, transparent 70%, rgba(255, 255, 255, 0.55) 70%, rgba(255, 255, 255, 0.55) 78%, transparent 78%);
+}
+
+.fence:hover .fence-resize,
+.fence[data-selected="true"] .fence-resize {
+  opacity: 1;
+}
+
+/* a folded fence still owns its cells: shown while something is dragged */
+.fence-reserve {
+  position: absolute;
+  border: 1.5px dashed rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+/* where a moved fence / heading will land */
+.block-outline {
+  position: absolute;
+  border: 2px dashed color-mix(in srgb, var(--accent) 85%, white);
+  border-radius: 12px;
+  background: var(--accent-softer);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ------------------------------------------------------------ headings and dividers */
+
+.heading {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: #fff;
+  cursor: grab;
+  user-select: none;
+  transition: opacity 140ms ease;
+}
+
+/* a title belongs to the icons below it */
+.heading[data-style="title"] {
+  align-items: flex-end;
+  padding-bottom: 14px;
+}
+
+/* hover / selection plate, inset like an icon tile's */
+.heading::before {
+  content: "";
+  position: absolute;
+  inset: 4px 3px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  pointer-events: none;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.heading:hover::before {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.heading[data-selected="true"]::before {
+  background: var(--accent-softer);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.heading > * {
+  position: relative;
+}
+
+.heading[data-moving="true"] {
+  opacity: 0.45;
+}
+
+.heading-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  padding-bottom: 4px;
+  font-size: var(--heading-size, 18px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 8px rgba(0, 0, 0, 0.35);
+  border-bottom: 2px solid transparent;
+}
+
+.heading-title[data-underline="true"] {
+  border-bottom-color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1px 2px -1px rgba(0, 0, 0, 0.5);
+}
+
+.heading[data-align="center"] .heading-title {
+  justify-content: center;
+}
+
+.heading-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heading-text[data-empty="true"] {
+  opacity: 0.4;
+  font-style: italic;
+}
+
+.heading-divider {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.heading-line {
+  flex: 1;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.heading-small {
+  flex: none;
+  max-width: 70%;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.heading-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: rgba(20, 20, 24, 0.92);
+  color: #fff;
+  font: inherit;
+  font-size: max(13px, calc(var(--heading-size, 18px) * 0.8));
+  outline: none;
+}
+
+.heading[data-align="center"] .heading-input {
+  text-align: center;
+}
+
+.heading > .heading-resize {
+  position: absolute;
+  top: 25%;
+  right: 3px;
+  width: 8px;
+  height: 50%;
+  border-radius: 4px;
+  cursor: ew-resize;
+  opacity: 0;
+  background: rgba(255, 255, 255, 0.45);
+  transition: opacity 120ms ease;
+}
+
+.heading:hover .heading-resize,
+.heading[data-selected="true"] .heading-resize {
+  opacity: 1;
+}

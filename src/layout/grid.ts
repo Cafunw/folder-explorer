@@ -1,4 +1,4 @@
-import type { Environment, Placement, Settings } from "../types";
+import type { Environment, MonitorInfo, Placement, Settings } from "../types";
 
 /** Per-monitor grid geometry. All values are CSS px. */
 export type GridInfo = {
@@ -29,6 +29,46 @@ export type GridMap = Record<string, GridInfo>;
 export const GRID_PAD = 3;
 export const ICON_TOP = 5;
 
+/**
+ * Automatic size: physical icon edge (mm) for a screen diagonal (inch). A bigger screen is looked
+ * at from further away, so the icon grows with it: ~8 mm on 13", ~9 mm on 16", ~11 mm on 24".
+ */
+export function autoIconMm(diagInch: number) {
+  return Math.min(13, Math.max(7.5, 4.74 + 0.26 * diagInch));
+}
+
+/** Automatic size when the physical size is unknown: Windows logical px (its scaling already reflects size and resolution). */
+const AUTO_ICON_LOGICAL = 40;
+const LINE_HEIGHT = 1.28; // .tile-label line-height (font-size = settings.labels.size)
+/** Narrower cells break labels mid-word (Windows' own spacing is ~75 px). */
+const MIN_CELL_W = 76;
+
+/** Icon and cell size on one monitor, in CSS px of the desktop window. */
+export function cellMetrics(m: MonitorInfo, scale: number, s: Settings) {
+  const k = s.grid.iconScale || 1;
+  const label = s.grid.labels ? 7 + s.grid.labelLines * s.labels.size * LINE_HEIGHT : 0;
+  if (!s.grid.autoSize) {
+    if (k === 1) return { iconSize: s.grid.iconSize, cellW: s.grid.cellWidth, cellH: s.grid.cellHeight };
+    const iconSize = Math.round(Math.min(256, Math.max(16, s.grid.iconSize * k)));
+    return {
+      iconSize,
+      cellW: Math.max(s.grid.cellWidth, iconSize + 30),
+      cellH: Math.max(s.grid.cellHeight, Math.round(ICON_TOP * 2 + iconSize + label)),
+    };
+  }
+  let physical = AUTO_ICON_LOGICAL * (m.scale || scale);
+  const mm = m.sizeMm;
+  if (mm && mm.width > 0 && mm.height > 0) {
+    const diagMm = Math.hypot(mm.width, mm.height);
+    physical = autoIconMm(diagMm / 25.4) * (Math.hypot(m.bounds.width, m.bounds.height) / diagMm);
+  }
+  const medium = Math.round(Math.min(128, Math.max(24, physical / scale)));
+  const iconSize = Math.round(Math.min(256, Math.max(16, medium * k)));
+  // bigger label text needs proportionally wider cells, else every word breaks
+  const minW = s.grid.labels ? Math.round((MIN_CELL_W * s.labels.size) / 12) : MIN_CELL_W;
+  return { iconSize, cellW: Math.max(iconSize + 30, MIN_CELL_W, minW), cellH: Math.round(ICON_TOP * 2 + iconSize + label) };
+}
+
 export function computeGrids(env: Environment, s: Settings): GridMap {
   const scale = env.scaleFactor || 1;
   const out: GridMap = {};
@@ -41,8 +81,7 @@ export function computeGrids(env: Environment, s: Settings): GridMap {
     const workTop = (m.work.y - m.bounds.y) / scale;
     const workWidth = m.work.width / scale;
     const workHeight = m.work.height / scale;
-    const cellW = s.grid.cellWidth;
-    const cellH = s.grid.cellHeight;
+    const { iconSize, cellW, cellH } = cellMetrics(m, scale, s);
     const cols = Math.max(1, Math.floor((workWidth - GRID_PAD * 2) / cellW));
     const rows = Math.max(1, Math.floor((workHeight - GRID_PAD * 2) / cellH));
     out[m.id] = {
@@ -62,7 +101,7 @@ export function computeGrids(env: Environment, s: Settings): GridMap {
       rows,
       cellW,
       cellH,
-      iconSize: s.grid.iconSize,
+      iconSize,
     };
   }
   return out;
@@ -121,6 +160,21 @@ export const placementKey = (pl: Placement) => cellKey(pl.m, pl.p, pl.c, pl.r);
 
 export function inBounds(g: GridInfo, c: number, r: number) {
   return c >= 0 && r >= 0 && c < g.cols && r < g.rows;
+}
+
+/** Keys of every cell an entry covers: w × h cells from its top-left cell (unset = 1 × 1). */
+export function coveredKeys(pl: Placement): string[] {
+  const w = pl.w ?? 1;
+  const h = pl.h ?? 1;
+  if (w === 1 && h === 1) return [placementKey(pl)];
+  const out: string[] = [];
+  for (let dc = 0; dc < w; dc++) for (let dr = 0; dr < h; dr++) out.push(cellKey(pl.m, pl.p, pl.c + dc, pl.r + dr));
+  return out;
+}
+
+/** The whole w × h block lies inside the grid. */
+export function spanInBounds(g: GridInfo, pl: Placement) {
+  return pl.c >= 0 && pl.r >= 0 && pl.c + (pl.w ?? 1) <= g.cols && pl.r + (pl.h ?? 1) <= g.rows;
 }
 
 /** Column-major (Windows) order index. */
