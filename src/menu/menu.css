@@ -1,54 +1,295 @@
-/* The item popup (src/menu). Row heights match layout.ts: icons 62, item 36, separator 9, padding 6. */
+/* Right-click menus (src/menu), measured against Windows 11's own at 125 %:
+   entry 28 + 2·2 margin, separator 9, list padding 3, command bar 70, bar button 64 + 1 divider. */
 
 html[data-view="menu"],
-html[data-view="menu"] body {
-  background: transparent;
+html[data-view="menu"] body,
+html[data-view="menusub"],
+html[data-view="menusub"] body {
+  margin: 0;
+  background: transparent !important;
   overflow: hidden;
 }
 
-.mw-root {
-  position: fixed;
-  inset: 0;
-  box-sizing: border-box;
-  padding: 6px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: rgba(var(--glass-rgb), 0.5);
-  border: 1px solid var(--line);
-  color: var(--fg);
-  font-family: var(--font);
-  font-size: 14px;
-  user-select: none;
+:root {
+  --cm-accent: #4cc2ff;
 }
 
-.mw-root .menu-item {
-  height: 36px;
-  padding: 0 12px;
-  font-size: 14px;
-}
-
-.mw-icons {
+.cm {
+  --cm-fg: #ffffff;
+  --cm-fg2: rgba(255, 255, 255, 0.786);
+  --cm-dis: rgba(255, 255, 255, 0.3628);
+  --cm-line: rgba(255, 255, 255, 0.0837);
+  --cm-hover: rgba(255, 255, 255, 0.0605);
+  --cm-press: rgba(255, 255, 255, 0.0419);
+  /* the window's acrylic is lighter than Windows' own menus; this brings it to the same shade */
+  --cm-tint: rgba(0, 0, 0, 0.33);
+  position: absolute;
+  left: 0;
+  top: 0;
   display: flex;
-  height: 62px;
-  gap: 2px;
+  flex-direction: column;
+  width: max-content;
+  background: var(--cm-tint);
+  color: var(--cm-fg);
+  font-family: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  user-select: none;
+  cursor: default;
+  -webkit-font-smoothing: antialiased;
 }
 
-.mw-icon-btn {
-  flex: 1;
+:root[data-theme="light"] .cm {
+  --cm-fg: rgba(0, 0, 0, 0.896);
+  --cm-fg2: rgba(0, 0, 0, 0.606);
+  --cm-dis: rgba(0, 0, 0, 0.3614);
+  --cm-line: rgba(0, 0, 0, 0.0803);
+  --cm-hover: rgba(0, 0, 0, 0.0373);
+  --cm-press: rgba(0, 0, 0, 0.0241);
+  --cm-tint: rgba(255, 255, 255, 0.18);
+}
+
+/* Windows' item menus are as wide as this whatever their entries */
+.cm[data-target="items"] {
+  min-width: 390px;
+}
+
+.cm[data-closing="true"] {
+  opacity: 0;
+}
+
+.cm-sub[data-entrance="pending"] {
+  opacity: 0;
+}
+
+.cm-sub[data-entrance="playing"] {
+  animation: cm-sub-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cm-sub-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-sub[data-entrance="playing"] {
+    animation-duration: 50ms;
+  }
+}
+
+/* ---- command bar (Cut, Copy, Rename, Share, Delete / Paste) */
+
+.cm-bar {
+  display: flex;
+  align-items: flex-start;
+  height: 69px;
+  padding: 0 1px;
+  border-bottom: 1px solid var(--cm-line);
+}
+
+.cm-btn {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 6px;
+  box-sizing: border-box;
+  width: 64px;
+  height: 61px;
+  margin-top: 4px;
+  padding: 8px 4px 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
-  color: inherit;
+  color: var(--cm-fg);
   font: inherit;
-  font-size: 12px;
   cursor: default;
+  outline: none;
 }
 
-.mw-icon-btn:hover {
-  background: var(--hover);
+.cm-btn + .cm-btn {
+  margin-left: 1px;
+}
+
+.cm-btn + .cm-btn::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 7px;
+  width: 1px;
+  height: 48px;
+  background: var(--cm-line);
+}
+
+.cm-btn:hover {
+  background: var(--cm-hover);
+}
+
+.cm-btn:active {
+  background: var(--cm-press);
+}
+
+.cm-btn-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  max-width: 56px;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* ---- entries */
+
+.cm-list {
+  display: flex;
+  flex-direction: column;
+  padding: 3px 0;
+}
+
+/* with shortcut hints the hints share one left-aligned column at the right edge */
+/* (the entries' own margin and padding count into the edge columns, so those must be auto) */
+.cm-list[data-hints="true"] {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+}
+
+.cm-item {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  margin: 2px 4px;
+  padding: 0 12px 0 11px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.cm-list[data-hints="true"] > .cm-item,
+.cm-list[data-hints="true"] > .cm-sep {
+  grid-column: 1 / -1;
+}
+
+.cm-list[data-hints="true"] > .cm-item {
+  display: grid;
+  grid-template-columns: subgrid;
+}
+
+.cm-item[data-hover="true"] {
+  background: var(--cm-hover);
+}
+
+.cm-item:active:not([data-disabled="true"]) {
+  background: var(--cm-press);
+}
+
+.cm-item[data-disabled="true"] {
+  color: var(--cm-dis);
+  --cm-fg2: var(--cm-dis);
+  --cm-accent: var(--cm-dis);
+  background: transparent;
+}
+
+.cm-item > .ico {
+  grid-column: 1;
+  margin-right: 12px;
+}
+
+.cm-label {
+  grid-column: 2;
+}
+
+.cm-hint,
+.cm-chevron {
+  grid-column: 3;
+  padding-left: 24px;
+}
+
+.cm-hint {
+  font-size: 12px;
+  color: var(--cm-fg2);
+}
+
+.cm-chevron {
+  margin-left: auto;
+  justify-self: end;
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets";
+  font-size: 12px;
+  line-height: 12px;
+  color: var(--cm-fg2);
+}
+
+.cm-sep {
+  flex: none;
+  height: 1px;
+  margin: 4px;
+  background: var(--cm-line);
+}
+
+/* ---- icons (icons.tsx) */
+
+.ico {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--cm-fg2);
+}
+
+.ico img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.ico-glyph {
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets";
+  font-size: 16px;
+  line-height: 16px;
+  font-style: normal;
+}
+
+.ico-glyph > span {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.ico-acc {
+  color: var(--cm-accent);
+}
+
+.ico-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.ico-glyph > .ico-badge {
+  position: absolute;
+  width: auto;
+  height: auto;
+}
+
+.ico-svg {
+  width: 16px;
+  height: 16px;
+  color: var(--cm-fg2);
+}
+
+.cm-mark {
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets";
+  font-size: 12px;
+  color: var(--cm-fg);
+}
+
+.cm-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
 }

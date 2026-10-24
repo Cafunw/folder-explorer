@@ -10,6 +10,8 @@
   --tile-blur: 16px;
   --label-bg: transparent;
   --icon-opacity: 1;
+  --sel: var(--accent);
+  --marquee-radius: 4px;
 
   --fg: #f5f5f7;
   --fg-dim: rgba(245, 245, 247, 0.62);
@@ -93,11 +95,21 @@ textarea {
   overflow: hidden;
 }
 
+/* one wallpaper spec (cross-faded when the page's spec changes) */
+.wallpaper-fade {
+  position: absolute;
+  inset: 0;
+}
+
 .wallpaper-layer {
   position: absolute;
   inset: 0;
   background-position: center;
   background-repeat: no-repeat;
+}
+
+.wallpaper[data-moving] .wallpaper-layer {
+  will-change: transform;
 }
 
 .monitor {
@@ -116,11 +128,11 @@ textarea {
   height: 100%;
 }
 
+/* no permanent will-change: Positioned and the pages take a compositor layer only while they move */
 .positioned {
   position: absolute;
   left: 0;
   top: 0;
-  will-change: transform;
 }
 
 /* ------------------------------------------------------------ tiles */
@@ -147,20 +159,37 @@ textarea {
   border-color: rgba(255, 255, 255, 0.14);
 }
 
+/* selection: --sel (settings.selection.color or the accent), :root[data-sel] = fill / outline / glow */
 .tile[data-selected="true"] .tile-bg {
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--sel) 30%, transparent);
+  border-color: color-mix(in srgb, var(--sel) 55%, transparent);
+}
+
+:root[data-sel="outline"] .tile[data-selected="true"] .tile-bg {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sel) 90%, transparent);
+}
+
+:root[data-sel="glow"] .tile[data-selected="true"] .tile-bg {
+  background: color-mix(in srgb, var(--sel) 14%, transparent);
+  border-color: color-mix(in srgb, var(--sel) 55%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--sel) 60%, transparent);
 }
 
 .tile-icon {
   position: relative;
   flex: none;
   display: grid;
+  /* fixed tracks: an icon PNG (64 / 96 px) must not grow the cell past the icon size */
+  grid-template: 100% / 100%;
   place-items: center;
   opacity: var(--icon-opacity);
 }
 
-.tile-icon > img {
+/* the image sits inside the bounce wrapper, so not a direct child; the drop shadow is painted once
+   into the page's layer (no per-tile layers), and dropped under a plate and in quiet modes */
+.tile-icon img {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -168,26 +197,57 @@ textarea {
   pointer-events: none;
 }
 
+/* icon plate (settings.icons): a CSS shape behind item icons, the icon inset inside it */
+.item-plate {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template: 100% / 100%;
+  place-items: center;
+}
+
+:root[data-plate] .item-plate {
+  padding: var(--plate-pad);
+  border-radius: var(--plate-radius);
+  background: var(--plate-bg);
+}
+
+:root[data-plate] .item-plate img,
+:root[data-quiet] .tile-icon img {
+  filter: none;
+}
+
+/* labels (settings.labels via applyTheme) */
 .tile-label {
   position: relative;
   margin-top: 4px;
   padding: 1px 5px 2px;
   max-width: calc(100% - 6px);
-  font-size: 12px;
+  font-family: var(--label-font, var(--font));
+  font-size: var(--label-size, 12px);
+  font-weight: var(--label-weight, 400);
   line-height: 1.28;
-  color: #fff;
+  color: var(--label-color, #fff);
   text-align: center;
   word-break: break-word;
   overflow-wrap: anywhere;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.85),
-    0 0 6px rgba(0, 0, 0, 0.45);
+  text-shadow: var(--label-shadow, 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 6px rgba(0, 0, 0, 0.45));
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
   border-radius: 6px;
   background: var(--label-bg);
   pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+/* "only on hover": the label keeps its space (no layout shift), it just fades in */
+:root[data-label-hover] .tile:not(:hover):not([data-selected="true"]) .tile-label {
+  opacity: 0;
+}
+
+:root[data-quiet] .tile-label {
+  transition: none;
 }
 
 .tile[data-selected="true"] .tile-label {
@@ -217,6 +277,38 @@ textarea {
 .drop-ring.danger {
   border-color: #ff6b6b;
   box-shadow: 0 0 0 4px rgba(255, 80, 80, 0.3);
+}
+
+/* files over an app: it will open them */
+.drop-ring.app {
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 0 0 4px var(--accent-soft), 0 0 16px var(--accent-soft);
+}
+
+/* in place of the tile's name (below the icon, so it is never cut off at the top edge) */
+.drop-label {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 3px 10px 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.tile:has(.drop-label) .tile-label {
+  visibility: hidden;
+}
+
+.positioned:has(.drop-label) {
+  z-index: 5;
 }
 
 /* ------------------------------------------------------------ folder tile */
@@ -258,17 +350,26 @@ textarea {
   border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
-/* ------------------------------------------------------------ page dots */
+/* ------------------------------------------------------------ page indicator */
 
+/* settings.pageIndicator: data-style dots / line / numbers, data-pos bottom / top / left / right;
+   left / top are the pill's centre (MonitorSurface) */
 .page-dots {
   position: absolute;
   display: flex;
+  align-items: center;
   gap: 8px;
   padding: 6px 10px;
   border-radius: 999px;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   background: rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(10px);
+}
+
+.page-dots[data-pos="left"],
+.page-dots[data-pos="right"] {
+  flex-direction: column;
+  padding: 10px 6px;
 }
 
 .page-dot {
@@ -285,6 +386,93 @@ textarea {
 .page-dot[data-active="true"] {
   background: #fff;
   transform: scale(1.25);
+}
+
+.page-dots[data-style="line"] {
+  gap: 5px;
+  padding: 8px 10px;
+}
+
+.page-dots[data-style="line"][data-pos="left"],
+.page-dots[data-style="line"][data-pos="right"] {
+  padding: 10px 8px;
+}
+
+.page-dots[data-style="line"] .page-dot {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.page-dots[data-style="line"][data-pos="left"] .page-dot,
+.page-dots[data-style="line"][data-pos="right"] .page-dot {
+  width: 3px;
+  height: 18px;
+}
+
+.page-dots[data-style="line"] .page-dot[data-active="true"] {
+  transform: none;
+}
+
+.page-dots[data-style="numbers"] {
+  gap: 0;
+  padding: 2px 3px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.page-num {
+  padding: 1px 4px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.page-step {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms, background 150ms;
+}
+
+.page-dots:hover .page-step:not(:disabled) {
+  opacity: 0.85;
+}
+
+.page-step:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.page-step:disabled {
+  cursor: default;
+}
+
+.page-step[data-dir="prev"] svg {
+  transform: rotate(180deg);
+}
+
+.page-dots[data-pos="left"] .page-step[data-dir="prev"] svg,
+.page-dots[data-pos="right"] .page-step[data-dir="prev"] svg {
+  transform: rotate(-90deg);
+}
+
+.page-dots[data-pos="left"] .page-step[data-dir="next"] svg,
+.page-dots[data-pos="right"] .page-step[data-dir="next"] svg {
+  transform: rotate(90deg);
+}
+
+:root[data-quiet] .page-dots {
+  backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.3);
 }
 
 /* ------------------------------------------------------------ folder panel */
@@ -424,10 +612,12 @@ textarea {
   z-index: 50;
 }
 
+/* exists only while dragging: its own layer, so following the pointer never re-paints its shadow */
 .drag-ghost {
   position: absolute;
   left: 0;
   top: 0;
+  will-change: transform;
 }
 
 .drag-badge {
@@ -449,9 +639,9 @@ textarea {
 
 .marquee {
   position: fixed;
-  border: 1px solid color-mix(in srgb, var(--accent) 80%, white);
-  background: var(--accent-softer);
-  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--sel) 85%, white);
+  background: color-mix(in srgb, var(--sel) 18%, transparent);
+  border-radius: var(--marquee-radius);
   pointer-events: none;
   z-index: 40;
 }
@@ -756,7 +946,8 @@ textarea {
   border-radius: 6px;
   background: rgba(20, 20, 24, 0.92);
   color: #fff;
-  font-size: 12px;
+  font-family: var(--label-font, var(--font));
+  font-size: var(--label-size, 12px);
   line-height: 1.28;
   text-align: center;
   padding: 2px 4px;
@@ -863,4 +1054,44 @@ textarea {
   background: var(--accent);
   color: #fff;
   font-weight: 600;
+}
+
+/* ------------------------------------------------------------ performance */
+
+/* Nothing painted under the desktop icons (:root[data-bare], set by applyTheme): the window is
+   transparent over Windows' own wallpaper, so a backdrop blur there would blur transparent pixels —
+   the same picture for a real GPU cost. Panels, dialogs and the drag ghost (over icons) keep it. */
+:root[data-bare] .monitor .folder-tile,
+:root[data-bare] .monitor .fence,
+:root[data-bare] .monitor .merge-plate,
+:root[data-bare] .monitor .page-dots {
+  backdrop-filter: none !important;
+}
+
+/* game: a fullscreen app covers a monitor — no transitions, keyframes or backdrop filters at all */
+:root[data-quiet="game"] *,
+:root[data-quiet="game"] *::before,
+:root[data-quiet="game"] *::after {
+  transition: none !important;
+  animation: none !important;
+  backdrop-filter: none !important;
+}
+
+/* battery: no backdrop blur, short transitions (hover effects are off via :root[data-hover]) */
+:root[data-quiet="battery"] *,
+:root[data-quiet="battery"] *::before,
+:root[data-quiet="battery"] *::after {
+  backdrop-filter: none !important;
+  transition-duration: 60ms !important;
+}
+
+/* Windows' "Animation effects" off */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

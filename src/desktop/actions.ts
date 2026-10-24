@@ -1,26 +1,51 @@
-import { api } from "../api";
+import { api, iconUrl } from "../api";
 import { t } from "../i18n";
 import { cellAt, gridAt, primaryGrid } from "../layout/grid";
+import { createFenceAt, createHeadingNear, HEADING_WIDTH, isFence } from "../layout/blocks";
 import {
   createFolderAt,
+  DEFAULT_FENCE_SIZE,
   descendants,
   dissolveFolder,
+  firstFree,
   folderPath,
   isFolderId,
+  isHeadingId,
+  occupancy,
   removeDeep,
   removeIds,
   remapIds,
   renameFolder,
   setCustom,
+  setHeading,
+  sortMonitor,
+  updateFolder,
+  withSpan,
+  type SortKey,
 } from "../layout/model";
-import { MENU_W, menuHeight, menuRows, type MenuAction, type MenuRequest } from "../menu/layout";
+import {
+  desktopClassicOwn,
+  desktopMenu,
+  headingMenu,
+  ICON_SCALES,
+  itemMenu,
+  type DesktopState,
+  type ItemInfo,
+  type MenuPick,
+  type MenuRequest,
+} from "../menu/model";
 import type { Placement } from "../types";
+import { enterJiggle } from "./Jiggle";
+import { liveItem } from "./live";
+import { lockedOnPath, requestUnlock } from "./locks";
 import { rectOf } from "./registry";
+import { playSound } from "./sounds";
 import {
   baseName,
   commit,
   displayName,
   expectNewItem,
+  recordOpen,
   redo,
   refreshItems,
   saveSettings,
@@ -40,21 +65,38 @@ export function openId(id: string) {
     return;
   }
   const it = get().itemMap.get(id);
-  if (it) api.openItem(it.path).catch(() => toast(t.operationFailed));
+  if (!it) {
+    // an entry of a live group (a real folder's file, not a desktop item)
+    const live = liveItem(id);
+    if (live) api.openItem(live.path).catch(() => toast(t.operationFailed));
+    return;
+  }
+  api
+    .openItem(it.path)
+    .then(() => recordOpen(id))
+    .catch(() => toast(t.operationFailed));
 }
 
 export function openFolder(folderId: string, opts: { editTitle?: boolean } = {}) {
   const { layout, panel, grids } = get();
   if (!layout.folders[folderId]) return;
+  const locked = lockedOnPath(folderId);
+  if (locked) {
+    requestUnlock(locked, () => openFolder(folderId, opts));
+    return;
+  }
   const stack = folderPath(layout, folderId);
   const top = stack[0];
-  const r = rectOf(top);
+  // a group inside a fence: its own tile there, not the fence's title bar
+  const inFence = stack.length > 1 && isFence(layout, top) ? stack[1] : undefined;
+  const r = rectOf(inFence ?? top);
   const pl = layout.placements[top];
   const monitorId = panel?.monitorId ?? pl?.m ?? primaryGrid(grids).monitorId;
   set({
     panel: {
       stack,
       monitorId,
+      from: panel ? panel.from : inFence,
       origin: panel ? panel.origin : r ? { x: r.left, y: r.top, w: r.width, h: r.height } : null,
       editTitle: !!opts.editTitle,
       dir: 1,
@@ -62,9 +104,11 @@ export function openFolder(folderId: string, opts: { editTitle?: boolean } = {})
     },
     selection: new Set(),
   });
+  playSound("open");
 }
 
 export function closePanel() {
+  if (get().panel) playSound("close");
   set({ panel: null, selection: new Set(), rename: get().rename?.where === "panel" ? null : get().rename });
 }
 
@@ -86,6 +130,11 @@ export function panelGoTo(depth: number) {
 export function panelEnter(folderId: string) {
   const p = get().panel;
   if (!p) return openFolder(folderId);
+  const locked = lockedOnPath(folderId);
+  if (locked) {
+    requestUnlock(locked, () => panelEnter(folderId));
+    return;
+  }
   set({ panel: { ...p, stack: [...p.stack, folderId], dir: 1, editTitle: false }, selection: new Set() });
 }
 
@@ -103,9 +152,10 @@ export async function deleteIds(ids: string[]) {
     const it = itemMap.get(id);
     return it && it.kind !== "system";
   });
-  if (folders.length === 0 && files.length === 0) return;
+  const headings = ids.filter((id) => isHeadingId(id) && layout.headings[id]);
+  if (folders.length === 0 && files.length === 0 && headings.length === 0) return;
 
-  let next = layout;
+  let next = headings.length ? removeIds(layout, headings) : layout;
   for (const f of folders) next = dissolveFolder(next, get().grids, f);
   if (files.length) {
     const paths = files.map((id) => itemMap.get(id)!.path);
@@ -114,14 +164,17 @@ export async function deleteIds(ids: string[]) {
     } catch (e) {
       console.error(e);
       toast(t.operationFailed);
+      playSound("error");
       return;
     }
     next = removeIds(next, files);
     commit(next, { kind: "recycle", paths });
+    playSound("delete");
     toast(t.movedToRecycle(files.length), { label: t.undo, run: () => undo() });
   } else {
     commit(next);
-    toast(t.folderDissolved, { label: t.undo, run: () => undo() });
+    playSound("delete");
+    toast(folders.length ? t.folderDissolved : t.fence.headingRemoved, { label: t.undo, run: () => undo() });
   }
   set({ selection: new Set() });
 }
@@ -207,15 +260,44 @@ function cellAtWindowPoint(x: number, y: number): Placement | null {
   return { m: g.monitorId, p: pages[g.monitorId] ?? 0, c, r };
 }
 
+/** A point of the desktop window in screen pixels. */
+function toScreen(x: number, y: number): [number, number] {
+  const env = get().env;
+  const k = env?.scaleFactor || 1;
+  return [Math.round((env?.windowOrigin.x ?? 0) + x * k), Math.round((env?.windowOrigin.y ?? 0) + y * k)];
+}
+
+function desktopState(): DesktopState {
+  const s = get().settings;
+  return { iconScale: s.grid.iconScale, autoArrange: s.grid.autoArrange, showIcons: s.behavior.showIcons };
+}
+
+/** Folders and system folders open with a plain folder icon, like Windows' own menu. */
+const FOLDER_ICON = "C:\\Windows";
+
+async function openMenu(request: Pick<MenuRequest, "target" | "ids" | "paths" | "cell" | "spec">, at?: [number, number]) {
+  try {
+    await api.openMenu(request, at);
+  } catch (e) {
+    console.warn("menu", e);
+    toast(t.operationFailed);
+  }
+}
+
 /**
- * Right-click on one of our icons (an object of this app, not Windows' desktop): a Windows 11 style
- * menu drawn by the app in its own popup window (`src/menu`), which opens instantly. The shell's full
- * classic menu (every shell extension) is only built when "Daha fazla seçenek göster" is chosen.
- * A group (our virtual folder) opens its settings window. The right-click on the empty desktop never
- * reaches us: Windows handles it itself.
+ * Right-click on one of our icons: a Windows 11 menu drawn by the app (`src/menu`), so it opens
+ * instantly; the shell's side (Open with ▸, the classic menu behind "Daha fazla seçenek göster")
+ * is prepared while it is on screen. A group (our virtual folder) opens its settings window.
  */
-export async function showItemMenu(id: string) {
-  const { selection, itemMap } = get();
+export async function showItemMenu(id: string, at?: [number, number]) {
+  const { selection, itemMap, env, layout } = get();
+  if (isHeadingId(id)) {
+    const h = layout.headings[id];
+    if (!h) return;
+    set({ selection: new Set([id]) });
+    await openMenu({ target: "items", ids: [id], paths: [], cell: null, spec: headingMenu(h) }, at);
+    return;
+  }
   if (isFolderId(id)) {
     set({ selection: new Set([id]), dialog: { kind: "customize", id } });
     return;
@@ -225,34 +307,115 @@ export async function showItemMenu(id: string) {
   const real = [id, ...picked.filter((i) => i !== id)].filter((i) => !isFolderId(i) && itemMap.has(i));
   if (!real.length) return;
   const items = real.map((i) => itemMap.get(i)!);
-  const request: MenuRequest = {
-    ids: real,
-    paths: items.map((i) => i.path),
-    system: items.some((i) => i.kind === "system"),
-    canRunAs: /\.(exe|bat|cmd|msi|lnk|com|ps1)$/i.test(items[0].path),
-  };
-  const rows = menuRows(request);
-  try {
-    await api.showItemMenu(request, MENU_W, menuHeight(rows));
-  } catch (e) {
-    console.warn("item menu", e);
-    toast(t.operationFailed);
-  }
+  const k = env?.scaleFactor || 1;
+  const info: ItemInfo[] = items.map((it) => ({
+    kind: it.kind,
+    path: it.path,
+    isShortcut: it.isShortcut,
+    icon:
+      it.kind === "file"
+        ? { img: iconUrl(it.parsingName, 16 * k, it.iconVersion) }
+        : { img: iconUrl(it.kind === "folder" ? it.parsingName : FOLDER_ICON, 16 * k, "1") },
+  }));
+  await openMenu({ target: "items", ids: real, paths: items.map((i) => i.path), cell: null, spec: itemMenu(info) }, at);
 }
 
-/** An entry of the item popup was chosen (the popup tells us; it has no access to the desktop's state). */
-export async function runMenuAction(action: MenuAction, ids: string[], at?: [number, number]) {
-  const { itemMap } = get();
-  const items = ids.map((i) => itemMap.get(i)).filter((i): i is NonNullable<typeof i> => !!i);
-  const paths = items.map((i) => i.path);
+/** Right-click on the empty desktop at (x, y) (window px). */
+export function showDesktopMenu(x: number, y: number, at?: [number, number]) {
+  set({ selection: new Set(), rename: null });
+  void openMenu({ target: "desktop", ids: [], paths: [], cell: cellAtWindowPoint(x, y), spec: desktopMenu(desktopState()) }, at);
+}
+
+/** Shift+F10 / the menu key: the menu of the selection, or the desktop's under the pointer. */
+export function showMenuFromKeyboard(pointer: { x: number; y: number }) {
+  const sel = [...get().selection];
+  const first = sel.find((id) => !isFolderId(id)) ?? sel[0];
+  const r = first ? rectOf(first) : null;
+  if (first && r) {
+    showItemMenu(first, toScreen(r.left + r.width / 2, r.top + r.height / 2));
+    return;
+  }
+  showDesktopMenu(pointer.x, pointer.y, toScreen(pointer.x, pointer.y));
+}
+
+function sortInfo(id: string) {
+  const { layout, itemMap } = get();
+  if (isFolderId(id)) return { name: layout.folders[id]?.name ?? "", ext: "", modified: 0, size: 0, group: 1 };
+  const it = itemMap.get(id);
+  const group = it?.kind === "system" ? 0 : it?.kind === "folder" ? 1 : 2;
+  return { name: displayName(id), ext: it?.ext ?? "", modified: it?.modified ?? 0, size: it?.size ?? 0, group };
+}
+
+async function verb(paths: string[], verbs: string[]) {
+  if (!(await api.shellVerb(paths, verbs))) toast(t.notAvailableHere);
+}
+
+/** An entry of a menu was chosen (the menu window tells us; it has no access to the desktop's state). */
+export async function runMenuAction(p: MenuPick): Promise<void> {
+  const { id, ids, paths, cell } = p;
+  const s = get().settings;
+  const one = paths.length === 1 ? paths[0] : null;
+  const item = ids.length === 1 ? get().itemMap.get(ids[0]) : undefined;
   try {
-    switch (action) {
+    if (id.startsWith("openwith:")) {
+      const n = id.slice("openwith:".length);
+      await api.openWith(paths, n === "other" ? null : Number(n));
+      return;
+    }
+    if (id.startsWith("new:")) {
+      expectNewItem(cell, true);
+      await api.newItem(Number(id.slice("new:".length)));
+      return;
+    }
+    if (id.startsWith("compress:")) {
+      expectNewItem(get().layout.placements[ids[0]] ?? null, true);
+      try {
+        await api.compress(paths, id.slice("compress:".length));
+      } catch (e) {
+        console.warn("compress", e);
+        toast(t.compressFailed);
+      }
+      return;
+    }
+    if (id.startsWith("view:")) {
+      const k = ICON_SCALES[id.slice("view:".length) as keyof typeof ICON_SCALES];
+      if (k) saveSettings({ ...s, grid: { ...s.grid, iconScale: k } });
+      return;
+    }
+    if (id.startsWith("sort:")) {
+      const { grids, layout } = get();
+      const m = cell?.m ?? primaryGrid(grids).monitorId;
+      commit(sortMonitor(layout, grids, m, id.slice("sort:".length) as SortKey, sortInfo));
+      return;
+    }
+    if (id.startsWith("heading:")) {
+      if (ids[0]) headingAction(id.slice("heading:".length), ids[0]);
+      return;
+    }
+    switch (id) {
+      case "newfence":
+        newFence(cell);
+        break;
+      case "editicons":
+        enterJiggle();
+        break;
+      case "newheading":
+        newHeading(cell, "title");
+        break;
+      case "newdivider":
+        newHeading(cell, "divider");
+        break;
       case "open":
         ids.forEach(openId);
         break;
       case "cut":
       case "copy":
-        await api.clipboardFiles(paths, action === "cut");
+        await api.clipboardFiles(paths, id === "cut");
+        break;
+      case "paste":
+      case "pasteshortcut":
+        expectNewItem(cell);
+        await api.pasteFiles(id === "pasteshortcut");
         break;
       case "rename":
         startRename(ids[0]);
@@ -260,35 +423,103 @@ export async function runMenuAction(action: MenuAction, ids: string[], at?: [num
       case "delete":
         deleteIds(ids);
         break;
+      case "share":
+        await verb(paths, ["Windows.ModernShare"]);
+        break;
+      case "favorite":
+        await verb(paths, ["pintohomefile"]);
+        break;
+      case "pinhome":
+        await verb(paths, ["pintohome"]);
+        break;
+      case "pinstart":
+        await verb(paths, ["PinToStartScreen"]);
+        break;
+      case "emptybin":
+        await verb(paths, ["empty"]);
+        break;
+      case "opencontaining":
+        await verb(paths, ["opencontaining"]);
+        break;
       case "runas":
-        await api.runAsAdmin(paths[0]);
+        if (one && item?.kind === "file") await api.runAsAdmin(one);
+        else await verb(paths, ["runas"]);
+        break;
+      case "newtab":
+        if (one) await api.openVerb(one, ["opennewtab", "opennewwindow"]);
+        break;
+      case "newwindow":
+        if (one) await api.openVerb(one, ["opennewwindow"]);
         break;
       case "copypath":
-        await api.copyText(paths.map((p) => `"${p}"`).join("\r\n"));
+        await api.copyText(paths.map((x) => `"${x}"`).join("\r\n"));
         break;
       case "properties":
-        await api.showProperties(paths[0]);
+        if (one && item && item.kind !== "system") await api.showProperties(one);
+        else await verb(paths, ["properties"]);
+        break;
+      case "terminal":
+        await api.openTerminal(one ?? get().env?.desktopDir ?? "");
+        break;
+      case "autoarrange":
+        saveSettings({ ...s, grid: { ...s.grid, autoArrange: !s.grid.autoArrange } });
+        break;
+      case "showicons":
+        saveSettings({ ...s, behavior: { ...s.behavior, showIcons: !s.behavior.showIcons } });
+        break;
+      case "refresh":
+        set({ iconBust: get().iconBust + 1 });
+        await refreshItems();
+        break;
+      case "newgroup":
+        newEmptyFolder(cell);
+        break;
+      case "newsmart":
+        newKindFolder(cell, "smart");
+        break;
+      case "newlive":
+        newKindFolder(cell, "live");
+        break;
+      case "newfrequent":
+        newKindFolder(cell, "frequent");
+        break;
+      case "display":
+        await api.openItem("ms-settings:display");
+        break;
+      case "personalize":
+        await api.openItem("ms-settings:personalization");
         break;
       case "more": {
-        // the classic menu loads every shell extension: this is the slow part, only on request
-        const verb = await api.showShellMenu(paths, at);
-        if (verb === "rename") startRename(ids[0]);
-        else if (verb === "delete") deleteIds(ids);
+        // Windows' classic menu, built in the background while ours was open
+        const desktop = p.target === "desktop";
+        if (desktop) expectNewItem(cell);
+        const own = desktop ? desktopClassicOwn(desktopState(), p.canPaste) : undefined;
+        const chosen = await api.classicMenu(paths, p.at, own);
+        if (!chosen) break;
+        if (chosen.startsWith("own:")) await runMenuAction({ ...p, id: chosen.slice("own:".length) });
+        else if (chosen === "rename") startRename(ids[0]);
+        else if (chosen === "delete") deleteIds(ids);
+        else if (desktop && /^new/i.test(chosen)) expectNewItem(cell, true);
         break;
       }
     }
   } catch (e) {
-    console.warn("menu action", action, e);
+    console.warn("menu action", id, e);
     toast(t.operationFailed);
   }
 }
 
-/**
- * The user right-clicked the empty desktop at (x, y) (window pixels): Windows opened its own menu.
- * Whatever new item it creates (New ▸ Folder…) should land where the user clicked.
- */
-export function onEmptyRightClick(x: number, y: number) {
-  expectNewItem(cellAtWindowPoint(x, y));
+/** A menu entry for the selected icons, from the keyboard (Ctrl+C, Alt+Enter…). */
+export function runOnSelection(id: string) {
+  const { selection, itemMap } = get();
+  const files = id === "cut" || id === "copy" || id === "copypath";
+  const ids = [...selection].filter((i) => !isFolderId(i) && itemMap.has(i) && !(files && itemMap.get(i)!.kind === "system"));
+  if (!ids.length) return;
+  void runMenuAction({ id, target: "items", ids, paths: ids.map((i) => itemMap.get(i)!.path), at: [0, 0], cell: null, canPaste: false });
+}
+
+export function pasteAt(x: number, y: number) {
+  void runMenuAction({ id: "paste", target: "desktop", ids: [], paths: [], at: [0, 0], cell: cellAtWindowPoint(x, y), canPaste: true });
 }
 
 // ---------------------------------------------------------------- misc actions
@@ -299,6 +530,59 @@ export function newEmptyFolder(cell: Placement | null) {
   const r = createFolderAt(layout, grids, { placement: pl }, t.newFolderName, settings.folders.defaultColor);
   commit(r.layout);
   window.setTimeout(() => openFolder(r.folderId, { editTitle: true }), 80);
+}
+
+/**
+ * Yeni ▸ Akıllı grup / Canlı klasör / En çok kullanılanlar: the group lands at `cell`; a smart group
+ * opens its settings on the rule editor, a live group on the folder picker.
+ */
+export function newKindFolder(cell: Placement | null, kind: "smart" | "live" | "frequent") {
+  const { grids, settings } = get();
+  const pl = cell ?? { m: primaryGrid(grids).monitorId, p: 0, c: 0, r: 0 };
+  const name = kind === "smart" ? t.grp.newSmart : kind === "live" ? t.grp.newLive : t.grp.newFrequent;
+  const r = createFolderAt(get().layout, grids, { placement: pl }, name, settings.folders.defaultColor);
+  const patch = kind === "smart" ? { kind, rule: { all: true, conditions: [] } } : { kind };
+  commit(updateFolder(r.layout, grids, r.folderId, patch));
+  set({ selection: new Set([r.folderId]) });
+  if (kind !== "frequent") {
+    window.setTimeout(() => set({ dialog: { kind: "customize", id: r.folderId, focus: kind === "smart" ? "rule" : "source" } }), 80);
+  }
+}
+
+/** Top-left of the first free block of `size` on the primary monitor's current page (palette: no cell). */
+function freeCellFor(size: { w: number; h: number }): Placement {
+  const { layout, grids, pages } = get();
+  const m = primaryGrid(grids).monitorId;
+  return withSpan(firstFree(occupancy(layout), grids, m, pages[m] ?? 0, 0, size));
+}
+
+/** Yeni ▸ Kutu: an empty group shown as a fence at the right-clicked cell; its title is edited first. */
+export function newFence(cell: Placement | null) {
+  const { layout, grids, settings } = get();
+  const r = createFenceAt(layout, grids, cell ?? freeCellFor(DEFAULT_FENCE_SIZE), t.fence.newName, settings.folders.defaultColor);
+  commit(r.layout);
+  // from the command palette the desktop has no keyboard focus: no editing then
+  set(cell ? { selection: new Set([r.folderId]), rename: { id: r.folderId, where: "desktop" } } : { selection: new Set([r.folderId]) });
+}
+
+/** Yeni ▸ Başlık / Ayraç at the right-clicked cell, its text edited first. */
+export function newHeading(cell: Placement | null, style: "title" | "divider") {
+  const { layout, grids } = get();
+  const r = createHeadingNear(layout, grids, cell ?? freeCellFor({ w: HEADING_WIDTH, h: 1 }), style);
+  commit(r.layout);
+  set(cell ? { selection: new Set([r.headingId]), rename: { id: r.headingId, where: "desktop" } } : { selection: new Set([r.headingId]) });
+}
+
+/** The heading menu's entries ("heading:<action>"). */
+function headingAction(action: string, hid: string) {
+  const { layout } = get();
+  const h = layout.headings[hid];
+  if (!h) return;
+  if (action === "edit") startRename(hid);
+  else if (action === "delete") void deleteIds([hid]);
+  else if (action === "underline") commit(setHeading(layout, hid, { underline: !h.underline }));
+  else if (action === "align:left" || action === "align:center") commit(setHeading(layout, hid, { align: action === "align:left" ? "left" : "center" }));
+  else if (action === "style:title" || action === "style:divider") commit(setHeading(layout, hid, { style: action === "style:title" ? "title" : "divider" }));
 }
 
 export function toggleLock() {

@@ -1,9 +1,11 @@
 //! Windows wallpaper information via IDesktopWallpaper.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, UNIX_EPOCH};
 
+use notify::{RecursiveMode, Watcher};
 use serde::Serialize;
 use tauri::Emitter;
 use windows::core::PCWSTR;
@@ -137,20 +139,67 @@ pub fn emit_changed() {
     }
 }
 
-/// Slideshows / Spotlight do not always broadcast WM_SETTINGCHANGE: poll as well.
-pub fn start_poll() {
-    std::thread::Builder::new()
-        .name("fe-wallpaper".into())
-        .spawn(|| loop {
-            std::thread::sleep(Duration::from_secs(20));
-            let before = LAST.lock().unwrap().clone();
-            if let Ok(now) = get_wallpapers() {
-                if before.is_some() && before.as_ref() != Some(&now) {
-                    if let Some(app) = util::app() {
-                        let _ = app.emit("wallpaper-changed", ());
-                    }
-                }
+static CHECK_SCHEDULED: AtomicBool = AtomicBool::new(false);
+/// A change came while a game was in front; looked at when game mode ends.
+static PENDING: AtomicBool = AtomicBool::new(false);
+
+/// Changes announced with WM_SETTINGCHANGE reach the desktop window. Slideshows and Spotlight do not
+/// always send it, but every wallpaper change rewrites Windows' transcoded copy of the image: watch
+/// that folder (no polling).
+pub fn start_watch() {
+    let Ok(appdata) = std::env::var("APPDATA") else { return };
+    let dir = Path::new(&appdata).join("Microsoft\\Windows\\Themes");
+    let handler = |res: notify::Result<notify::Event>| {
+        let Ok(ev) = res else { return };
+        let transcoded = ev
+            .paths
+            .iter()
+            .any(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("Transcoded")));
+        if transcoded {
+            schedule_check();
+        }
+    };
+    match notify::recommended_watcher(handler) {
+        Ok(mut watcher) => {
+            if watcher.watch(&dir, RecursiveMode::NonRecursive).is_ok() {
+                // lives as long as the app
+                Box::leak(Box::new(watcher));
             }
-        })
-        .ok();
+        }
+        Err(e) => crate::dlog!("wallpaper watch: {e}"),
+    }
+}
+
+fn schedule_check() {
+    if CHECK_SCHEDULED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(|| {
+        // the image is written in several steps
+        std::thread::sleep(Duration::from_millis(1500));
+        CHECK_SCHEDULED.store(false, Ordering::SeqCst);
+        if crate::quiet::game_quiet() {
+            PENDING.store(true, Ordering::SeqCst);
+        } else {
+            refresh_if_changed();
+        }
+    });
+}
+
+fn refresh_if_changed() {
+    let before = LAST.lock().unwrap().clone();
+    if let Ok(now) = get_wallpapers() {
+        if before.as_ref() != Some(&now) {
+            if let Some(app) = util::app() {
+                let _ = app.emit("wallpaper-changed", ());
+            }
+        }
+    }
+}
+
+/// Game mode ended: catch up with a change that came meanwhile.
+pub fn flush_pending() {
+    if PENDING.swap(false, Ordering::SeqCst) {
+        std::thread::spawn(refresh_if_changed);
+    }
 }

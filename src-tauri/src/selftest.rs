@@ -3,6 +3,7 @@
 //! * `--selftest [outdir]`  environment, items, Windows layout, wallpapers, start apps, one icon PNG
 //! * `--ztest`              z-order behaviour of HWND_BOTTOM relative to Progman
 //! * `--fileops-test <dir>` rename → recycle → restore of a throw-away file inside <dir>
+//! * `--menutest [paths…]`  the classic right-click menu (entries, verbs), New ▸ and Open with ▸
 
 use serde_json::json;
 
@@ -30,10 +31,18 @@ pub fn run(args: &[String]) {
     if let Some(path) = arg_after(args, "--restore") {
         println!("restore {:?}", shell::restore_from_recycle(vec![path]));
     }
+    if let Some(i) = args.iter().position(|a| a == "--menutest") {
+        // `--menutest` = the desktop background; `--menutest a b` = items a and b together
+        let paths: Vec<String> = args[i + 1..].iter().take_while(|a| !a.starts_with("--")).cloned().collect();
+        match crate::ctxmenu::describe(paths) {
+            Ok(s) => println!("{s}"),
+            Err(e) => println!("menutest failed: {e}"),
+        }
+    }
 }
 
 fn selftest(outdir: Option<String>) {
-    let monitors = env::monitors();
+    let monitors = env::monitors_with_size();
     println!("monitors = {}", serde_json::to_string_pretty(&monitors).unwrap());
     println!("virtual bounds = {:?}", env::virtual_bounds());
     println!("desktop = {} | public = {}", util::user_desktop_dir(), util::public_desktop_dir());

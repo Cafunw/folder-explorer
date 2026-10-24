@@ -1,5 +1,7 @@
 // TEMPORARY diagnostics: writes timestamped lines to fe-debug.log (via Rust) to find out what
 // happens around a visible flicker. Remove together with src-tauri/src/diag.rs.
+// Dev builds only (DesktopView). The frame-gap and tile monitors keep the page busy, so they run only
+// with localStorage "fe.diag" = "1"; idle CPU measurements in dev stay meaningful.
 import { api, on } from "../api";
 
 export function startDiag() {
@@ -13,8 +15,17 @@ export function startDiag() {
   }
   void on("desktop-changed", () => log("event desktop-changed"));
   void on("desktop-raised", () => log("event desktop-raised"));
+  void on("quiet-changed", (q) => log(`event quiet-changed ${JSON.stringify(q)}`));
   void on("empty-press", () => log("event empty-press"));
   void on("empty-release", () => log("event empty-release"));
+
+  let heavy = false;
+  try {
+    heavy = localStorage.getItem("fe.diag") === "1";
+  } catch {
+    /* no storage: light diagnostics only */
+  }
+  if (!heavy) return;
 
   // render stalls: requestAnimationFrame stops while the page is hidden / occluded / starved
   let last = performance.now();

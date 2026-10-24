@@ -2,7 +2,13 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Folder Explorer pencereleri",
-  "windows": ["desktop", "search", "settings", "menu"],
+  "windows": [
+    "desktop",
+    "search",
+    "settings",
+    "menu",
+    "menusub"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-hide",

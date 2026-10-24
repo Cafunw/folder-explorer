@@ -46,6 +46,29 @@ export const mockItems: DesktopItem[] = names.map((name, i) => {
   };
 });
 
+/** A live group's folder in the browser preview: a few entries named after the folder. */
+export function mockFolder(dir: string): DesktopItem[] {
+  const base = dir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "Klasör";
+  const files = ["kurulum.exe", "fatura.pdf", "tatil.jpg", "notlar.txt", "sunum.pptx", "arşiv.zip", "şarkı.mp3", "video.mp4", "tablo.xlsx", "rapor.docx", "logo.png", "yedek"];
+  return files.map((f, i) => {
+    const path = `${dir.replace(/[\\/]+$/, "")}\\${f}`;
+    const dot = f.lastIndexOf(".");
+    return {
+      id: path.toLowerCase(),
+      kind: dot < 0 ? "folder" : "file",
+      path,
+      parsingName: path,
+      name: i === 0 ? `${base} ${f}` : f,
+      ext: dot < 0 ? "" : f.slice(dot),
+      isShortcut: false,
+      isPublic: false,
+      modified: Date.now() - i * 86_400_000,
+      size: (i + 1) * 120_000,
+      iconVersion: "1",
+    };
+  });
+}
+
 export function mockIcon(parsingName: string): string {
   const i = Math.max(0, mockItems.findIndex((m) => m.parsingName === parsingName));
   const name = mockItems[i]?.name ?? parsingName;

@@ -1,13 +1,17 @@
 //! Folder Explorer — Rust side. See docs/ARCHITECTURE.md.
 
+mod archive;
 mod commands;
+mod ctxmenu;
 mod desktop_window;
 mod diag;
 mod env;
+mod hello;
 mod icons;
 mod items;
 mod legacy;
-mod passthrough;
+mod live;
+mod quiet;
 mod selftest;
 mod shell;
 mod startup;
@@ -23,6 +27,13 @@ use tauri_plugin_global_shortcut::ShortcutState;
 pub fn watchdog(pid: Option<&String>) {
     if let Some(pid) = pid.and_then(|p| p.parse::<u32>().ok()) {
         desktop_window::run_watchdog(pid);
+    }
+}
+
+/// `folder-explorer.exe --watchdog-launch <pid>`: start the watchdog outside the caller's process tree.
+pub fn launch_watchdog(pid: Option<&String>) {
+    if let Some(pid) = pid.filter(|p| p.parse::<u32>().is_ok()) {
+        desktop_window::launch_watchdog(pid);
     }
 }
 
@@ -84,27 +95,48 @@ pub fn run() {
             commands::list_desktop_items,
             commands::get_windows_layout,
             commands::open_item,
-            commands::show_shell_menu,
-            commands::show_item_menu,
+            commands::open_menu,
+            commands::place_menu,
             commands::take_menu_request,
             commands::hide_menu,
+            commands::classic_menu,
+            commands::shell_verb,
+            commands::new_item,
+            commands::open_with,
+            commands::open_verb,
+            commands::open_terminal,
+            commands::compress,
+            commands::paste_files,
             commands::clipboard_files,
             commands::copy_text,
             commands::show_properties,
             commands::run_as_admin,
-            commands::set_input_regions,
             commands::debug_log,
             commands::recycle,
             commands::restore_from_recycle,
             commands::rename_item,
             commands::move_into_folder,
+            commands::copy_into_folder,
+            commands::drop_on_item,
+            commands::key_state,
             commands::import_dropped,
             commands::start_drag_out,
             commands::cursor_over_foreign_window,
             commands::list_start_apps,
+            commands::list_dir_preview,
+            commands::list_folder,
+            commands::watch_folder,
+            commands::unwatch_folder,
+            commands::known_folders,
+            commands::hello_available,
+            commands::hello_verify,
+            commands::shortcut_target,
+            commands::list_recent,
+            commands::search_files,
             commands::create_shortcut,
             commands::create_url_shortcut,
             commands::get_wallpapers,
+            commands::get_quiet,
             commands::load_state,
             commands::save_layout,
             commands::save_settings,
@@ -113,15 +145,24 @@ pub fn run() {
             commands::export_state,
             commands::import_state,
             commands::import_media,
+            commands::import_icon_pack,
+            commands::export_theme,
+            commands::import_theme,
             commands::open_settings_window,
             commands::show_search,
             commands::take_search_initial,
             commands::hide_search,
+            commands::reveal_search,
             commands::raise_desktop,
             commands::set_windows_icons_mode,
             commands::quit_app,
         ])
         .on_window_event(|window, event| {
+            if let WindowEvent::Focused(true) = event {
+                if window.label() == windows_mgr::MENU_SUB {
+                    windows_mgr::menu_sub_focused(window.app_handle());
+                }
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "desktop" {
                     api.prevent_close();
@@ -146,7 +187,7 @@ pub fn run() {
             desktop_window::init_windows_layout();
             desktop_window::create(&handle)?;
             items::start_watcher();
-            wallpaper::start_poll();
+            wallpaper::start_watch();
             let _ = wallpaper::get_wallpapers();
             windows_mgr::setup_tray(&handle)?;
             windows_mgr::prepare_menu(&handle);

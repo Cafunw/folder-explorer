@@ -1,0 +1,194 @@
+/* Hover effects and the icon edit (jiggle) mode.
+   :root[data-hover] is set by effects.ts only while an effect may run (never in quiet modes, with
+   reduced motion, while dragging, renaming or editing icons). The individual transform properties
+   (translate / scale / rotate) compose with the transform Motion writes on .tile-icon. */
+
+:root[data-hover] .tile-icon {
+  transition:
+    translate 160ms ease,
+    scale 160ms ease,
+    rotate 120ms ease-out;
+}
+
+:root[data-hover] .tile-icon img {
+  transition: filter 160ms ease;
+}
+
+/* lift: up 3 px, a deeper shadow, a soft contact shadow below */
+:root[data-hover="lift"] .tile:hover .tile-icon {
+  translate: 0 -3px;
+}
+
+:root[data-hover="lift"] .tile:hover .tile-icon img {
+  filter: drop-shadow(0 6px 5px rgba(0, 0, 0, 0.38));
+}
+
+:root[data-hover="lift"] .tile-icon::after {
+  content: "";
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: -9px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.32), transparent);
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+:root[data-hover="lift"] .tile:hover .tile-icon::after {
+  opacity: 1;
+}
+
+:root[data-hover="grow"] .tile:hover .tile-icon {
+  scale: 1.08;
+}
+
+/* tilt: --tilt-x / -y / -a set on the hovered tile only (effects.ts) */
+:root[data-hover="tilt"] .tile:hover {
+  perspective: 260px;
+}
+
+:root[data-hover="tilt"] .tile:hover .tile-icon {
+  rotate: var(--tilt-x, 1) var(--tilt-y, 0) 0 var(--tilt-a, 0deg);
+}
+
+/* glow: an accent halo behind the icon */
+:root[data-hover="glow"] .tile-icon::before {
+  content: "";
+  position: absolute;
+  inset: -22%;
+  z-index: -1;
+  border-radius: 36%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 62%, transparent), transparent);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+:root[data-hover="glow"] .tile:hover .tile-icon::before {
+  opacity: 1;
+}
+
+:root[data-hover="glow"] .tile:hover .tile-icon img {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 85%, transparent));
+}
+
+/* bounce: one small hop when the pointer comes in */
+:root[data-hover="bounce"] .tile:hover .tile-icon {
+  animation: tile-hop 460ms ease-out;
+}
+
+@keyframes tile-hop {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  35% {
+    translate: 0 -7px;
+  }
+  70% {
+    translate: 0 1px;
+  }
+}
+
+/* magnify: --mag on the hovered tile and its row neighbours (effects.ts), Dock-like */
+:root[data-hover="magnify"] .tile-icon {
+  scale: var(--mag, 1);
+  transition: scale 110ms ease-out;
+}
+
+/* ------------------------------------------------------------ icon edit mode */
+
+:root[data-jiggle="wiggle"] .tile[data-wiggle] .tile-icon {
+  animation: tile-jiggle var(--jt, 260ms) ease-in-out var(--jd, 0s) infinite alternate;
+}
+
+@keyframes tile-jiggle {
+  from {
+    rotate: -1.8deg;
+  }
+  to {
+    rotate: 1.8deg;
+  }
+}
+
+.jiggle-badge {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  z-index: 3;
+  width: clamp(16px, 38%, 22px);
+  aspect-ratio: 1;
+  padding: 0 0 1px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(58, 58, 64, 0.94);
+  color: #fff;
+  font: 600 15px/1 var(--font);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  animation: badge-in 180ms ease-out;
+}
+
+.jiggle-badge[data-kind="delete"] {
+  background: rgba(214, 52, 52, 0.94);
+}
+
+.jiggle-badge:hover {
+  filter: brightness(1.25);
+}
+
+/* fences and headings: placed by their component */
+.jiggle-badge[data-block] {
+  width: 20px;
+}
+
+:root[data-jiggle="still"] .jiggle-badge {
+  animation: none;
+}
+
+@keyframes badge-in {
+  from {
+    scale: 0.2;
+    opacity: 0;
+  }
+}
+
+.jiggle-done {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 5px 5px 16px;
+  border-radius: 999px;
+  background: rgba(var(--glass-rgb), 0.72);
+  backdrop-filter: blur(18px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: var(--shadow-md);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.jiggle-done button {
+  border: none;
+  border-radius: 999px;
+  padding: 5px 16px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jiggle-done button:hover {
+  filter: brightness(1.12);
+}
+
+:root[data-quiet] .jiggle-done {
+  backdrop-filter: none;
+  background: rgba(var(--glass-rgb), 0.94);
+}
