@@ -1,8 +1,8 @@
 ; Folder Explorer — NSIS installer hooks (see tauri.conf.json > bundle.windows.nsis.installerHooks)
 ;
 ; Core rule (docs/ARCHITECTURE.md): the installer, like the app, does not touch Windows' desktop,
-; Explorer or the registry beyond the installer's own uninstall entry. It writes nothing into
-; Windows' shell; on uninstall it only removes entries that older versions of the app created.
+; Explorer or the registry beyond the installer's own uninstall entry. The one shell entry the app
+; writes itself (Yeni ▸ Folder Explorer grubu, setting "behavior.newMenuEntry") is removed on uninstall.
 ;
 ; The app hides the Windows desktop icons while it runs. If an installer simply killed it,
 ; the icons could stay hidden, so every hook first asks a running copy to close gracefully
@@ -23,7 +23,7 @@
     ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --show-icons'
   ; "Start with Windows" shortcut made by the app (Startup folder).
   Delete "$SMSTARTUP\Folder Explorer.lnk"
-  ; Entries of older versions (Run value, "Yeni ▸ Grup"): remove exactly what they added.
+  ; Run value of older versions and the Yeni ▸ menu entry: remove exactly what was added.
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "${PRODUCTNAME}"
   DeleteRegKey HKCU "Software\Classes\.fegroup"

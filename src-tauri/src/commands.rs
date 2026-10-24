@@ -46,54 +46,28 @@ fn point(at: Option<[i32; 2]>) -> Option<windows::Win32::Foundation::POINT> {
     at.map(|a| windows::Win32::Foundation::POINT { x: a[0], y: a[1] })
 }
 
-/// Our right-click menu (`request` is built by the desktop; `at` = screen point, default the
-/// cursor). While it is on screen the shell's side is prepared: Open with ▸ / New ▸ first, then
-/// the classic menu, each reported to the menu as "menu-extra".
+/// Ask Explorer to display its actual desktop background menu.
 #[tauri::command]
-pub async fn open_menu(app: AppHandle, request: Value, at: Option<[i32; 2]>) -> R<()> {
-    let paths: Vec<String> = request
-        .get("paths")
-        .and_then(|p| p.as_array())
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
-        .unwrap_or_default();
-    let shown = {
-        let app = app.clone();
-        blocking(move || windows_mgr::open_menu(&app, request, point(at))).await
-    };
-    std::thread::spawn(move || {
-        for full in [false, true] {
-            let extra = if full { ctxmenu::prepare_full(paths.clone()) } else { ctxmenu::prepare_quick(paths.clone()) };
-            match extra {
-                Ok(x) => {
-                    let _ = app.emit_to(windows_mgr::MENU, "menu-extra", x);
-                }
-                Err(e) => crate::dlog!("menu prepare: {e}"),
-            }
-        }
-    });
-    shown
+pub async fn desktop_context_menu(at: [i32; 2]) -> R<()> {
+    blocking(move || desktop_window::show_context_menu(windows::Win32::Foundation::POINT { x: at[0], y: at[1] })).await
 }
 
+/// Windows Shell menu for files, folders, shortcuts and system items.
 #[tauri::command]
-pub async fn place_menu(app: AppHandle, label: String, x: i32, y: i32, w: u32, h: u32, fade: Option<bool>) -> R<()> {
-    windows_mgr::place_menu(&app, &label, x, y, w, h, fade.unwrap_or(false))
+pub async fn item_context_menu(paths: Vec<String>, at: Option<[i32; 2]>) -> R<()> {
+    blocking(move || crate::explorer_menu::show_items(paths, point(at)).map(|_| ())).await
 }
 
+/// Classic Shell menu for live-folder entries that are not in Explorer's desktop view.
 #[tauri::command]
-pub async fn take_menu_request() -> R<Value> {
-    Ok(windows_mgr::take_menu_request())
+pub async fn classic_menu(paths: Vec<String>, at: Option<[i32; 2]>) -> R<Option<String>> {
+    blocking(move || ctxmenu::show(paths, point(at))).await
 }
 
+/// OS-rendered popup for virtual headings, which have no corresponding Shell item.
 #[tauri::command]
-pub async fn hide_menu(app: AppHandle, label: Option<String>) -> R<()> {
-    windows_mgr::hide_menu(&app, label.as_deref());
-    Ok(())
-}
-
-/// Windows' classic menu ("Daha fazla seçenek göster"); see `ctxmenu::show`.
-#[tauri::command]
-pub async fn classic_menu(paths: Vec<String>, at: Option<[i32; 2]>, own: Option<Vec<ctxmenu::OwnItem>>) -> R<Option<String>> {
-    blocking(move || ctxmenu::show(paths, point(at), own.unwrap_or_default())).await
+pub async fn native_menu(items: Vec<ctxmenu::OwnItem>, at: Option<[i32; 2]>) -> R<Option<String>> {
+    blocking(move || ctxmenu::show_own(items, point(at))).await
 }
 
 /// Runs the first of `verbs` the shell offers for `paths` (empty = the desktop); false = none.
@@ -398,6 +372,12 @@ pub async fn show_search(app: AppHandle, initial: Option<String>) -> R<()> {
 #[tauri::command]
 pub async fn take_search_initial() -> R<String> {
     Ok(windows_mgr::take_search_initial())
+}
+
+/// Started by Windows' Yeni ▸ Folder Explorer grubu: the desktop makes the group once it is ready.
+#[tauri::command]
+pub async fn take_launch_new_group() -> R<bool> {
+    Ok(windows_mgr::take_launch_new_group())
 }
 
 #[tauri::command]

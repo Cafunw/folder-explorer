@@ -21,6 +21,10 @@ fn main() {
         folder_explorer_lib::quit_running();
         return;
     }
+    // Windows' Yeni ▸ Folder Explorer grubu: the running desktop makes the group.
+    if args.iter().any(|a| a == "--new-group") && folder_explorer_lib::new_group() {
+        return;
+    }
     if args.iter().any(|a| a == "--clean-legacy") {
         folder_explorer_lib::clean_legacy();
         return;
@@ -29,7 +33,7 @@ fn main() {
         folder_explorer_lib::show_icons();
         return;
     }
-    if args.iter().any(|a| a == "--selftest" || a == "--fileops-test" || a == "--ztest" || a == "--restore" || a == "--store-test" || a == "--menutest") {
+    if args.iter().any(|a| a == "--selftest" || a == "--fileops-test" || a == "--ztest" || a == "--restore" || a == "--store-test" || a == "--menutest" || a == "--item-menu-test") {
         folder_explorer_lib::selftest(&args);
         return;
     }

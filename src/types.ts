@@ -273,5 +273,6 @@ export type Settings = {
     ctrlWheelZoom: boolean; // Ctrl+wheel changes grid.iconScale
     quickLook: boolean; // Space previews the selected item
     dropOnApp: boolean; // files dropped on an app open with it
+    newMenuEntry: boolean; // "Folder Explorer grubu" in Windows' Yeni ▸ menu (per-user registry entry)
   };
 };

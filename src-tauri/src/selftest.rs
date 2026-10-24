@@ -16,6 +16,37 @@ fn arg_after(args: &[String], flag: &str) -> Option<String> {
 
 pub fn run(args: &[String]) {
     let _com = util::ComApartment::sta();
+    if let Some(index) = args.iter().position(|a| a == "--item-menu-test") {
+        use windows::Win32::Foundation::RECT;
+        use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowLongPtrW, GetWindowRect, IsWindowVisible, SetForegroundWindow, GWL_EXSTYLE};
+        let paths = args[index + 1..].iter().take_while(|a| !a.starts_with("--")).cloned().collect();
+        let snapshot = || desktop_window::find_listview().map(|lv| unsafe {
+            let mut rect = RECT::default();
+            let _ = GetWindowRect(lv, &mut rect);
+            (rect.left, rect.top, rect.right, rect.bottom, GetWindowLongPtrW(lv, GWL_EXSTYLE), IsWindowVisible(lv).as_bool())
+        });
+        let foreground = unsafe { GetForegroundWindow() };
+        let before_view = snapshot();
+        let before_icons = desktop_window::capture_windows_layout_sta();
+        let opened = crate::explorer_menu::show_items(paths, None);
+        let restored_view = snapshot() == before_view && before_view.is_some();
+        let after_icons = desktop_window::capture_windows_layout_sta();
+        let (unchanged_icons, icon_details) = match (before_icons, after_icons) {
+            (Ok(before), Ok(after)) => {
+                let positions = |layout: desktop_window::WindowsLayout| layout.items.into_iter()
+                    .map(|item| (item.id, (item.x, item.y))).collect::<std::collections::BTreeMap<_, _>>();
+                let before = positions(before);
+                let after = positions(after);
+                let deltas: Vec<_> = before.iter().filter_map(|(id, (x, y))| after.get(id)
+                    .filter(|pos| *pos != &(*x, *y)).map(|(ax, ay)| (ax - x, ay - y))).take(3).collect();
+                (before == after, json!({ "beforeCount": before.len(), "afterCount": after.len(), "deltas": deltas }))
+            }
+            _ => (false, json!({ "captureFailed": true })),
+        };
+        crate::explorer_menu::dismiss();
+        unsafe { let _ = SetForegroundWindow(foreground); }
+        println!("{}", json!({ "menu": opened.as_ref().ok(), "error": opened.as_ref().err(), "viewRestored": restored_view, "iconsUnchanged": unchanged_icons, "iconDetails": icon_details }));
+    }
     if args.iter().any(|a| a == "--ztest") {
         println!("{}", desktop_window::ztest());
     }

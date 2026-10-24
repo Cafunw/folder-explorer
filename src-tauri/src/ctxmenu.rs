@@ -1,12 +1,5 @@
-//! The shell side of our right-click menus, on one STA thread that owns a hidden window.
-//!
-//! The menu the user sees is our own Windows 11 style popup (`src/menu`), which opens instantly.
-//! What makes Windows' own menus slow is the classic shell menu: building it loads every shell
-//! extension. So the moment a menu opens, `prepare_quick` / `prepare_full` build what it may need
-//! in the background: the Open with ▸ apps, Windows' New ▸ list and the classic menu with its
-//! verbs. When the user picks "Daha fazla seçenek göster" or a shell verb (Share, Pin to Start…),
-//! it is ready. Everything goes through the public IContextMenu API inside our process; nothing in
-//! Explorer is touched.
+//! Native Windows Shell menus and verbs, on an STA thread with a hidden message owner.
+//! Windows renders the menus; no menu webviews or app-drawn replacements are created.
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -27,11 +20,11 @@ use windows::Win32::UI::Shell::{
     GCS_VERBW, OAIF_ALLOW_REGISTRATION, OAIF_EXEC, OAIF_REGISTER_EXT, OPENASINFO,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreatePopupMenu, CreateWindowExW, DefWindowProcW, DeleteMenu, DestroyIcon, DestroyMenu, DispatchMessageW,
+    CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DispatchMessageW,
     GetCursorPos, GetIconInfo, GetMenuItemCount, GetMenuItemInfoW, GetMessageW, GetSubMenu, InsertMenuItemW,
     PostMessageW, RegisterClassW, SetForegroundWindow, TrackPopupMenuEx, TranslateMessage, HICON, HMENU,
     ICONINFO, MENUITEMINFOW, MENU_ITEM_STATE, MFS_CHECKED, MFS_DISABLED, MFT_OWNERDRAW, MFT_RADIOCHECK,
-    MFT_SEPARATOR, MFT_STRING, MF_BYPOSITION, MIIM_BITMAP, MIIM_FTYPE, MIIM_ID, MIIM_STATE, MIIM_STRING,
+    MFT_SEPARATOR, MFT_STRING, MIIM_BITMAP, MIIM_FTYPE, MIIM_ID, MIIM_STATE, MIIM_STRING,
     MIIM_SUBMENU, MSG, TPM_RETURNCMD, TPM_RIGHTBUTTON, WINDOW_EX_STYLE, WM_APP, WM_DRAWITEM, WM_INITMENUPOPUP,
     WM_MEASUREITEM, WM_MENUCHAR, WM_NULL, WNDCLASSW, WS_EX_TOOLWINDOW, WS_POPUP,
 };
@@ -46,7 +39,7 @@ const NEW_FIRST: u32 = 0x7000;
 const NEW_LAST: u32 = 0x7FFF;
 const OWN_FIRST: u32 = 0x8000;
 
-/// What the UI fills its menu with once it is known. `None` = not part of this update.
+/// Shell menu diagnostics used by --menutest.
 #[derive(Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct MenuExtra {
@@ -75,8 +68,7 @@ pub struct Handler {
     pub icon: Option<String>,
 }
 
-/// Our own entries on top of the desktop's classic menu (View ▸, Sort by ▸, Refresh), so it matches
-/// Windows' own one; picking one returns "own:<id>".
+/// Entries of an OS-rendered menu for app objects, such as virtual headings.
 #[derive(Deserialize, Clone, Default)]
 #[serde(default)]
 pub struct OwnItem {
@@ -102,12 +94,10 @@ struct Session {
     open_with: Option<Vec<IAssocHandler>>,
 }
 
-impl Drop for Session {
+impl Drop for Classic {
     fn drop(&mut self) {
-        if let Some(c) = &self.classic {
-            unsafe {
-                let _ = DestroyMenu(c.menu);
-            }
+        unsafe {
+            let _ = DestroyMenu(self.menu);
         }
     }
 }
@@ -543,7 +533,7 @@ unsafe fn invoke_offset(cm: &IContextMenu, offset: usize, hwnd: HWND, pt: Option
 
 // ---------------------------------------------------------------- API (any thread)
 
-/// The fast part, for the menu that just opened: Open with ▸ apps (one file) or Windows' New ▸
+/// Enumerate Open with apps (one file) or Windows' New
 /// list (desktop).
 pub fn prepare_quick(paths: Vec<String>) -> Result<MenuExtra, String> {
     run(move |hwnd| unsafe {
@@ -581,30 +571,15 @@ pub fn prepare_quick(paths: Vec<String>) -> Result<MenuExtra, String> {
     })?
 }
 
-/// The slow part: the classic menu (every shell extension), so "more options" opens at once.
-pub fn prepare_full(paths: Vec<String>) -> Result<MenuExtra, String> {
-    run(move |hwnd| {
-        let key = key_of(&paths);
-        session(&paths, |s| unsafe {
-            ensure_classic(s, hwnd)?;
-            Ok(MenuExtra { key: key.clone(), verbs: Some(verbs_of(s.classic.as_ref().unwrap())), ..Default::default() })
-        })
-    })?
-}
-
-/// Windows' classic menu at `at` (physical px). Returns "own:<id>" for one of `own`, "rename" /
-/// "delete" (left to the UI so they can be undone), or the verb that was run ("" when it has none).
-pub fn show(paths: Vec<String>, at: Option<POINT>, own: Vec<OwnItem>) -> Result<Option<String>, String> {
+/// Windows' classic menu at `at` (physical px). Rename/delete stay with the desktop's undo flow;
+/// other commands are executed by their original Shell handler.
+pub fn show(paths: Vec<String>, at: Option<POINT>) -> Result<Option<String>, String> {
     run(move |hwnd| {
         session(&paths, |s| unsafe {
+            // Clipboard state, Shift and installed shell extensions can change between clicks.
+            s.classic = None;
             ensure_classic(s, hwnd)?;
             let c = s.classic.as_ref().unwrap();
-            let mut own_ids = Vec::new();
-            let mut pos = 0u32;
-            let mut sub_menus = Vec::new();
-            for it in &own {
-                insert_own(c.menu, &mut pos, it, &mut own_ids, &mut sub_menus)?;
-            }
             let pt = at.unwrap_or_else(|| {
                 let mut p = POINT::default();
                 let _ = GetCursorPos(&mut p);
@@ -617,15 +592,9 @@ pub fn show(paths: Vec<String>, at: Option<POINT>, own: Vec<OwnItem>) -> Result<
             let _ = PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0));
             TRACKING.with(|t| t.set(false));
             ACTIVE.with(|a| a.borrow_mut().clear());
-            // our entries come out again (their submenus are destroyed with them), so the prepared
-            // menu can be shown once more
-            for _ in 0..pos {
-                let _ = DeleteMenu(c.menu, 0, MF_BYPOSITION);
-            }
             let _ = PostMessageW(Some(hwnd), WM_JOB, WPARAM(0), LPARAM(0));
             match cmd {
                 0 => Ok(None),
-                c2 if c2 >= OWN_FIRST => Ok(own_ids.get((c2 - OWN_FIRST) as usize).map(|id| format!("own:{id}"))),
                 c2 => {
                     let offset = (c2 - SHELL_FIRST) as usize;
                     let verb = command_verb(&c.cm, offset);
@@ -639,12 +608,36 @@ pub fn show(paths: Vec<String>, at: Option<POINT>, own: Vec<OwnItem>) -> Result<
     })?
 }
 
+/// Native Win32 popup for app-only objects. Never includes a desktop Shell menu.
+pub fn show_own(items: Vec<OwnItem>, at: Option<POINT>) -> Result<Option<String>, String> {
+    run(move |hwnd| unsafe {
+        let menu = CreatePopupMenu().map_err(|e| e.message())?;
+        let mut ids = Vec::new();
+        let mut pos = 0;
+        for item in &items {
+            if let Err(e) = insert_own(menu, &mut pos, item, &mut ids) {
+                let _ = DestroyMenu(menu);
+                return Err(e);
+            }
+        }
+        let mut pt = at.unwrap_or_default();
+        if at.is_none() { let _ = GetCursorPos(&mut pt); }
+        TRACKING.with(|t| t.set(true));
+        let _ = SetForegroundWindow(hwnd);
+        let cmd = TrackPopupMenuEx(menu, (TPM_RETURNCMD | TPM_RIGHTBUTTON).0, pt.x, pt.y, hwnd, None).0 as u32;
+        let _ = PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0));
+        TRACKING.with(|t| t.set(false));
+        let _ = DestroyMenu(menu);
+        let _ = PostMessageW(Some(hwnd), WM_JOB, WPARAM(0), LPARAM(0));
+        Ok(cmd.checked_sub(OWN_FIRST).and_then(|index| ids.get(index as usize).cloned()))
+    })?
+}
+
 unsafe fn insert_own(
     menu: HMENU,
     pos: &mut u32,
     it: &OwnItem,
     ids: &mut Vec<String>,
-    subs: &mut Vec<HMENU>,
 ) -> Result<(), String> {
     let text_w: Vec<u16> = it.text.encode_utf16().chain(Some(0)).collect();
     let mut mi = MENUITEMINFOW { cbSize: std::mem::size_of::<MENUITEMINFOW>() as u32, ..Default::default() };
@@ -667,16 +660,21 @@ unsafe fn insert_own(
         mi.fState = MENU_ITEM_STATE(state);
         if !it.items.is_empty() {
             let sub = CreatePopupMenu().map_err(|e| e.message())?;
-            subs.push(sub);
             let mut sub_pos = 0;
             for k in &it.items {
-                insert_own(sub, &mut sub_pos, k, ids, subs)?;
+                if let Err(e) = insert_own(sub, &mut sub_pos, k, ids) {
+                    let _ = DestroyMenu(sub);
+                    return Err(e);
+                }
             }
             mi.fMask |= MIIM_SUBMENU;
             mi.hSubMenu = sub;
         }
     }
-    InsertMenuItemW(menu, *pos, true, &mi).map_err(|e| e.message())?;
+    if let Err(e) = InsertMenuItemW(menu, *pos, true, &mi) {
+        if !mi.hSubMenu.is_invalid() { let _ = DestroyMenu(mi.hSubMenu); }
+        return Err(e.message());
+    }
     *pos += 1;
     Ok(())
 }
