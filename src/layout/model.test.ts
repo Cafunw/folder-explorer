@@ -103,8 +103,14 @@ describe("grid", () => {
   };
 
   it("fits cells into the work area", () => {
-    expect(g.cols).toBe(Math.floor((1000 - 6) / g.cellW));
+    const min = cellMetrics(env.monitors[0], 1, DEFAULT_SETTINGS).cellW;
+    expect(g.cols).toBe(Math.floor((1000 - 6) / min));
     expect(g.rows).toBeGreaterThan(3);
+  });
+
+  it("stretches the columns so the last one reaches the right edge", () => {
+    expect(g.cellW).toBeGreaterThanOrEqual(cellMetrics(env.monitors[0], 1, DEFAULT_SETTINGS).cellW);
+    expect(g.originX + g.cols * g.cellW).toBeCloseTo(g.workLeft + g.workWidth - 3);
   });
 
   it("uses the manual sizes when automatic size is off", () => {

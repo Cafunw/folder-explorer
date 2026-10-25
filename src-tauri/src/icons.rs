@@ -185,8 +185,42 @@ fn render_png(parsing: &str, size: u32) -> Result<Vec<u8>, String> {
     unsafe {
         let _ = DeleteObject(HGDIOBJ(hbmp.0));
     }
-    let (w, h, rgba) = res?;
+    let (w, h, mut rgba) = res?;
+    strip_icon_frame(w as usize, h as usize, &mut rgba);
     encode_png(w, h, &rgba)
+}
+
+/// Pixel positions of the k-th ring from the edge.
+fn ring(w: usize, h: usize, k: usize) -> impl Iterator<Item = (usize, usize)> {
+    (k..w - k)
+        .flat_map(move |x| [(x, k), (x, h - 1 - k)])
+        .chain((k..h - k).flat_map(move |y| [(k, y), (w - 1 - k, y)]))
+}
+
+/// Windows draws a faint square frame around an icon that has no image as big as the asked size
+/// (Explorer's "extra large icons" look). That frame is the outer rings while they are faint
+/// (alpha ≤ 96) and followed by a fully transparent ring; it is cleared. A real icon is not
+/// touched: its edge is either transparent, or opaque, or not set apart by a transparent gap.
+fn strip_icon_frame(w: usize, h: usize, rgba: &mut [u8]) {
+    if w < 16 || h < 16 || rgba.len() < w * h * 4 {
+        return;
+    }
+    let mut frame = 0;
+    for k in 0..=w.min(h) / 16 {
+        let max = ring(w, h, k).map(|(x, y)| rgba[(y * w + x) * 4 + 3]).max().unwrap_or(0);
+        if max == 0 {
+            frame = k;
+            break;
+        }
+        if max > 96 {
+            return;
+        }
+    }
+    for k in 0..frame {
+        for (x, y) in ring(w, h, k) {
+            rgba[(y * w + x) * 4..][..4].fill(0);
+        }
+    }
 }
 
 /// Reads a 32-bit DIB into straight-alpha RGBA.
@@ -574,6 +608,43 @@ mod tests {
         assert_eq!(parse_range("bytes=5-2", 1000), Some(None));
         assert_eq!(parse_range("items=0-1", 1000), None);
         assert_eq!(parse_range("bytes=0-", 100 * 1024 * 1024), Some(Some((0, OPEN_RANGE_CHUNK - 1))));
+    }
+
+    /// 64 × 64 icon: opaque content in 12..52, optional faint rings (alpha per ring from the edge).
+    fn framed(rings: &[u8], content_from: usize) -> Vec<u8> {
+        let mut px = vec![0u8; 64 * 64 * 4];
+        for (k, &a) in rings.iter().enumerate() {
+            for (x, y) in ring(64, 64, k) {
+                px[(y * 64 + x) * 4..][..4].copy_from_slice(&[160, 160, 160, a]);
+            }
+        }
+        for y in content_from..64 - content_from {
+            for x in content_from..64 - content_from {
+                px[(y * 64 + x) * 4..][..4].copy_from_slice(&[200, 50, 40, 255]);
+            }
+        }
+        px
+    }
+
+    #[test]
+    fn strips_the_windows_icon_frame() {
+        let mut px = framed(&[51, 7], 12);
+        strip_icon_frame(64, 64, &mut px);
+        assert_eq!(px, framed(&[], 12));
+    }
+
+    #[test]
+    fn keeps_real_icons() {
+        // full-bleed square icon
+        let full = framed(&[], 0);
+        let mut px = full.clone();
+        strip_icon_frame(64, 64, &mut px);
+        assert_eq!(px, full);
+        // faint edge that runs into the content (no transparent gap)
+        let soft = framed(&[40, 60, 80, 90, 90, 90, 90, 90, 90, 90, 90, 90], 12);
+        let mut px = soft.clone();
+        strip_icon_frame(64, 64, &mut px);
+        assert_eq!(px, soft);
     }
 
     #[test]

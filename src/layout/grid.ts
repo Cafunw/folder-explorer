@@ -81,8 +81,10 @@ export function computeGrids(env: Environment, s: Settings): GridMap {
     const workTop = (m.work.y - m.bounds.y) / scale;
     const workWidth = m.work.width / scale;
     const workHeight = m.work.height / scale;
-    const { iconSize, cellW, cellH } = cellMetrics(m, scale, s);
-    const cols = Math.max(1, Math.floor((workWidth - GRID_PAD * 2) / cellW));
+    const { iconSize, cellW: minCellW, cellH } = cellMetrics(m, scale, s);
+    const cols = Math.max(1, Math.floor((workWidth - GRID_PAD * 2) / minCellW));
+    // the leftover width is spread over the columns, so the last column reaches the right edge
+    const cellW = Math.max(minCellW, (workWidth - GRID_PAD * 2) / cols);
     const rows = Math.max(1, Math.floor((workHeight - GRID_PAD * 2) / cellH));
     out[m.id] = {
       monitorId: m.id,

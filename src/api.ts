@@ -154,7 +154,8 @@ const feBase = (route: string) => (isTauri ? convertFileSrc(route, "fe") : `/__f
 export function iconUrl(parsingName: string, sizePx: number, version: string) {
   if (!isTauri) return mock.mockIcon(parsingName);
   const s = Math.max(16, Math.min(256, Math.round(sizePx)));
-  return `${feBase("icon")}?p=${encodeURIComponent(parsingName)}&s=${s}&v=${encodeURIComponent(version)}`;
+  // r: bumped when the backend renders icons differently, so the webview cache drops old PNGs
+  return `${feBase("icon")}?p=${encodeURIComponent(parsingName)}&s=${s}&v=${encodeURIComponent(version)}&r=2`;
 }
 
 export function wallpaperUrl(monitorId: string, version: string) {
