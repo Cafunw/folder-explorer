@@ -5,8 +5,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::ffi::c_void;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::http::{header, HeaderMap, Method, Request, Response, Uri};
@@ -24,6 +25,9 @@ use windows::Win32::UI::Shell::{
 use crate::{shell, store, util, wallpaper};
 
 const RENDER_WORKERS: usize = 3;
+/// Renders waiting for a worker; past this a request is answered 404 at once, so a flood of slow
+/// shell items can't grow memory without limit.
+const RENDER_QUEUE: usize = 1024;
 const PROTOCOL_WORKERS: usize = 4;
 /// Rendered PNGs kept in memory (icons and thumbnails).
 const CACHE_BYTES: usize = 24 * 1024 * 1024;
@@ -34,11 +38,13 @@ const OPEN_RANGE_CHUNK: u64 = 4 * 1024 * 1024;
 const MAX_RANGE_CHUNK: u64 = 16 * 1024 * 1024;
 
 type Png = Arc<Vec<u8>>;
+type Done = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
 
 struct RenderJob {
     parsing: String,
     size: u32,
-    reply: Sender<Result<Vec<u8>, String>>,
+    /// Called exactly once with the result, on the render thread.
+    done: Done,
 }
 
 struct ProtocolJob {
@@ -46,9 +52,8 @@ struct ProtocolJob {
     responder: UriSchemeResponder,
 }
 
-/// `n` threads taking jobs from one queue (`sta` = each in a single-threaded COM apartment).
-fn spawn_pool<J: Send + 'static>(name: &str, n: usize, sta: bool, run: fn(J)) -> Sender<J> {
-    let (tx, rx) = channel::<J>();
+/// `n` threads taking jobs from `rx` (`sta` = each in a single-threaded COM apartment).
+fn spawn_pool<J: Send + 'static>(name: &str, n: usize, sta: bool, rx: Receiver<J>, run: fn(J)) {
     let rx = Arc::new(Mutex::new(rx));
     for i in 0..n {
         let rx: Arc<Mutex<Receiver<J>>> = rx.clone();
@@ -66,24 +71,45 @@ fn spawn_pool<J: Send + 'static>(name: &str, n: usize, sta: bool, run: fn(J)) ->
             }
         });
     }
-    tx
 }
 
-fn render_queue() -> &'static Mutex<Sender<RenderJob>> {
-    static Q: OnceLock<Mutex<Sender<RenderJob>>> = OnceLock::new();
+/// Runs `render` and hands its result to `done`, also when it panics (the worker lives on).
+fn answer(done: Done, render: impl FnOnce() -> Result<Vec<u8>, String>) {
+    done(catch_unwind(AssertUnwindSafe(render)).unwrap_or_else(|_| Err("render panicked".into())));
+}
+
+fn render_queue() -> &'static SyncSender<RenderJob> {
+    static Q: OnceLock<SyncSender<RenderJob>> = OnceLock::new();
     Q.get_or_init(|| {
-        Mutex::new(spawn_pool("fe-icon", RENDER_WORKERS, true, |job: RenderJob| {
-            let _ = job.reply.send(render_png(&job.parsing, job.size));
-        }))
+        let (tx, rx) = sync_channel(RENDER_QUEUE);
+        spawn_pool("fe-icon", RENDER_WORKERS, true, rx, |job: RenderJob| {
+            answer(job.done, || render_png(&job.parsing, job.size))
+        });
+        tx
     })
 }
 
 fn protocol_queue() -> &'static Mutex<Sender<ProtocolJob>> {
     static Q: OnceLock<Mutex<Sender<ProtocolJob>>> = OnceLock::new();
     Q.get_or_init(|| {
-        Mutex::new(spawn_pool("fe-proto", PROTOCOL_WORKERS, false, |job: ProtocolJob| {
-            job.responder.respond(handle(&job.request));
-        }))
+        let (tx, rx) = channel();
+        spawn_pool("fe-proto", PROTOCOL_WORKERS, false, rx, |job: ProtocolJob| match handle(&job.request) {
+            Route::Now(response) => job.responder.respond(response),
+            // the render thread answers: a slow shell item never holds a protocol worker
+            Route::Render(render) => {
+                let (responder, what) = (job.responder, render.parsing.clone());
+                render.start(move |res| {
+                    responder.respond(match res {
+                        Ok(png) => respond(200, "image/png", png.to_vec(), "public, max-age=31536000, immutable"),
+                        Err(e) => {
+                            crate::dlog!("render fail {what}: {e}");
+                            not_found()
+                        }
+                    })
+                });
+            }
+        });
+        Mutex::new(tx)
     })
 }
 
@@ -135,36 +161,61 @@ fn cache() -> &'static Mutex<Lru> {
     C.get_or_init(|| Mutex::new(Lru::default()))
 }
 
-fn render_cached(key: String, parsing: &str, size: u32) -> Result<Png, String> {
-    if let Some(hit) = cache().lock().map_err(|e| e.to_string())?.get(&key) {
-        return Ok(hit);
-    }
-    let (tx, rx) = channel();
-    render_queue()
-        .lock()
-        .map_err(|e| e.to_string())?
-        .send(RenderJob { parsing: parsing.to_string(), size, reply: tx })
-        .map_err(|e| e.to_string())?;
-    let png: Png = Arc::new(rx.recv().map_err(|e| e.to_string())??);
-    if let Ok(mut c) = cache().lock() {
-        c.put(key, png.clone());
-    }
-    Ok(png)
+/// A shell image to render as PNG, cached under `key`.
+#[derive(Debug, PartialEq)]
+struct Render {
+    key: String,
+    parsing: String,
+    size: u32,
 }
 
-/// Returns PNG bytes for a shell item at `size` physical px (cached by version).
+impl Render {
+    /// A shell item's icon at `size` physical px (cached by version).
+    fn icon(parsing: &str, size: u32, version: &str) -> Self {
+        let size = size.clamp(16, 512);
+        Render { key: format!("i|{}|{}|{}", parsing.to_lowercase(), size, version), parsing: parsing.to_string(), size }
+    }
+
+    /// Large shell thumbnail of a file or folder (Quick Look); the cache key follows its mtime and length.
+    fn thumb(path: &str, canon: &Path, size: u32) -> Self {
+        let size = size.clamp(16, 1024);
+        let stamp = std::fs::metadata(canon)
+            .map(|m| format!("{:?}|{}", m.modified().ok(), m.len()))
+            .unwrap_or_default();
+        Render { key: format!("t|{}|{}|{}", path.to_lowercase(), size, stamp), parsing: path.to_string(), size }
+    }
+
+    /// Hands `done` the cached PNG right away, or else renders on the STA pool and hands it the
+    /// result there (a failure, panic or full queue is an `Err`). Never waits for the shell.
+    fn start(self, done: impl FnOnce(Result<Png, String>) + Send + 'static) {
+        let Render { key, parsing, size } = self;
+        if let Some(hit) = cache().lock().ok().and_then(|mut c| c.get(&key)) {
+            return done(Ok(hit));
+        }
+        let done: Done = Box::new(move |res| {
+            done(res.map(|png| {
+                let png: Png = Arc::new(png);
+                if let Ok(mut c) = cache().lock() {
+                    c.put(key, png.clone());
+                }
+                png
+            }))
+        });
+        if let Err(e) = render_queue().try_send(RenderJob { parsing, size, done }) {
+            let msg = e.to_string();
+            let (TrySendError::Full(job) | TrySendError::Disconnected(job)) = e;
+            (job.done)(Err(msg));
+        }
+    }
+}
+
+/// Returns PNG bytes for a shell item at `size` physical px (cached by version). Waits for the render.
 pub fn icon_png(parsing: &str, size: u32, version: &str) -> Result<Png, String> {
-    let size = size.clamp(16, 512);
-    render_cached(format!("i|{}|{}|{}", parsing.to_lowercase(), size, version), parsing, size)
-}
-
-/// Large shell thumbnail of a file or folder (Quick Look); the cache key follows its mtime and length.
-fn thumb_png(path: &str, canon: &Path, size: u32) -> Result<Png, String> {
-    let size = size.clamp(16, 1024);
-    let stamp = std::fs::metadata(canon)
-        .map(|m| format!("{:?}|{}", m.modified().ok(), m.len()))
-        .unwrap_or_default();
-    render_cached(format!("t|{}|{}|{}", path.to_lowercase(), size, stamp), path, size)
+    let (tx, rx) = channel();
+    Render::icon(parsing, size, version).start(move |res| {
+        let _ = tx.send(res);
+    });
+    rx.recv().map_err(|e| e.to_string())?
 }
 
 /// Gets an HBITMAP for a shell item. Caller owns it. Needs STA.
@@ -508,14 +559,22 @@ fn serve_file(path: &Path, name: &str, headers: &HeaderMap) -> Response<Vec<u8>>
     resp.unwrap_or_else(|_| not_found())
 }
 
-fn handle(request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+/// What a request needs: an answer now, or a shell render that answers it when done.
+enum Route {
+    Now(Response<Vec<u8>>),
+    Render(Render),
+}
+
+fn handle(request: &Request<Vec<u8>>) -> Route {
     let uri = request.uri();
     if request.method() == Method::OPTIONS {
-        return builder(204, "text/plain", "no-store")
-            .header(header::ACCESS_CONTROL_ALLOW_METHODS, "GET, OPTIONS")
-            .header(header::ACCESS_CONTROL_ALLOW_HEADERS, "Range")
-            .body(Vec::new())
-            .unwrap_or_else(|_| not_found());
+        return Route::Now(
+            builder(204, "text/plain", "no-store")
+                .header(header::ACCESS_CONTROL_ALLOW_METHODS, "GET, OPTIONS")
+                .header(header::ACCESS_CONTROL_ALLOW_HEADERS, "Range")
+                .body(Vec::new())
+                .unwrap_or_else(|_| not_found()),
+        );
     }
     let q = query_map(uri);
     let route = uri.path().trim_matches('/').to_string();
@@ -523,29 +582,24 @@ fn handle(request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
     let route = if route.is_empty() { uri.host().unwrap_or("").split('.').next().unwrap_or("").to_string() } else { route };
     match route.as_str() {
         "icon" => {
-            let Some(p) = q.get("p") else { return not_found() };
+            let Some(p) = q.get("p") else { return Route::Now(not_found()) };
             let size = q.get("s").and_then(|s| s.parse::<f64>().ok()).unwrap_or(64.0).round() as u32;
             let version = q.get("v").cloned().unwrap_or_default();
-            match icon_png(p, size, &version) {
-                Ok(png) => respond(200, "image/png", png.to_vec(), "public, max-age=31536000, immutable"),
-                Err(e) => {
-                    crate::dlog!("icon fail {p}: {e}");
-                    not_found()
-                }
-            }
+            Route::Render(Render::icon(p, size, &version))
         }
         "thumb" => {
-            let Some(p) = q.get("p") else { return not_found() };
-            let Some(canon) = allowed(p) else { return forbidden() };
+            let Some(p) = q.get("p") else { return Route::Now(not_found()) };
+            let Some(canon) = allowed(p) else { return Route::Now(forbidden()) };
             let size = q.get("s").and_then(|s| s.parse::<f64>().ok()).unwrap_or(256.0).round() as u32;
-            match thumb_png(&shell::fs_norm(p), &canon, size) {
-                Ok(png) => respond(200, "image/png", png.to_vec(), "public, max-age=31536000, immutable"),
-                Err(e) => {
-                    crate::dlog!("thumb fail {p}: {e}");
-                    not_found()
-                }
-            }
+            Route::Render(Render::thumb(&shell::fs_norm(p), &canon, size))
         }
+        _ => Route::Now(serve(request, &route, &q)),
+    }
+}
+
+/// The routes answered right away: Quick Look files, the wallpaper and media.
+fn serve(request: &Request<Vec<u8>>, route: &str, q: &HashMap<String, String>) -> Response<Vec<u8>> {
+    match route {
         "preview" => {
             let Some(p) = q.get("p") else { return not_found() };
             let Some(canon) = allowed(p) else { return forbidden() };
@@ -645,6 +699,51 @@ mod tests {
         let mut px = soft.clone();
         strip_icon_frame(64, 64, &mut px);
         assert_eq!(px, soft);
+    }
+
+    fn get(uri: &str) -> Request<Vec<u8>> {
+        Request::builder().uri(uri).body(Vec::new()).unwrap()
+    }
+
+    #[test]
+    fn icons_go_to_the_render_pool_the_rest_is_answered_now() {
+        match handle(&get("http://fe.localhost/icon?p=C%3A%5CX.lnk&s=47.6&v=7")) {
+            Route::Render(r) => {
+                assert_eq!(r, Render { key: r"i|c:\x.lnk|48|7".into(), parsing: r"C:\X.lnk".into(), size: 48 })
+            }
+            Route::Now(_) => panic!("an icon is rendered"),
+        }
+        let now = |uri| match handle(&get(uri)) {
+            Route::Now(r) => r.status().as_u16(),
+            Route::Render(_) => 0,
+        };
+        assert_eq!(now("http://fe.localhost/icon"), 404);
+        assert_eq!(now("http://fe.localhost/media"), 404);
+        assert_eq!(now("http://fe.localhost/nope"), 404);
+    }
+
+    #[test]
+    fn a_cached_render_is_answered_at_once() {
+        let png: Png = Arc::new(vec![1, 2, 3]);
+        cache().lock().unwrap().put("test|cached".into(), png.clone());
+        let (tx, rx) = channel();
+        Render { key: "test|cached".into(), parsing: String::new(), size: 16 }.start(move |r| tx.send(r).unwrap());
+        assert_eq!(rx.try_recv().unwrap(), Ok(png));
+    }
+
+    #[test]
+    fn a_failed_render_still_answers() {
+        let (tx, rx) = channel();
+        let missing = r"C:\fe-test-missing-dir\nope.png".to_string();
+        Render { key: "test|missing".into(), parsing: missing, size: 32 }.start(move |r| tx.send(r).unwrap());
+        assert!(rx.recv_timeout(std::time::Duration::from_secs(30)).unwrap().is_err());
+    }
+
+    #[test]
+    fn a_panicking_render_still_answers() {
+        let (tx, rx) = channel();
+        answer(Box::new(move |r| tx.send(r).unwrap()), || panic!("boom"));
+        assert!(rx.try_recv().unwrap().is_err());
     }
 
     #[test]
