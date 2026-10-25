@@ -185,6 +185,9 @@ pub fn run() {
                 if window.label() == "desktop" && !desktop_window::is_quitting() {
                     desktop_window::restore_icons();
                     desktop_window::restart_after_explorer();
+                    // A hidden search or settings window would keep this process alive without a desktop,
+                    // and single-instance would hand the fresh copy's launch to it: leave now.
+                    window.app_handle().exit(0);
                 }
             }
         })
