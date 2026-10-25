@@ -25,6 +25,7 @@ const env: Environment = {
   monitors: [{ id: "M1", primary: true, bounds: { x: 0, y: 0, width: 1000, height: 800 }, work: { x: 0, y: 0, width: 1000, height: 760 }, scale: 1 }],
   windowOrigin: { x: 0, y: 0 },
   scaleFactor: 1,
+  windowsIconSize: 48,
   desktopDir: "C:\\Users\\u\\Desktop",
   publicDesktopDir: "C:\\Users\\Public\\Desktop",
   isDev: true,

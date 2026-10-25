@@ -555,11 +555,11 @@ function IconsSec({ s, update }: SecProps) {
       .getEnvironment()
       .then((env) => {
         const m = env.monitors.find((x) => x.primary) ?? env.monitors[0];
-        const cur = cellMetrics(m, env.scaleFactor || 1, s);
+        const cur = cellMetrics(m, env.scaleFactor || 1, s, env.windowsIconSize);
         set({ autoSize: false, iconSize: cur.iconSize, cellWidth: cur.cellW, cellHeight: cur.cellH });
       })
       .catch(() => set({ autoSize: false }));
-  const size = Math.round(Math.min(96, Math.max(24, (s.grid.autoSize ? 44 : s.grid.iconSize) * s.grid.iconScale)));
+  const size = Math.round(Math.min(96, Math.max(24, (s.grid.autoSize ? 48 : s.grid.iconSize) * s.grid.iconScale)));
   return (
     <>
       <div className="preview-strip">

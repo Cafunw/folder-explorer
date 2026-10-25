@@ -73,7 +73,7 @@ pub fn run(args: &[String]) {
 }
 
 fn selftest(outdir: Option<String>) {
-    let monitors = env::monitors_with_size();
+    let monitors = env::monitors();
     println!("monitors = {}", serde_json::to_string_pretty(&monitors).unwrap());
     println!("virtual bounds = {:?}", env::virtual_bounds());
     println!("desktop = {} | public = {}", util::user_desktop_dir(), util::public_desktop_dir());

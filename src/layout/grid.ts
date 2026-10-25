@@ -29,22 +29,12 @@ export type GridMap = Record<string, GridInfo>;
 export const GRID_PAD = 3;
 export const ICON_TOP = 5;
 
-/**
- * Automatic size: physical icon edge (mm) for a screen diagonal (inch). A bigger screen is looked
- * at from further away, so the icon grows with it: ~8 mm on 13", ~9 mm on 16", ~11 mm on 24".
- */
-export function autoIconMm(diagInch: number) {
-  return Math.min(13, Math.max(7.5, 4.74 + 0.26 * diagInch));
-}
-
-/** Automatic size when the physical size is unknown: Windows logical px (its scaling already reflects size and resolution). */
-const AUTO_ICON_LOGICAL = 40;
 const LINE_HEIGHT = 1.28; // .tile-label line-height (font-size = settings.labels.size)
 /** Narrower cells break labels mid-word (Windows' own spacing is ~75 px). */
 const MIN_CELL_W = 76;
 
-/** Icon and cell size on one monitor, in CSS px of the desktop window. */
-export function cellMetrics(m: MonitorInfo, scale: number, s: Settings) {
+/** Icon and cell size on one monitor, in CSS px of the desktop window. `winIcon` = `Environment.windowsIconSize`. */
+export function cellMetrics(m: MonitorInfo, scale: number, s: Settings, winIcon: number) {
   const k = s.grid.iconScale || 1;
   const label = s.grid.labels ? 7 + s.grid.labelLines * s.labels.size * LINE_HEIGHT : 0;
   if (!s.grid.autoSize) {
@@ -56,14 +46,8 @@ export function cellMetrics(m: MonitorInfo, scale: number, s: Settings) {
       cellH: Math.max(s.grid.cellHeight, Math.round(ICON_TOP * 2 + iconSize + label)),
     };
   }
-  let physical = AUTO_ICON_LOGICAL * (m.scale || scale);
-  const mm = m.sizeMm;
-  if (mm && mm.width > 0 && mm.height > 0) {
-    const diagMm = Math.hypot(mm.width, mm.height);
-    physical = autoIconMm(diagMm / 25.4) * (Math.hypot(m.bounds.width, m.bounds.height) / diagMm);
-  }
-  const medium = Math.round(Math.min(128, Math.max(24, physical / scale)));
-  const iconSize = Math.round(Math.min(256, Math.max(16, medium * k)));
+  // automatic = the size Windows' own desktop shows, at this monitor's scaling
+  const iconSize = Math.round(Math.min(256, Math.max(16, ((winIcon * (m.scale || scale)) / scale) * k)));
   // bigger label text needs proportionally wider cells, else every word breaks
   const minW = s.grid.labels ? Math.round((MIN_CELL_W * s.labels.size) / 12) : MIN_CELL_W;
   return { iconSize, cellW: Math.max(iconSize + 30, MIN_CELL_W, minW), cellH: Math.round(ICON_TOP * 2 + iconSize + label) };
@@ -81,7 +65,7 @@ export function computeGrids(env: Environment, s: Settings): GridMap {
     const workTop = (m.work.y - m.bounds.y) / scale;
     const workWidth = m.work.width / scale;
     const workHeight = m.work.height / scale;
-    const { iconSize, cellW: minCellW, cellH } = cellMetrics(m, scale, s);
+    const { iconSize, cellW: minCellW, cellH } = cellMetrics(m, scale, s, env.windowsIconSize);
     const cols = Math.max(1, Math.floor((workWidth - GRID_PAD * 2) / minCellW));
     // the leftover width is spread over the columns, so the last column reaches the right edge
     const cellW = Math.max(minCellW, (workWidth - GRID_PAD * 2) / cols);
