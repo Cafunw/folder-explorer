@@ -6,6 +6,8 @@ import type { Layout } from "../types";
 const mocks = vi.hoisted(() => ({
   api: { recycle: vi.fn() },
   commit: vi.fn(),
+  toast: vi.fn(),
+  undoEntry: vi.fn(),
   state: {} as Record<string, unknown>,
 }));
 
@@ -19,7 +21,7 @@ vi.mock("./store", () => ({
   useDesk: { getState: () => mocks.state, setState: (next: object) => Object.assign(mocks.state, next) },
   baseName: vi.fn(), commit: mocks.commit, displayName: vi.fn(), expectNewItem: vi.fn(),
   recordOpen: vi.fn(), redo: vi.fn(), refreshItems: vi.fn(), saveSettings: vi.fn(),
-  toast: vi.fn(), undo: vi.fn(),
+  toast: mocks.toast, undo: vi.fn(), undoEntry: mocks.undoEntry,
 }));
 
 import { deleteIds } from "./actions";
@@ -58,5 +60,17 @@ describe("deleting while something else changes", () => {
     expect(committed.placements.a).toBeUndefined();
     expect(committed.placements.b).toMatchObject({ c: 5, r: 5 });
     expect(mocks.state.selection).toEqual(new Set(["b"]));
+  });
+
+  it("gives the toast's undo the delete's own history entry", async () => {
+    mocks.api.recycle.mockResolvedValue(undefined);
+    const entry = { before: layoutWithB(0, 1), after: layoutWithB(0, 1) };
+    mocks.commit.mockReturnValue(entry);
+    mocks.state.layout = layoutWithB(0, 1);
+    mocks.state.selection = new Set();
+
+    await deleteIds(["a"]);
+    mocks.toast.mock.calls[0][1].run();
+    expect(mocks.undoEntry).toHaveBeenCalledWith(entry);
   });
 });

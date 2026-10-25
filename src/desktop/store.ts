@@ -28,7 +28,7 @@ export type FileOp =
   | { kind: "rename"; from: string; to: string }
   | { kind: "move"; moves: { from: string; to: string }[] };
 
-type HistoryEntry = { before: Layout; after: Layout; fileOp?: FileOp };
+export type HistoryEntry = { before: Layout; after: Layout; fileOp?: FileOp };
 
 export type Toast = {
   id: number;
@@ -180,8 +180,8 @@ function syncHistoryFlags() {
   set({ canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 });
 }
 
-/** Apply a user change: records undo, auto-arranges if enabled, saves. */
-export function commit(next: Layout, fileOp?: FileOp, priority?: Set<string>) {
+/** Apply a user change: records undo, auto-arranges if enabled, saves. Returns the new undo entry. */
+export function commit(next: Layout, fileOp?: FileOp, priority?: Set<string>): HistoryEntry | undefined {
   const { layout: before, settings, grids } = get();
   let after = next;
   // a new smart group / changed rule collects the matching loose items in the same undo step
@@ -191,7 +191,8 @@ export function commit(next: Layout, fileOp?: FileOp, priority?: Set<string>) {
   if (settings.grid.autoArrange) after = autoArrange(after, grids, priority);
   if (after === before) return;
   after = forgetHomes(before, after);
-  undoStack.push({ before, after, fileOp });
+  const entry = { before, after, fileOp };
+  undoStack.push(entry);
   if (undoStack.length > 100) undoStack.shift();
   redoStack.length = 0;
   set({ layout: after });
@@ -199,6 +200,7 @@ export function commit(next: Layout, fileOp?: FileOp, priority?: Set<string>) {
   if (get().panel?.stack.some((f) => !after.folders[f])) set({ panel: null });
   syncHistoryFlags();
   scheduleSave();
+  return entry;
 }
 
 /** Replace the layout without an undo entry (reconciliation, imports). */
@@ -217,11 +219,13 @@ export function recordOpen(id: string) {
   replaceLayout(countOpen(l, id));
 }
 
-export function recordFileOpOnly(fileOp: FileOp) {
+export function recordFileOpOnly(fileOp: FileOp): HistoryEntry {
   const l = get().layout;
-  undoStack.push({ before: l, after: l, fileOp });
+  const entry = { before: l, after: l, fileOp };
+  undoStack.push(entry);
   redoStack.length = 0;
   syncHistoryFlags();
+  return entry;
 }
 
 /** A file skipped (or cancelled) in Windows' conflict dialog fails the undo / redo. */
@@ -247,6 +251,37 @@ async function reapply(op: FileOp) {
   }
 }
 
+/** Undo (`undoing`) or redo the popped entry `e`: its file operation first, then its layout. */
+async function step(e: HistoryEntry, undoing: boolean) {
+  historyBusy = true;
+  const top = undoStack.at(-1);
+  try {
+    let ok = true;
+    try {
+      if (e.fileOp) await (undoing ? revert(e.fileOp) : reapply(e.fileOp));
+    } catch (err) {
+      console.error(err);
+      ok = false;
+    }
+    // `e` goes on the undo stack when redone or when its undo failed, else on the redo stack. A change
+    // committed meanwhile (the Recycle Bin can take seconds) is newer: it keeps the screen and the top
+    // of the undo stack, `e` goes under it, and the redo stack that change cleared stays empty.
+    const meanwhile = undoStack.at(-1) !== top;
+    if (ok !== undoing) undoStack.splice(top ? undoStack.indexOf(top) + 1 : 0, 0, e);
+    else if (!meanwhile) redoStack.push(e);
+    if (ok && !meanwhile) set({ layout: withUsage(undoing ? e.before : e.after) });
+    await refreshItems(); // after a failure too: a half-done move shows its files where they are
+    scheduleSave();
+    toast(!ok ? t.operationFailed : undoing ? t.undone : t.redone);
+  } catch (err) {
+    console.error(err);
+    toast(t.operationFailed);
+  } finally {
+    historyBusy = false;
+    syncHistoryFlags();
+  }
+}
+
 export async function undo() {
   if (historyBusy) return;
   const e = undoStack.pop();
@@ -254,53 +289,38 @@ export async function undo() {
     toast(t.nothingToUndo);
     return;
   }
-  historyBusy = true;
-  try {
-    if (e.fileOp) await revert(e.fileOp);
-    set({ layout: withUsage(e.before) });
-    redoStack.push(e);
-    await refreshItems();
-    scheduleSave();
-    toast(t.undone);
-  } catch (err) {
-    console.error(err);
-    toast(t.operationFailed);
-  } finally {
-    historyBusy = false;
-    syncHistoryFlags();
-  }
+  await step(e, true);
 }
 
 export async function redo() {
   if (historyBusy) return;
   const e = redoStack.pop();
-  if (!e) return;
-  historyBusy = true;
-  try {
-    if (e.fileOp) await reapply(e.fileOp);
-    set({ layout: withUsage(e.after) });
-    undoStack.push(e);
-    await refreshItems();
-    scheduleSave();
-    toast(t.redone);
-  } catch (err) {
-    console.error(err);
-    toast(t.operationFailed);
-  } finally {
-    historyBusy = false;
-    syncHistoryFlags();
-  }
+  if (e) await step(e, false);
+}
+
+/** A toast's "Geri al": undoes that toast's own entry, and only while nothing newer is above it. */
+export async function undoEntry(e: HistoryEntry | undefined) {
+  if (e && e === undoStack.at(-1)) return undo();
+  toast(e && undoStack.includes(e) ? t.undoLaterFirst : t.nothingToUndo);
 }
 
 // ---------------------------------------------------------------- toasts
 
 let toastSeq = 1;
+const toastTimers = new Map<number, number>();
 export function toast(text: string, action?: Toast["action"], ms = 6000) {
   const id = toastSeq++;
   set({ toasts: [...get().toasts.slice(-2), { id, text, action }] });
-  window.setTimeout(() => dismissToast(id), ms);
+  holdToast(id, false, ms);
+}
+/** A hovered toast stays; it closes `ms` after the pointer leaves it. */
+export function holdToast(id: number, hold: boolean, ms = 6000) {
+  window.clearTimeout(toastTimers.get(id));
+  if (!hold) toastTimers.set(id, window.setTimeout(() => dismissToast(id), ms));
 }
 export function dismissToast(id: number) {
+  window.clearTimeout(toastTimers.get(id));
+  toastTimers.delete(id);
   set({ toasts: get().toasts.filter((x) => x.id !== id) });
 }
 

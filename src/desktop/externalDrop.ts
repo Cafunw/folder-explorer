@@ -20,7 +20,7 @@ import {
   refreshItems,
   replaceLayout,
   toast,
-  undo,
+  undoEntry,
   useDesk,
   type FileOp,
 } from "./store";
@@ -88,9 +88,8 @@ async function dropIntoDir(paths: string[], dir: string, keys: Keys) {
     const op: FileOp = { kind: "move", moves };
     // icons of our desktop that went with it leave the layout in the same undo step
     const gone = moves.map((m) => m.from.toLowerCase()).filter((id) => desk().itemMap.has(id));
-    if (gone.length) commit(removeIds(desk().layout, gone), op);
-    else recordFileOpOnly(op);
-    toast(t.moved, { label: t.undo, run: () => void undo() });
+    const entry = gone.length ? commit(removeIds(desk().layout, gone), op) : recordFileOpOnly(op);
+    toast(t.moved, { label: t.undo, run: () => void undoEntry(entry) });
   } else toast(copy.length ? t.copied : t.operationFailed);
 }
 
