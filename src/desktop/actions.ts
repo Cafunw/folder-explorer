@@ -1,7 +1,7 @@
 import { api } from "../api";
 import { t } from "../i18n";
 import { cellAt, gridAt, primaryGrid } from "../layout/grid";
-import { createFenceAt, createHeadingNear, HEADING_WIDTH, isFence } from "../layout/blocks";
+import { createFenceAt, createHeadingNear, HEADING_WIDTH, isFence, setCollapsed } from "../layout/blocks";
 import {
   createFolderAt,
   DEFAULT_FENCE_SIZE,
@@ -24,6 +24,7 @@ import {
   type SortKey,
 } from "../layout/model";
 import {
+  groupMenu,
   headingMenu,
   ICON_SCALES,
   type MenuPick,
@@ -267,8 +268,8 @@ function toScreen(x: number, y: number): [number, number] {
 }
 
 /**
- * Files use their native Windows Shell menu. Virtual groups keep their settings dialog;
- * headings use an OS-rendered popup because they have no corresponding Shell object.
+ * Files use their native Windows Shell menu. Virtual groups, fences and headings use an
+ * OS-rendered popup because they have no corresponding Shell object.
  */
 export async function showItemMenu(id: string, at?: [number, number]) {
   const { selection, itemMap, layout } = get();
@@ -286,7 +287,16 @@ export async function showItemMenu(id: string, at?: [number, number]) {
     return;
   }
   if (isFolderId(id)) {
-    set({ selection: new Set([id]), dialog: { kind: "customize", id } });
+    const f = layout.folders[id];
+    if (!f) return;
+    set({ selection: new Set([id]) });
+    try {
+      const chosen = await api.nativeMenu(groupMenu(isFence(layout, id), f.collapsed), at ?? null);
+      if (chosen) groupAction(chosen.slice("group:".length), id);
+    } catch (e) {
+      console.warn("group menu", e);
+      toast(t.operationFailed);
+    }
     return;
   }
   const picked = selection.has(id) ? [...selection] : [id];
@@ -559,6 +569,19 @@ function headingAction(action: string, hid: string) {
   else if (action === "underline") commit(setHeading(layout, hid, { underline: !h.underline }));
   else if (action === "align:left" || action === "align:center") commit(setHeading(layout, hid, { align: action === "align:left" ? "left" : "center" }));
   else if (action === "style:title" || action === "style:divider") commit(setHeading(layout, hid, { style: action === "style:title" ? "title" : "divider" }));
+}
+
+/** The group menu's entries ("group:<action>"). */
+function groupAction(action: string, fid: string) {
+  const { layout } = get();
+  const f = layout.folders[fid];
+  if (!f) return;
+  if (action === "open") openFolder(fid);
+  else if (action === "rename") startRename(fid);
+  else if (action === "settings") set({ dialog: { kind: "customize", id: fid } });
+  else if (action === "collapse") commit(setCollapsed(layout, fid, !f.collapsed));
+  else if (action === "dissolve") void deleteIds([fid]);
+  else if (action === "delete") askDeleteFolderDeep([fid]);
 }
 
 export function toggleLock() {

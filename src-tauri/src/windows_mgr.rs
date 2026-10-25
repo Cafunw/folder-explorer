@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::utils::config::WindowEffectsConfig;
 use tauri::window::{Effect, EffectsBuilder};
@@ -36,8 +36,8 @@ struct SearchOpen {
 }
 
 #[derive(Serialize, Clone)]
-struct TrayAction {
-    action: &'static str,
+struct TrayAction<'a> {
+    action: &'a str,
 }
 
 fn effects(effect: Effect) -> WindowEffectsConfig {
@@ -260,7 +260,7 @@ pub fn take_search_initial() -> String {
     PENDING_SEARCH.lock().unwrap().take().unwrap_or_default()
 }
 
-/// Tray "Yeni grup" and Windows' Yeni ▸ Folder Explorer grubu: the desktop comes to the front
+/// Tray Yeni ▸ Grup and Windows' Yeni ▸ Folder Explorer grubu: the desktop comes to the front
 /// with a new, empty group whose name is being edited.
 pub fn new_group(app: &AppHandle) {
     desktop_window::set_raised(true, true);
@@ -328,8 +328,21 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), String> {
     let sep = PredefinedMenuItem::separator(app).map_err(|e| e.to_string())?;
     let quit_item = MenuItem::with_id(app, "quit", "Çıkış", true, None::<&str>).map_err(|e| e.to_string())?;
     let add_app = MenuItem::with_id(app, "addapp", "Uygulama ekle…", true, None::<&str>).map_err(|e| e.to_string())?;
-    let new_group_item = MenuItem::with_id(app, "newgroup", "Yeni grup", true, None::<&str>).map_err(|e| e.to_string())?;
-    let menu = Menu::with_items(app, &[&new_group_item, &add_app, &settings_item, &lock, &win_icons, &sep, &quit_item])
+    // ids = the desktop's menu actions (runMenuAction); "newgroup" keeps its own path (new_group)
+    let item = |id: &str, text: &str| MenuItem::with_id(app, id, text, true, None::<&str>).map_err(|e| e.to_string());
+    let new_items = [
+        item("newgroup", "Grup")?,
+        item("newsmart", "Akıllı grup")?,
+        item("newlive", "Canlı klasör")?,
+        item("newfrequent", "En çok kullanılanlar")?,
+        item("newfence", "Kutu")?,
+        item("newheading", "Başlık")?,
+        item("newdivider", "Ayraç")?,
+    ];
+    let new_refs: Vec<&dyn IsMenuItem<Wry>> = new_items.iter().map(|i| i as _).collect();
+    let new_menu = Submenu::with_items(app, "Yeni", true, &new_refs).map_err(|e| e.to_string())?;
+    let edit_icons = item("editicons", "Simgeleri düzenle")?;
+    let menu = Menu::with_items(app, &[&new_menu, &edit_icons, &add_app, &settings_item, &lock, &win_icons, &sep, &quit_item])
         .map_err(|e| e.to_string())?;
 
     app.manage(TrayState { lock: lock.clone(), win_icons: win_icons.clone() });
@@ -343,6 +356,11 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), String> {
                 let _ = open_settings(app);
             }
             "newgroup" => new_group(app),
+            id @ ("newsmart" | "newlive" | "newfrequent" | "newfence" | "newheading" | "newdivider" | "editicons") => {
+                // like "Yeni grup": the desktop comes to the front, the new block lands in the first free cell
+                desktop_window::set_raised(true, true);
+                let _ = app.emit_to("desktop", "tray-action", TrayAction { action: id });
+            }
             "addapp" => {
                 // shown in the desktop window, which comes to the front for it
                 desktop_window::set_raised(true, true);

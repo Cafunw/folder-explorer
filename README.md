@@ -28,10 +28,10 @@ kaydında tutulur. Uygulama kapanınca Windows'un kendi simgeleri geri gelir.
 | Hızlı önizleme | Seçili simgede **Boşluk**: resim, GIF, video, ses, PDF, metin / kod, klasör içeriği, grup; ← → önceki / sonraki, Enter açar, Boşluk / Esc kapatır |
 | Komut paleti | Aramada `>` yaz ya da masaüstünde (simge seçili değilken) **Ctrl+Shift+P**: Yenile, Sırala, simge boyutu, Yeni grup, Yeni kutu / başlık / ayraç, Geri al… |
 | Çoklu seçim | Ctrl+tık ya da boş alanda dikdörtgen çiz |
-| Simgeleri düzenle | Komut paletinde **Simgeleri düzenle** komutu ya da bir simgeye **uzun bas** (~0,6 sn, kıpırdatmadan). Simgeler sallanır, köşelerinde rozet çıkar: **×** dosyayı Geri Dönüşüm Kutusu'na taşır, **−** grubu dağıtır (içindekiler kalır) ya da başlığı kaldırır; hepsi Ctrl+Z / "Geri al" ile döner. Bu modda sürükleme hemen başlar, tıklamak dosya açmaz (gruplar açılır). Çıkmak için **Esc**, boş masaüstüne tık ya da üstteki **Bitti**. Düzen kilitliyken açılmaz; "Hareketi azalt" açıksa simgeler sallanmaz, yalnızca rozetler görünür |
-| Kutu (Fences) | Komut paletinde **Yeni kutu**: masaüstünde hep açık duran bir grup (varsayılan 3×2 hücre). Simgeleri içine sürükle (gövdede yer açılır, başlığa bırakmak sona ekler), dışarı sürükleyince masaüstüne çıkar. Başlıktan sürükle = taşı (hücreye oturur, kesik çizgi nereye gideceğini gösterir), sağ alt köşeden sürükle = boyutlandır, başlığa çift tık / F2 = ad, ⌄ düğmesi = katla / aç (katlanmış kutunun hücreleri ayrılmış kalır), başlığa sağ tık ya da ayar düğmesi = grubun ayarları. Var olan bir grubu ayarlarındaki görünüm seçiminden kutuya çevirebilirsin |
-| Başlık / Ayraç | Yeni ▸ **Başlık** (3 hücre) ya da **Ayraç** (sağdaki boş hücreler, en çok 6): hemen yazılır. Tık = seç, sürükle = taşı, sağ kenardaki tutamak = genişlik, çift tık / F2 / Ctrl+E = metni düzenle, Delete = sil (Ctrl+Z geri alır). Sağ tık: Düzenle, Hizala ▸ Sol / Orta, Biçim ▸ Başlık / Ayraç, Altı çizili, Sil |
-| Grup türü | Grubun ayarlarında **Tür**: Normal, **Akıllı** (kurala uyan masaüstü simgelerini kendisi toplar), **Canlı klasör**, **En çok kullanılanlar**, **Geçici masa**. Yeni ▸ Akıllı grup / Canlı klasör / En çok kullanılanlar doğrudan oluşturur. Simgenin köşesindeki küçük rozet türü gösterir |
+| Simgeleri düzenle | Sistem tepsisi menüsünde ya da komut paletinde **Simgeleri düzenle** ya da bir simgeye **uzun bas** (~0,6 sn, kıpırdatmadan). Simgeler sallanır, köşelerinde rozet çıkar: **×** dosyayı Geri Dönüşüm Kutusu'na taşır, **−** grubu dağıtır (içindekiler kalır) ya da başlığı kaldırır; hepsi Ctrl+Z / "Geri al" ile döner. Bu modda sürükleme hemen başlar, tıklamak dosya açmaz (gruplar açılır). Çıkmak için **Esc**, boş masaüstüne tık ya da üstteki **Bitti**. Düzen kilitliyken açılmaz; "Hareketi azalt" açıksa simgeler sallanmaz, yalnızca rozetler görünür |
+| Kutu (Fences) | Sistem tepsisi menüsünde Yeni ▸ **Kutu** ya da komut paletinde **Yeni kutu**: masaüstünde hep açık duran bir grup (varsayılan 3×2 hücre). Simgeleri içine sürükle (gövdede yer açılır, başlığa bırakmak sona ekler), dışarı sürükleyince masaüstüne çıkar. Başlıktan sürükle = taşı (hücreye oturur, kesik çizgi nereye gideceğini gösterir), sağ alt köşeden sürükle = boyutlandır, başlığa çift tık / F2 = ad, ⌄ düğmesi = katla / aç (katlanmış kutunun hücreleri ayrılmış kalır), sağ tık = Daralt / Genişlet, Yeniden adlandır, Ayarlar…, Klasörü dağıt, İçindekilerle birlikte sil; ayar düğmesi = grubun ayarları. Var olan bir grubu ayarlarındaki görünüm seçiminden kutuya çevirebilirsin |
+| Başlık / Ayraç | Sistem tepsisi menüsünde Yeni ▸ **Başlık** (3 hücre) ya da **Ayraç** (sağdaki boş hücreler, en çok 6), ya da komut paletinde Yeni başlık / Yeni ayraç: ilk boş yere eklenir. Tık = seç, sürükle = taşı, sağ kenardaki tutamak = genişlik, çift tık / F2 / Ctrl+E = metni düzenle, Delete = sil (Ctrl+Z geri alır). Sağ tık: Düzenle, Hizala ▸ Sol / Orta, Biçim ▸ Başlık / Ayraç, Altı çizili, Sil |
+| Grup türü | Grubun ayarlarında **Tür**: Normal, **Akıllı** (kurala uyan masaüstü simgelerini kendisi toplar), **Canlı klasör**, **En çok kullanılanlar**, **Geçici masa**. Sistem tepsisi menüsünde Yeni ▸ Akıllı grup / Canlı klasör / En çok kullanılanlar (ya da komut paletindeki aynı komutlar) doğrudan oluşturur. Simgenin köşesindeki küçük rozet türü gösterir |
 | Akıllı grup kuralı | Koşullar: Uzantı (`png, jpg`), Ad içerir / ile başlar, Tür (Resim, Belge, Oyun…), Yaş (N günden yeni / eski); "Tümü" ya da "Herhangi biri". Altta kaç öğenin toplanacağı canlı görünür |
 | Canlı klasör | Gerçek bir klasörün içeriğini gösterir (İndirilenler, Belgeler, Resimler ya da seçtiğin klasör), değişiklikleri anında izler; en yeni 500 öğe. Çift tık açar, Boşluk önizler, sağ tık Windows'un klasik menüsü, F2 / Delete çalışır. Dışarı sürüklemek dosyayı taşır; gruba bırakılan dosyalar o klasöre taşınır. Bu öğeler masaüstü düzenine girmez |
 | En çok kullanılanlar | En sık açtığın simgeleri (4–30 adet) kendisi listeler; içine bırakılamaz, içinden sürüklenemez |
@@ -56,18 +56,18 @@ Uygulama kendi menü pencerelerini oluşturmaz. Yeniden adlandır ve Sil, Ctrl+Z
 uygulama işlemlerine bağlıdır. Shift+F10 / menü tuşu da aynı yerel menüleri açar.
 Windows masaüstü menüsündeki Görünüm/Sıralama komutları Explorer simgelerine aittir;
 uygulamanın simge boyutu ve düzeni uygulama ayarları, Ctrl+tekerlek ve komut paletinden yönetilir.
-Akıllı grup, canlı klasör, kutu, başlık ve ayraç oluşturma komutları komut paletinde bulunur.
+Akıllı grup, canlı klasör, kutu, başlık ve ayraç oluşturma komutları sistem tepsisi menüsünün Yeni alt menüsünde ve komut paletinde bulunur.
 
-Gruba (sanal klasör) sağ tıklamak onun ayar penceresini açar (ad, renk, görünüm, "Grubu dağıt",
-"İçindekilerle birlikte sil"). Seçili simge için Ctrl+E de aynı pencereyi açar (dosyalar için özel
-ad ve simge).
+Gruba (sanal klasör) ya da kutuya sağ tıklamak küçük bir menü açar: Aç (kutuda Daralt / Genişlet),
+Yeniden adlandır, Ayarlar… (ad, renk, görünüm… penceresi), Klasörü dağıt, İçindekilerle birlikte sil.
+Seçili simge için Ctrl+E de ayar penceresini açar (dosyalar için özel ad ve simge).
 
-Yeni grup için: masaüstü menüsünde Yeni ▸ Yeni grup oluştur, sistem tepsisi menüsünde "Yeni grup",
+Yeni grup için: masaüstü menüsünde Yeni ▸ Yeni grup oluştur, sistem tepsisi menüsünde Yeni ▸ Grup,
 **Ctrl+Shift+N**, bir simgeyi başka bir simgenin üstüne bırakmak, ya da Dosya Gezgini'nde sağ tık ▸
 Yeni ▸ **Yeni grup oluştur** (masaüstü öne gelir, boş grup açılır ve adlandırılır). Yeni ▸ ile oluşturduğun öğe
 sağ tıkladığın yerde belirir ve hemen adlandırılır.
 
-Her grup ayrı ayrı düzenlenebilir (sağ tık → "Klasörü düzenle…" ya da açık grubun başlığındaki
+Her grup ayrı ayrı düzenlenebilir (sağ tık → Ayarlar… ya da açık grubun başlığındaki
 düğme): ad, renk, kutu opaklığı (%0 = tamamen saydam), bulanıklık, köşe, 2×2 / 3×3 önizleme,
 özel resim, açılış stili (iOS / Android), açılış animasyonu ve panel opaklığı. Ayarlanmayanlar genel
 ayarları izler.
@@ -130,7 +130,7 @@ pencere yalnızca kendi kodunu yükler. Windows'ta "Animasyon efektleri" kapalı
 animasyonsuz çalışır. Windows'un kendi duvar kağıdı kullanılırken grup kutularındaki bulanıklık
 (altında bulanacak bir şey olmadığından) hiç hesaplanmaz.
 
-Sistem tepsisi menüsünde ayarlar, uygulama ekle ve düzeni kilitle bulunur.
+Sistem tepsisi menüsünde Yeni ▸ (grup, akıllı grup, canlı klasör, en çok kullanılanlar, kutu, başlık, ayraç), simgeleri düzenle, uygulama ekle, ayarlar ve düzeni kilitle bulunur.
 
 Düzen `%APPDATA%\Folder Explorer\state.json` dosyasına anında kaydedilir; son 10 sürüm
 `backups\` klasöründe tutulur.

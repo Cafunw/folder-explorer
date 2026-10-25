@@ -1,4 +1,4 @@
-// Shared desktop action payloads and OS-rendered menus for virtual headings.
+// Shared desktop action payloads and OS-rendered menus for virtual headings and groups.
 import { t } from "../i18n";
 import type { Placement } from "../types";
 
@@ -39,5 +39,19 @@ export function headingMenu(h: { style: "title" | "divider"; align: "left" | "ce
     ...(h.style === "title" ? [{ id: "heading:underline", text: t.cm.underline, checked: !!h.underline }] : []),
     { id: "", text: "", sep: true },
     { id: "heading:delete", text: t.cm.delete },
+  ];
+}
+
+/** A group tile's or a fence's popup ("group:<action>"); a fence is always open, so it folds instead. */
+export function groupMenu(fence: boolean, collapsed = false): OwnItem[] {
+  return [
+    fence
+      ? { id: "group:collapse", text: collapsed ? t.fence.expand : t.fence.collapse }
+      : { id: "group:open", text: `${t.cm.open}\t${t.cm.hintOpen}` },
+    { id: "group:rename", text: `${t.cm.rename}\t${t.cm.hintRename}` },
+    { id: "group:settings", text: `${t.cm.groupSettings}\t${t.cm.hintSettings}` },
+    { id: "", text: "", sep: true },
+    { id: "group:dissolve", text: t.ungroup },
+    { id: "group:delete", text: t.deleteFolderWithContents },
   ];
 }

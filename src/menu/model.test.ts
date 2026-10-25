@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { headingMenu } from "./model";
+import { t } from "../i18n";
+import { groupMenu, headingMenu } from "./model";
 
 describe("native heading menu", () => {
   it("keeps heading actions and selected values in the Win32 popup", () => {
@@ -18,5 +19,19 @@ describe("native heading menu", () => {
     const menu = headingMenu({ style: "divider", align: "left" });
     expect(menu.some((item) => item.id === "heading:underline")).toBe(false);
     expect(menu[2].items?.filter((item) => item.checked).map((item) => item.id)).toEqual(["heading:style:divider"]);
+  });
+});
+
+describe("native group menu", () => {
+  const ids = (fence: boolean, collapsed?: boolean) => groupMenu(fence, collapsed).map((item) => item.sep ? "-" : item.id);
+
+  it("opens a plain group and folds a fence", () => {
+    expect(ids(false)).toEqual(["group:open", "group:rename", "group:settings", "-", "group:dissolve", "group:delete"]);
+    expect(ids(true)).toEqual(["group:collapse", "group:rename", "group:settings", "-", "group:dissolve", "group:delete"]);
+  });
+
+  it("labels the fold entry by the fence's state", () => {
+    expect(groupMenu(true, false)[0].text).toBe(t.fence.collapse);
+    expect(groupMenu(true, true)[0].text).toBe(t.fence.expand);
   });
 });
