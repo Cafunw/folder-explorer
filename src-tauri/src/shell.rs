@@ -161,11 +161,24 @@ pub fn open_with_verb(path: String, verbs: Vec<String>) -> Result<(), String> {
 
 /// "Terminalde Aç": Windows Terminal in `dir` (the console host when Terminal is missing).
 pub fn open_terminal(dir: String) -> Result<(), String> {
-    let quoted = format!("-d \"{}\"", dir.trim_end_matches('\\'));
-    execute("wt.exe", None, Some(&quoted)).or_else(|_| {
-        let cmd = format!("/k cd /d \"{dir}\"");
-        execute("cmd.exe", None, Some(&cmd))
-    })
+    let _ = unsafe { AllowSetForegroundWindow(ASFW_ANY) };
+    let [mut wt, mut cmd] = terminal_commands(&dir);
+    wt.spawn().or_else(|_| cmd.spawn()).map(drop).map_err(|e| e.to_string())
+}
+
+/// The folder is only the new process's working directory, never part of its command line: wt splits
+/// its arguments at `;` even inside quotes and cmd expands `%VAR%` (which can unbalance the quotes
+/// around a `&`), so a folder name could start a program. `Command` also finds the exe without
+/// searching that folder, which ShellExecute with a working directory would do.
+/// shortcut: under `tauri dev` the cmd fallback inherits the dev console's stdio; release has none.
+fn terminal_commands(dir: &str) -> [std::process::Command; 2] {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+    let mut wt = std::process::Command::new("wt.exe");
+    wt.args(["-d", "."]).current_dir(dir);
+    let mut cmd = std::process::Command::new("cmd.exe");
+    cmd.current_dir(dir).creation_flags(CREATE_NEW_CONSOLE);
+    [wt, cmd]
 }
 
 /// Files on the clipboard (CF_HDROP) and whether they were cut.
@@ -1411,6 +1424,22 @@ mod tests {
     #[test]
     fn exact_name_is_not_extended_again() {
         assert_eq!(renamed_file_name("Chrome.lnk", "Browser.lnk", "Browser", false, true), "Chrome.lnk");
+    }
+
+    #[test]
+    fn terminal_gets_the_folder_only_as_working_directory() {
+        let names = ["a; new-tab calc", "a;b", "a\\;b", "it's \"q\"", "with space", "a & calc", "a | calc", "%PATH%", "Çalışma ğüşöı İ"];
+        for name in names {
+            let dir = format!("C:\\Users\\x\\Desktop\\{name}");
+            let [wt, cmd] = terminal_commands(&dir);
+            assert_eq!(wt.get_program(), "wt.exe");
+            assert_eq!(wt.get_args().collect::<Vec<_>>(), ["-d", "."]);
+            assert_eq!(cmd.get_program(), "cmd.exe");
+            assert_eq!(cmd.get_args().count(), 0);
+            for c in [&wt, &cmd] {
+                assert_eq!(c.get_current_dir(), Some(Path::new(&dir)));
+            }
+        }
     }
 
     #[test]
