@@ -14,7 +14,7 @@ import { DEFAULT_FREQUENT_LIMIT, frequentItems } from "../layout/smart";
 import { groupBoxStyle, rgba } from "../settings";
 import type { Placement, VirtualFolder } from "../types";
 import { Icon } from "../ui/Icons";
-import { commitRename, startRename } from "./actions";
+import { commitRename, showItemMenu, startRename } from "./actions";
 import { beginBlockPointer, useDrag, type DropTarget } from "./dnd";
 import { Heading } from "./Heading";
 import { JiggleBadge } from "./Jiggle";
@@ -89,7 +89,7 @@ const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
 /**
  * A group shown as an always-open box over its cells: the title bar moves it (drag), renames it
- * (double-click) and opens its settings (right-click / the edit button); the body is a scrolling
+ * (double-click) and opens its menu (right-click) or settings (the edit button); the body is a scrolling
  * grid of its children; the corner handle resizes it in whole cells.
  */
 /** What the current drag (or a drop from another app) points at. */
@@ -164,7 +164,7 @@ function Fence({ id, g, pl, moving }: { id: string; g: GridInfo; pl: Placement; 
           onContextMenu={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            customize();
+            void showItemMenu(id);
           }}
         >
           <button
@@ -199,7 +199,7 @@ function Fence({ id, g, pl, moving }: { id: string; g: GridInfo; pl: Placement; 
             onContextMenu={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              customize();
+              void showItemMenu(id);
             }}
             onWheel={(e) => {
               const el = bodyRef.current;

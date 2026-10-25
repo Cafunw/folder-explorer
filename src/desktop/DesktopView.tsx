@@ -93,6 +93,11 @@ export function DesktopView() {
         if (p.action === "toggle-lock") toggleLock();
         else if (p.action === "new-group") newGroup();
         else if (p.action === "add-app") useDesk.setState({ dialog: { kind: "addApp", placement: null }, panel: null });
+        else {
+          // the tray's Yeni ▸ entries and Simgeleri düzenle: menu actions without a cell (first free one)
+          useDesk.setState({ panel: null });
+          void runMenuAction({ id: p.action, target: "desktop", ids: [], paths: [], at: [0, 0], cell: null, canPaste: false });
+        }
       }),
     );
     keep(

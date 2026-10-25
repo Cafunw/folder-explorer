@@ -71,11 +71,13 @@ export const t = {
     headingStyle: "Biçim",
     styleTitle: "Başlık",
     styleDivider: "Ayraç",
+    groupSettings: "Ayarlar…",
     hintRename: "F2",
     // Windows' own Turkish key names
     hintOpen: "Enter",
     hintCopyPath: "Kontrol+Üst Karakter+P",
     hintProperties: "Ek Karakter+Enter",
+    hintSettings: "Kontrol+E",
   },
 
   // fences (always-open groups on the desktop) and headings / dividers
@@ -184,6 +186,9 @@ export const t = {
     personalize: "Kişiselleştir",
     terminal: "Terminalde aç",
     windowsIcons: "Windows simgelerine dön",
+    newSmart: "Yeni akıllı grup",
+    newLive: "Yeni canlı klasör",
+    newFrequent: "Yeni en çok kullanılanlar grubu",
     newFence: "Yeni kutu",
     newHeading: "Yeni başlık",
     newDivider: "Yeni ayraç",
