@@ -7,7 +7,7 @@ import type { Settings } from "./types";
 function customized(): Settings {
   return normalizeSettings({
     ...DEFAULT_SETTINGS,
-    behavior: { ...DEFAULT_SETTINGS.behavior, searchHotkey: "Alt+K", lockLayout: true, doubleClickHide: false, quickLook: false },
+    behavior: { ...DEFAULT_SETTINGS.behavior, lockLayout: true, doubleClickHide: false, quickLook: false },
     grid: { ...DEFAULT_SETTINGS.grid, iconScale: 1.7, autoArrange: true },
     folders: { ...DEFAULT_SETTINGS.folders, panelColumns: 7 },
     search: { ...DEFAULT_SETTINGS.search, web: false },
@@ -50,7 +50,7 @@ describe("theme presets", () => {
       const cur = customized();
       const out = applyPreset(cur, preset);
       expect(nonVisual(out)).toEqual(nonVisual(cur));
-      expect(out.behavior.searchHotkey).toBe("Alt+K");
+      expect(out.behavior.lockLayout).toBe(true);
     });
 
     it(`${preset.id} is active right after applying it`, () => {
@@ -91,7 +91,7 @@ describe("theme files", () => {
 
   it("ignores non-visual keys, the icon pack and wrongly typed values", () => {
     const patch = pickVisual({
-      behavior: { searchHotkey: "Ctrl+X" },
+      behavior: { lockLayout: true },
       grid: { iconScale: 3 },
       wallpaper: { source: "image" },
       icons: { shape: "square", pack: { name: "x", map: { a: "b" } }, inset: "big" },

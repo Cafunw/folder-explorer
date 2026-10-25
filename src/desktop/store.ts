@@ -377,7 +377,8 @@ export async function initDesktop() {
     api.loadState(),
     api.listDesktopItems(),
   ]);
-  const firstRun = state.settings == null;
+  // settings the installer wrote (only "start with Windows", no grid yet) still count as a first run
+  const firstRun = (state.settings as { grid?: unknown } | null)?.grid === undefined;
   let settings = normalizeSettings(state.settings);
   let layout = normalizeLayout(state.layout);
 

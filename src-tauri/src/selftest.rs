@@ -229,7 +229,7 @@ fn store_test() {
     for i in 0..3 {
         store::save_layout(json!({ "version": 1, "n": i })).unwrap();
     }
-    store::save_settings(json!({ "behavior": { "searchHotkey": "Ctrl+Space" } })).unwrap();
+    store::save_settings(json!({ "behavior": { "lockLayout": true } })).unwrap();
     println!("after save = {:?}", store::load_state());
     let exp = store::app_dir().join("export-test.json");
     store::export_state(&exp.to_string_lossy()).unwrap();

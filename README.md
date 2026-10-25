@@ -24,7 +24,7 @@ kaydında tutulur. Uygulama kapanınca Windows'un kendi simgeleri geri gelir.
 | Simge boyutu | **Ctrl + fare tekerleği** (Ayarlar'da "Ctrl+tekerlek ile boyut") ya da uygulama ayarları |
 | Uygulamayla aç | Dosyaları bir uygulamanın (`.exe` ya da ona giden kısayol) üstüne bırak: "<Uygulama> ile aç" yazar, dosyalar yerinde kalır. **Shift** basılıyken bırakmak eskisi gibi grup yapar. Dosya Gezgini'nden sürüklenen dosyalar için de geçerli |
 | Dışarıdan klasöre bırak | Dosya Gezgini'nden bir klasör simgesine (ya da klasör kısayoluna) bırakmak Windows gibi: aynı sürücüde taşır, başka sürücüde kopyalar; **Ctrl** kopyalar, **Shift** taşır. Taşıma Ctrl+Z ile geri alınır |
-| Ara | Ctrl+Space ya da masaüstündeyken yazmaya başla |
+| Ara | Masaüstündeyken yazmaya başla |
 | Hızlı önizleme | Seçili simgede **Boşluk**: resim, GIF, video, ses, PDF, metin / kod, klasör içeriği, grup; ← → önceki / sonraki, Enter açar, Boşluk / Esc kapatır |
 | Komut paleti | Aramada `>` yaz ya da masaüstünde (simge seçili değilken) **Ctrl+Shift+P**: Yenile, Sırala, simge boyutu, Yeni grup, Yeni kutu / başlık / ayraç, Geri al… |
 | Çoklu seçim | Ctrl+tık ya da boş alanda dikdörtgen çiz |
@@ -89,7 +89,7 @@ Ayarlar penceresinin bölümleri (çoğunda canlı önizleme var):
 * **Saydamlık**, **Animasyon** (hız, açılış stili, sayfa geçişi, fare üstü efekti, parallax, yay
   sertliği / esneklik, sesler ve ses düzeyi), **Davranış** (çift tıkla gizle, Ctrl+tekerlek,
   Boşluk ile hızlı önizleme, dosyayı uygulamaya bırakınca o uygulamayla aç, Windows'un Yeni
-  menüsünde "Yeni grup oluştur"), **Arama** (kısayol;
+  menüsünde "Yeni grup oluştur"), **Arama** (yazınca ara;
   hesap makinesi, son kullanılan dosyalar, dosyalar, Windows ayarları, web'de ara), **Performans**
   (oyun modu, pil modu), **Yedekleme**.
 

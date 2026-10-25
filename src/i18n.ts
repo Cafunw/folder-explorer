@@ -399,8 +399,6 @@ export const t = {
   reduceMotionDesc: "Animasyonları en aza indirir",
 
   lockLayoutDesc: "Simgeler yanlışlıkla taşınmasın",
-  searchHotkey: "Arama kısayolu",
-  searchHotkeyDesc: "Değiştirmek için kutuya tıklayıp yeni tuşlara bas",
   pressKeys: "Tuşlara bas…",
   startWithWindows: "Windows ile başlat",
   startWithWindowsDesc: "Başlangıç klasörüne bir kısayol koyar; kayıt defterine yazmaz",
