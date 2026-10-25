@@ -65,4 +65,10 @@ FunctionEnd
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
+  ; "Uygulama verilerini sil" only clears the bundle-id folders (WebView2 data); the app keeps
+  ; layout, settings, backups and media here (store.rs). Same guard as Tauri's: never on an update.
+  ${If} $DeleteAppDataCheckboxState = 1
+  ${AndIf} $UpdateMode <> 1
+    RmDir /r "$APPDATA\Folder Explorer"
+  ${EndIf}
 !macroend
