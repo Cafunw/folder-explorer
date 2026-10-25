@@ -795,11 +795,22 @@ textarea {
   background: rgba(0, 0, 0, 0.25);
 }
 
-.dialog {
+/* the primary monitor's work area (set inline); the dialog is centred in it */
+.dialog-place {
   position: fixed;
   z-index: 71;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: none;
+}
+
+.dialog {
+  position: relative;
+  pointer-events: auto;
   width: 440px;
-  max-height: 72vh;
+  max-height: min(72vh, 100%);
   display: flex;
   flex-direction: column;
   border-radius: 18px;
@@ -822,6 +833,36 @@ textarea {
   padding: 8px 20px 4px;
   overflow: auto;
   flex: 1;
+  min-height: 0; /* lets the body shrink and scroll inside the dialog's max height */
+}
+
+/* Klasörü düzenle: long, so it may use the whole work area height, and is kept compact */
+.dialog.folder-edit {
+  width: 520px;
+  max-height: 100%;
+}
+
+.folder-edit .field {
+  margin-bottom: 10px;
+}
+
+.folder-edit .look-preview {
+  flex-direction: row;
+  gap: 12px;
+  padding: 10px 16px;
+  margin-bottom: 10px;
+}
+
+.folder-edit .look-section {
+  margin: 12px 0 5px;
+}
+
+.folder-edit .look-row {
+  min-height: 34px;
+}
+
+.folder-edit .kind-chip {
+  padding: 7px 4px 6px;
 }
 
 .dialog .actions {

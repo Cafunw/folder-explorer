@@ -652,6 +652,27 @@ export function createFolderAt(
   return { layout: l, folderId };
 }
 
+/**
+ * Plain groups that the change from `before` to `after` left empty (their last item left) go too,
+ * in the same step; so does a parent emptied that way. A group created empty stays until it has
+ * had items; fences (boxes on the desktop) and special kinds always stay.
+ */
+export function dropEmptiedGroups(before: Layout, after: Layout, grids: GridMap): Layout {
+  let out = after;
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const f of Object.values(out.folders)) {
+      const emptied = f.children.length === 0 && (before.folders[f.id]?.children.length ?? 0) > 0;
+      if (emptied && (f.kind ?? "group") === "group" && f.display !== "fence") {
+        out = dissolveFolder(out, grids, f.id);
+        changed = true;
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 /** Remove a virtual folder; its children take its place. */
 export function dissolveFolder(l0: Layout, grids: GridMap, folderId: string, now = Date.now()): Layout {
   const f = l0.folders[folderId];

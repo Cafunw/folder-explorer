@@ -488,6 +488,15 @@ Virtual folder ids start with `v:`, heading ids with `h:`. Every item is either 
 in exactly one folder's `children`. `normalizeLayout` drops anything invalid silently and clamps
 numbers; `w` / `h` are stored only when > 1.
 
+A plain group that a `commit` leaves empty (its last item left: moved out, deleted, put in another
+group) is removed in the same undo step (`dropEmptiedGroups`, also a parent that only held it), and
+an open panel of it closes. A group created empty (Yeni grup) stays until it has had items; fences
+and special kinds always stay; reconciliation (files gone outside the app) removes no groups.
+
+An action that waits for a file operation (recycle, move into a folder, rename) builds the layout
+it commits from `get().layout` *after* the wait, never from a copy taken before it: the Recycle Bin
+can take seconds, and a move made meanwhile would otherwise be undone (`deleteRace.test.ts`).
+
 Layout logic lives in `src/layout/model.ts` (geometry, operations, `reconcile`) and
 `src/layout/smart.ts` (group kinds), both pure and unit-tested:
 * **Spans.** An entry covers `w × h` cells; `occupancy`, the free-cell search, moves, `reconcile`,
@@ -764,6 +773,10 @@ menu. The command creates a virtual group; it does not create a .fegroup file.
   icon view is cleared first so an unrelated selected file cannot supply the menu. Coordinates
   are physical screen pixels (including negative monitor coordinates). The app does not change
   Explorer's icon positions or make its hidden icon list visible to open the background menu.
+  The menu observer below also watches this menu, until 5 s after it closes (New ▸ can take a
+  moment to create from a template): when Explorer starts renaming what New ▸ made in its hidden
+  view, that edit is cancelled and `renameNew` makes the app rename the new item (`renameNewItem`:
+  now if it already showed up, else when it does). Paste and other entries start no rename.
 * **Desktop files/folders/shortcuts/system icons:** `item_context_menu` calls
   `explorer_menu::show_items`. It selects every requested parsing name in Explorer's desktop
   view and lets Explorer open its default menu, including the modern Windows 11 menu with
@@ -778,7 +791,8 @@ menu. The command creates a virtual group; it does not create a .fegroup file.
   it stops when the menu closes or another menu supersedes it.
 * **Live-folder entries:** `classic_menu` uses IContextMenu/TrackPopupMenuEx, because these items
   are not in Explorer's desktop view. The existing rename/delete undo handlers remain.* **New group:** Windows' New submenu has **Yeni grup oluştur**, registered by `shell_new.rs`
-  in release builds when `behavior.newMenuEntry` is enabled. It runs `--new-group`, which signals
+  when `behavior.newMenuEntry` is enabled (Windows 11's compact menu leaves this per-user entry out;
+  it is under **Show more options ▸ New**). It runs `--new-group`, which signals
   the running app or launches it, waits for desktop initialization, and creates/edits a virtual
   group. The same entry works from Explorer; no physical .fegroup file is created.
 * **Virtual groups/fences:** their existing settings dialog; they have no underlying Shell item.

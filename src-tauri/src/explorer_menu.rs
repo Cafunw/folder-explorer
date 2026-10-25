@@ -25,8 +25,9 @@ use tauri::Emitter;
 static OPEN_LOCK: Mutex<()> = Mutex::new(());
 static OPEN_TOKEN: AtomicU64 = AtomicU64::new(0);
 
-pub fn cancel_observer() {
-    OPEN_TOKEN.fetch_add(1, Ordering::SeqCst);
+/// A menu is about to open: stops the previous menu's observer and returns the new menu's token.
+pub fn cancel_observer() -> u64 {
+    OPEN_TOKEN.fetch_add(1, Ordering::SeqCst) + 1
 }
 // Scalar HWND properties let the existing watchdog recover even after the app is killed.
 const STYLE: PCWSTR = w!("FolderExplorer.MenuView.Style");
@@ -141,40 +142,78 @@ pub fn dismiss() {
 
 /// The native view is hidden again after opening. If Explorer starts inline rename there,
 /// hand it to the desktop's visible editor instead of leaving an invisible input focused.
-fn observe_menu(path: String, token: u64) {
+/// Watches the Explorer menu of `token` until it is gone, then `linger` longer. If Explorer starts
+/// renaming in its hidden icon view (Rename, New ▸ …), that edit is cancelled and `action` goes to the
+/// desktop as a menu action, so our rename takes over. The keyboard comes back to our desktop when
+/// Explorer's desktop kept it after the menu.
+fn observe_menu(token: u64, linger: Duration, action: serde_json::Value) {
     let Some(app) = util::app().cloned() else { return };
     std::thread::spawn(move || {
+        let current = || OPEN_TOKEN.load(Ordering::SeqCst) == token;
         let start = Instant::now();
-        let mut gone = None;
-        while OPEN_TOKEN.load(Ordering::SeqCst) == token && start.elapsed() < Duration::from_secs(600) {
-            if let Some(lv) = desktop_window::find_listview() {
-                let mut edit = 0usize;
-                unsafe {
-                    let _ = SendMessageTimeoutW(lv, 0x1018 /* LVM_GETEDITCONTROL */, WPARAM(0), LPARAM(0), SMTO_ABORTIFHUNG, 100, Some(&mut edit));
-                    if edit != 0 {
-                        let _ = SendMessageTimeoutW(lv, 0x10B3 /* LVM_CANCELEDITLABEL */, WPARAM(0), LPARAM(0), SMTO_ABORTIFHUNG, 100, None);
-                        let _ = app.emit_to("desktop", "menu-action", serde_json::json!({
-                            "id": "rename", "target": "items", "ids": [util::norm_path(&path)],
-                            "paths": [path], "at": [0, 0], "cell": null, "canPaste": false,
-                        }));
-                        break;
-                    }
+        // the menu was posted: give it a moment to open
+        while current() && menu_kind().is_none() && start.elapsed() < Duration::from_secs(4) {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let mut gone: Option<Instant> = None;
+        let mut refocused = false;
+        while current() && start.elapsed() < Duration::from_secs(600) {
+            if cancel_explorer_edit() {
+                let _ = app.emit_to("desktop", "menu-action", action);
+                break;
+            }
+            if menu_kind().is_some() {
+                gone = None;
+            } else {
+                let since = gone.get_or_insert_with(Instant::now).elapsed();
+                if since >= Duration::from_millis(250) && !refocused {
+                    refocus_desktop();
+                    refocused = true;
+                }
+                if since >= linger {
+                    break;
                 }
             }
-            if menu_kind().is_some() { gone = None; }
-            else if gone.get_or_insert_with(Instant::now).elapsed() >= Duration::from_millis(250) { break; }
             std::thread::sleep(Duration::from_millis(30));
         }
-        if OPEN_TOKEN.load(Ordering::SeqCst) != token { return; }
-        unsafe {
-            let foreground = GetForegroundWindow();
-            let class = desktop_window::class_name(foreground);
-            if matches!(class.as_str(), "Progman" | "WorkerW") || class.starts_with("XamlExplorerHostIslandWindow") {
-                let desktop = desktop_window::desktop_hwnd();
-                if !desktop.is_invalid() { focus_window(desktop); }
-            }
+        if current() {
+            refocus_desktop();
         }
     });
+}
+
+/// Explorer is renaming in its hidden icon view: cancel that edit (the name stays as it was).
+fn cancel_explorer_edit() -> bool {
+    let Some(lv) = desktop_window::find_listview() else { return false };
+    let mut edit = 0usize;
+    unsafe {
+        let _ = SendMessageTimeoutW(lv, 0x1018 /* LVM_GETEDITCONTROL */, WPARAM(0), LPARAM(0), SMTO_ABORTIFHUNG, 100, Some(&mut edit));
+        if edit == 0 {
+            return false;
+        }
+        let _ = SendMessageTimeoutW(lv, 0x10B3 /* LVM_CANCELEDITLABEL */, WPARAM(0), LPARAM(0), SMTO_ABORTIFHUNG, 100, None);
+    }
+    true
+}
+
+/// After a menu, keys go back to our desktop if Explorer's desktop kept the focus.
+fn refocus_desktop() {
+    unsafe {
+        let class = desktop_window::class_name(GetForegroundWindow());
+        if matches!(class.as_str(), "Progman" | "WorkerW") || class.starts_with("XamlExplorerHostIslandWindow") {
+            let desktop = desktop_window::desktop_hwnd();
+            if !desktop.is_invalid() { focus_window(desktop); }
+        }
+    }
+}
+
+/// The empty-desktop menu (posted by `desktop_window::show_context_menu`): an item made with New ▸
+/// that Explorer wants renamed is renamed by us instead. Creating can take a few seconds (templates).
+pub fn observe_desktop_menu(token: u64) {
+    let action = serde_json::json!({
+        "id": "renameNew", "target": "desktop", "ids": [], "paths": [], "at": [0, 0], "cell": null, "canPaste": false,
+    });
+    observe_menu(token, Duration::from_secs(5), action);
 }
 
 /// Explorer's desktop shell view (the one behind the hidden icon list) and its folder view.
@@ -243,7 +282,7 @@ pub fn mirror_selection(paths: Vec<String>) -> Result<(), String> {
 /// Paths are parsing names of real desktop items, with the clicked item first.
 pub fn show_items(paths: Vec<String>, at: Option<POINT>) -> Result<&'static str, String> {
     if paths.is_empty() { return Err("menü için simge seçilmedi".into()); }
-    let token = OPEN_TOKEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let token = cancel_observer();
     util::run_sta(move || unsafe {
         let _lock = OPEN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let dv = desktop_window::find_defview().ok_or("Windows masaüstü görünümü bulunamadı")?;
@@ -269,7 +308,11 @@ pub fn show_items(paths: Vec<String>, at: Option<POINT>) -> Result<&'static str,
         while start.elapsed() < Duration::from_secs(4) {
             if let Some(kind) = menu_kind() {
                 std::thread::sleep(Duration::from_millis(50));
-                observe_menu(paths[0].clone(), token);
+                let path = paths[0].clone();
+                observe_menu(token, Duration::from_millis(250), serde_json::json!({
+                    "id": "rename", "target": "items", "ids": [util::norm_path(&path)],
+                    "paths": [path], "at": [0, 0], "cell": null, "canPaste": false,
+                }));
                 return Ok(kind);
             }
             std::thread::sleep(Duration::from_millis(20));

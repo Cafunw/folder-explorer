@@ -124,7 +124,7 @@ pub fn find_listview() -> Option<HWND> {
 /// The hidden icon view's selection must be cleared so a previous Explorer selection cannot
 /// turn an empty-desktop click into an unrelated file menu.
 pub fn show_context_menu(at: POINT) -> Result<(), String> {
-    crate::explorer_menu::cancel_observer();
+    let token = crate::explorer_menu::cancel_observer();
     util::run_sta(move || unsafe {
         let dv = find_defview().ok_or("Windows masaüstü görünümü bulunamadı")?;
         let lv = find_listview().ok_or("Windows masaüstü simge görünümü bulunamadı")?;
@@ -151,7 +151,9 @@ pub fn show_context_menu(at: POINT) -> Result<(), String> {
         // WM_CONTEXTMENU packs signed screen coordinates into two 16-bit words.
         let position = ((at.x as u32 & 0xffff) | ((at.y as u32 & 0xffff) << 16)) as i32 as isize;
         PostMessageW(Some(dv), WM_CONTEXTMENU, WPARAM(lv.0 as usize), LPARAM(position))
-            .map_err(|e| e.message())
+            .map_err(|e| e.message())?;
+        crate::explorer_menu::observe_desktop_menu(token);
+        Ok(())
     })?
 }
 

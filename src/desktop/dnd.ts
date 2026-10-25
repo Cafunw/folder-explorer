@@ -737,7 +737,7 @@ export async function moveToRealFolder(ids: string[], folderItemId: string) {
 
 /** Move desktop items' files into a real directory (a folder icon, a live group's folder); undoable. */
 export async function moveToDir(ids: string[], dir: string): Promise<boolean> {
-  const { itemMap, layout } = desk();
+  const { itemMap } = desk();
   const movable = ids.filter((id) => {
     const it = itemMap.get(id);
     return it && it.kind !== "system";
@@ -747,7 +747,8 @@ export async function moveToDir(ids: string[], dir: string): Promise<boolean> {
   try {
     await api.moveIntoFolder(paths, dir);
     const moves = paths.map((p) => ({ from: p, to: `${dir.replace(/[\\/]+$/, "")}\\${baseName(p, true)}` }));
-    commit(removeIds(layout, movable), { kind: "move", moves });
+    // the move can take a while: build on the layout as it is now, so changes made meanwhile stay
+    commit(removeIds(desk().layout, movable), { kind: "move", moves });
     toast(t.moved);
     playSound("drop");
     return true;
