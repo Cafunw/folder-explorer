@@ -16,7 +16,7 @@ import { useLiveFailed, useLiveItems } from "./live";
 import { requestUnlock, useContentHidden } from "./locks";
 import { panelGrid, rectOf } from "./registry";
 import { StackFan } from "./StackView";
-import { commit, replaceLayout, toast, undo, useDesk, type PanelState } from "./store";
+import { commit, replaceLayout, toast, undoEntry, useDesk, type PanelState } from "./store";
 import { Positioned, Tile, useFolderLook, useGroupBox } from "./Tile";
 import { Icon } from "../ui/Icons";
 
@@ -486,8 +486,8 @@ function TempNote({ folderId, stale, days }: { folderId: string; stale: number; 
     const { layout, grids, settings } = useDesk.getState();
     const r = archiveStale(layout, grids, folderId, t.grp.archiveName, settings.folders.defaultColor);
     if (!r.moved) return;
-    commit(r.layout);
-    toast(t.grp.archived(r.moved), { label: t.undo, run: () => undo() });
+    const entry = commit(r.layout);
+    toast(t.grp.archived(r.moved), { label: t.undo, run: () => undoEntry(entry) });
   };
   return (
     <div className="group-note" style={{ height: NOTE_H }} onPointerDown={(e) => e.stopPropagation()}>

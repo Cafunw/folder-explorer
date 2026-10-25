@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { primaryGrid } from "../layout/grid";
 import { spring } from "../settings";
-import { dismissToast, useDesk } from "./store";
+import { dismissToast, holdToast, useDesk } from "./store";
 
 export function Toasts() {
   const toasts = useDesk((s) => s.toasts);
@@ -23,6 +23,8 @@ export function Toasts() {
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={spring(settings, 0.35, 0.2)}
             onPointerDown={(e) => e.stopPropagation()}
+            onPointerEnter={() => holdToast(tt.id, true)}
+            onPointerLeave={() => holdToast(tt.id, false)}
           >
             <span>{tt.text}</span>
             {tt.action && (

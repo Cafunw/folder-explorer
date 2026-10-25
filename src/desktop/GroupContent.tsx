@@ -15,7 +15,7 @@ import { jiggling } from "./Jiggle";
 import { liveItem, reloadLive, useLive, useLiveItems } from "./live";
 import { useUnlocked } from "./locks";
 import { iconEls } from "./registry";
-import { dirName, nameIn, recordFileOpOnly, toast, undo, useDesk } from "./store";
+import { dirName, nameIn, recordFileOpOnly, toast, undoEntry, useDesk } from "./store";
 import { iconPx, ItemImage } from "./Tile";
 import "./groups.css";
 
@@ -187,8 +187,8 @@ function dragLiveOut(item: DesktopItem) {
 async function recycleLive(item: DesktopItem) {
   try {
     await api.recycle([item.path]);
-    recordFileOpOnly({ kind: "recycle", paths: [item.path] });
-    toast(t.movedToRecycle(1), { label: t.undo, run: () => undo() });
+    const entry = recordFileOpOnly({ kind: "recycle", paths: [item.path] });
+    toast(t.movedToRecycle(1), { label: t.undo, run: () => undoEntry(entry) });
     reloadLive(dirName(item.path));
   } catch (e) {
     console.warn("recycle", e);

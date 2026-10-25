@@ -46,6 +46,7 @@ import {
   saveSettings,
   toast,
   undo,
+  undoEntry,
   useDesk,
 } from "./store";
 
@@ -166,13 +167,13 @@ export async function deleteIds(ids: string[]) {
   for (const f of folders) if (next.folders[f]) next = dissolveFolder(next, get().grids, f);
   if (files.length) {
     next = removeIds(next, files);
-    commit(next, { kind: "recycle", paths });
+    const entry = commit(next, { kind: "recycle", paths });
     playSound("delete");
-    toast(t.movedToRecycle(files.length), { label: t.undo, run: () => undo() });
+    toast(t.movedToRecycle(files.length), { label: t.undo, run: () => undoEntry(entry) });
   } else {
-    commit(next);
+    const entry = commit(next);
     playSound("delete");
-    toast(folders.length ? t.folderDissolved : t.fence.headingRemoved, { label: t.undo, run: () => undo() });
+    toast(folders.length ? t.folderDissolved : t.fence.headingRemoved, { label: t.undo, run: () => undoEntry(entry) });
   }
   set({ selection: new Set([...get().selection].filter((id) => !ids.includes(id))) });
 }
@@ -200,9 +201,9 @@ export async function deleteFolderDeep(folderIds: string[], fileIds: string[]) {
     return;
   }
   const next = removeDeep(get().layout, folderIds); // current layout: changes made meanwhile stay
-  commit(next, paths.length ? { kind: "recycle", paths } : undefined);
+  const entry = commit(next, paths.length ? { kind: "recycle", paths } : undefined);
   if (folderIds.some((f) => get().panel?.stack.includes(f))) set({ panel: null });
-  toast(paths.length ? t.movedToRecycle(paths.length) : t.folderDissolved, { label: t.undo, run: () => undo() });
+  toast(paths.length ? t.movedToRecycle(paths.length) : t.folderDissolved, { label: t.undo, run: () => undoEntry(entry) });
 }
 
 // ---------------------------------------------------------------- rename

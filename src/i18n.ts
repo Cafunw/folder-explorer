@@ -102,6 +102,7 @@ export const t = {
   undone: "Geri alındı",
   redone: "Yinelendi",
   nothingToUndo: "Geri alınacak bir şey yok",
+  undoLaterFirst: "Önce bundan sonraki değişiklikleri geri al",
   renameFailed: "Ad değiştirilemedi",
   renameNeedsAdmin: "Bu öğe yönetici izni istiyor; ad yalnızca Folder Explorer'da değişti",
   operationFailed: "İşlem başarısız oldu",
