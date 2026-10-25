@@ -247,13 +247,20 @@ pub fn quit_running_instance() {
 }
 
 
+/// When this process created its desktop window (set by `create`).
+static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+/// Not when closing on purpose, and not when the app had only just started, so a problem at startup
+/// can never turn into a restart loop.
+fn should_restart(uptime: Duration, quitting: bool) -> bool {
+    !quitting && uptime >= Duration::from_secs(20)
+}
+
 /// The desktop window was destroyed without us asking (its owner, Windows' desktop window, died: Explorer
-/// restarted). Start a fresh copy a few seconds from now, once the old process has exited. Not when the
-/// app had only just started, so a problem at startup can never turn into a restart loop.
+/// restarted). Start a fresh copy a few seconds from now, once the old process has exited.
 pub fn restart_after_explorer() {
-    static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
-    let started = *STARTED.get_or_init(std::time::Instant::now);
-    if started.elapsed() < Duration::from_secs(20) {
+    let uptime = STARTED.get().map_or(Duration::ZERO, |t| t.elapsed());
+    if !should_restart(uptime, is_quitting()) {
         return;
     }
     let Ok(exe) = std::env::current_exe() else { return };
@@ -1175,6 +1182,7 @@ fn reveal() {
 }
 
 pub fn create(app: &AppHandle) -> Result<(), String> {
+    STARTED.get_or_init(std::time::Instant::now);
     let bounds = window_bounds();
     *BOUNDS.lock().unwrap() = bounds;
 
@@ -1380,5 +1388,19 @@ pub fn ztest() -> String {
             "ztest: total={idx} ours={ours} shell(Progman)={shell_idx} visibleWorkerW={workers:?} => ours {} Progman",
             if ours >= 0 && shell_idx >= 0 && ours < shell_idx { "ABOVE" } else { "BELOW/unknown" }
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn restarts_only_a_settled_app_that_is_not_quitting() {
+        assert!(should_restart(Duration::from_secs(20), false));
+        assert!(should_restart(Duration::from_secs(3600), false));
+        assert!(!should_restart(Duration::from_secs(19), false));
+        assert!(!should_restart(Duration::ZERO, false));
+        assert!(!should_restart(Duration::from_secs(3600), true));
     }
 }
