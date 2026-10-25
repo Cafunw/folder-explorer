@@ -107,6 +107,9 @@ fn memory_target(active: bool) -> COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL {
 
 unsafe fn apply_active(c: &ICoreWebView2Controller, active: bool, rest: Rest) {
     use windows::core::{Interface, BOOL};
+    // Dev builds never TrySuspend: a suspended page loses Vite's HMR websocket and on resume Vite's
+    // client ("vite:ws:disconnect") reloads the whole page; hidden + low memory keeps the socket.
+    let rest = if cfg!(debug_assertions) { Rest::Light } else { rest };
     let wv = c.CoreWebView2().ok();
     let v3 = wv.as_ref().and_then(|w| w.cast::<ICoreWebView2_3>().ok());
     let v19 = wv.as_ref().and_then(|w| w.cast::<ICoreWebView2_19>().ok());
