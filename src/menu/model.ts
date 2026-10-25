@@ -51,7 +51,7 @@ export function groupMenu(fence: boolean, collapsed = false): OwnItem[] {
     { id: "group:rename", text: `${t.cm.rename}\t${t.cm.hintRename}` },
     { id: "group:settings", text: `${t.cm.groupSettings}\t${t.cm.hintSettings}` },
     { id: "", text: "", sep: true },
-    { id: "group:dissolve", text: t.ungroup },
+    { id: "group:dissolve", text: fence ? t.fence.dissolve : t.ungroup },
     { id: "group:delete", text: t.deleteFolderWithContents },
   ];
 }

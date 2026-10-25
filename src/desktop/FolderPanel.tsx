@@ -555,6 +555,7 @@ function EditButton({ folderId }: { folderId: string }) {
     <button
       className="panel-edit"
       title={t.editFolder}
+      aria-label={t.editFolder}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={() => useDesk.setState({ dialog: { kind: "customize", id: folderId } })}
     >

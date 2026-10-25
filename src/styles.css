@@ -846,7 +846,7 @@ textarea {
   min-height: 0; /* lets the body shrink and scroll inside the dialog's max height */
 }
 
-/* Klasörü düzenle: long, so it may use the whole work area height, and is kept compact */
+/* Grubu düzenle: long, so it may use the whole work area height, and is kept compact */
 .dialog.folder-edit {
   width: 520px;
   max-height: 100%;

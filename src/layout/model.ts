@@ -184,7 +184,7 @@ function normalizeFolder(id: string, f: any): VirtualFolder | null {
   if (!isFolderId(id) || !f || typeof f !== "object") return null;
   const out: VirtualFolder = {
     id,
-    name: typeof f.name === "string" ? f.name : "Klasör",
+    name: typeof f.name === "string" ? f.name : "Grup",
     color: typeof f.color === "string" ? f.color : null,
     children: [],
   };
