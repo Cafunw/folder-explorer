@@ -10,7 +10,12 @@ icons can be merged into phone-style (iOS/Android) folders.
   (grid placement, folders, undo/redo, reconciliation with the item list).
   The backend stores the layout and settings as opaque JSON.
 
-UI language: Turkish. All UI strings live in `src/i18n.ts`.
+UI language: Turkish. All UI strings live in `src/i18n.ts`. One term per concept: **grup** is always
+a virtual group, **klasör** only a real folder on disk (live groups show one, so "Canlı klasör" keeps
+it), **kutu** only a fence; a group's tile background is "arka plan", never "kutu". Modal surfaces
+(desktop dialogs, Quick Look, the search / command palette window) use `useDialogFocus`
+(`src/ui/dialog.ts`): focus moves in on open, Tab stays inside, focus returns to the opener on close;
+each carries `role="dialog"` / `alertdialog`, `aria-modal` and a label.
 
 ## Core rule: Windows is never modified
 
@@ -356,6 +361,14 @@ type BackupInfo = { name: string; createdAt: number; size: number };
 
 ## Commands (`invoke(name, args)`; args camelCase)
 
+Only `src/api.ts` calls `invoke`. Commands go through Tauri's ACL: `build.rs` lists every command
+(`AppManifest::commands`, which generates an `allow-<command>` permission each) and
+`capabilities/desktop.json`, `search.json`, `settings.json` grant each window only what its view can
+reach (core and dialog permissions stay shared in `default.json`). The ACL applies in dev builds too.
+A new command goes into `build.rs` and the capability of every window that calls it;
+`src/capabilities.test.ts` walks each view's imports and fails when a reachable `api.*` call is not
+allowed for that window, and `cargo check` fails on a permission name that doesn't exist.
+
 | command | args | returns | notes |
 |---|---|---|---|
 | `get_environment` | – | `Environment` | |
@@ -418,6 +431,15 @@ type BackupInfo = { name: string; createdAt: number; size: number };
 | `raise_desktop` | `{ raised: boolean }` | `()` | |
 | `set_windows_icons_mode` | `{ enabled: boolean }` | `()` | true = hide our desktop window and show the Windows icons again (tray toggle) |
 | `quit_app` | – | `()` | restores icons, exits |
+
+## Content security policy
+Built apps run under the CSP in `tauri.conf.json` › `app.security.csp`: scripts only from the bundle
+(`'self'`, Tauri adds hashes), images / media / Quick Look fetches and frames from `http://fe.localhost`,
+IPC over `http://ipc.localhost`, `blob:` / `data:` images, inline styles allowed because `motion`
+injects `<style>` tags (`dangerousDisableAssetCspModification: ["style-src"]` keeps Tauri from adding a
+hash there, which would switch `'unsafe-inline'` off), `object-src 'none'`. On desktop Tauri never
+applies a CSP to the `devUrl` page, so `npm run tauri dev` (calistir.bat) runs without one: a resource
+the policy misses only shows up in an installed build.
 
 ## Custom protocol `fe`
 Served via `register_asynchronous_uri_scheme_protocol("fe", …)`. From JS use
@@ -797,6 +819,27 @@ is a shortcut `Folder Explorer.lnk` in the user's Startup folder (`startup.rs`),
 value; dev builds never create it. The installer's welcome page has a "Bilgisayar açılınca Folder Explorer'ı da
 başlat" checkbox (checked when the shortcut exists or the app never ran, i.e. no `state.json`); after
 installing it runs `--start-with-windows on|off`. Silent / passive installs skip the page and change nothing.
+Uninstalling with "Uygulama verilerini sil" ticked also removes `%APPDATA%\Folder Explorer` (state,
+backups, media; `NSIS_HOOK_POSTUNINSTALL`), next to Tauri's own removal of the WebView2 data in
+`%LOCALAPPDATA%\com.folderexplorer.desktop`. Both are skipped on updates (`$UpdateMode`) and in silent
+or passive runs, where the checkbox never shows. The dev build shares this folder, so a ticked
+uninstall clears its data too.
+
+## Versions, CI and dependencies
+The version lives only in `package.json`: `tauri.conf.json` points at it (`"version": "../package.json"`)
+and npm's `version` hook (`scripts/sync-version.mjs`) copies it into `src-tauri/Cargo.toml` and
+`Cargo.lock`. Release: `npm version X.Y.Z --no-git-tag-version`, plus an entry in `CHANGELOG.md`
+(Turkish, user-facing). Vite inlines the version and the short git commit at build time
+(`__APP_VERSION__`, `__APP_COMMIT__`); Ayarlar ▸ Hakkında shows them and adds "geliştirme sürümü"
+under the Vite dev server. There is no auto-update and the installer is unsigned.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs one Windows job on pushes to `main`, pull requests and
+on demand: typecheck, oxlint, vitest, the Vite build (which writes the `dist/` the crate embeds),
+`cargo test --lib` and `cargo clippy -D warnings`. oxlint fails on correctness errors and
+rules-of-hooks, only warns on exhaustive-deps; rules turned off are listed with reasons in
+`.oxlintrc.json`, clippy exceptions in `[lints.clippy]` in `Cargo.toml`. vitest skips `.claude/**`
+(agent worktrees). npm dependencies use caret ranges of the tested versions (no `latest`);
+`package-lock.json` and `src-tauri/Cargo.lock` are committed.
 
 ## Yeni ▸ menu entry
 `shell_new.rs` keeps Windows' New menu in step with `behavior.newMenuEntry` (on by default), on
@@ -841,8 +884,8 @@ menu. The command creates a virtual group; it does not create a .fegroup file.
   group. The same entry works from Explorer; no physical .fegroup file is created.
 * **Virtual groups/fences:** an OS-rendered popup from `groupMenu` (`src/menu/model.ts`) through
   `native_menu`, like headings: Aç (fences: Daralt / Genişlet), Yeniden adlandır, Ayarlar… (the
-  settings dialog), Klasörü dağıt, İçindekilerle birlikte sil. They have no underlying Shell item.
-* **Customize dialogs** (Klasörü düzenle, Özelleştir) remember what they were opened with; closing
+  settings dialog), Grubu dağıt (fences: Kutuyu dağıt), İçindekilerle birlikte sil. They have no underlying Shell item.
+* **Customize dialogs** (Grubu düzenle / Kutuyu düzenle, Özelleştir) remember what they were opened with; closing
   them with unsaved changes (backdrop click or Esc) shows an inline Kaydet / Kaydetme / Vazgeç row
   (`unsaved.ts`). While any dialog is open, Esc is handled at window level, wherever the focus is.
 * **Headings/dividers:** `native_menu` renders Edit, Align, Style, Underline and Delete using

@@ -1,22 +1,22 @@
 # Folder Explorer
 
 Windows masaüstünü telefon ana ekranı gibi kullanmanı sağlar: bir simgeyi başka bir simgenin
-üstüne bırakınca klasör oluşur, klasörler iç içe olabilir, her şey animasyonlu ve özelleştirilebilir.
+üstüne bırakınca grup oluşur, gruplar iç içe olabilir, her şey animasyonlu ve özelleştirilebilir.
 
-Klasörler **sanaldır**: dosyaların diskte yerinden oynamaz, gruplama yalnızca Folder Explorer'ın
+Gruplar **sanaldır**: dosyaların diskte yerinden oynamaz, gruplama yalnızca Folder Explorer'ın
 kaydında tutulur. Uygulama kapanınca Windows'un kendi simgeleri geri gelir.
 
 ## Kullanım
 
 | İşlem | Nasıl |
 |---|---|
-| Klasör oluştur | Bir simgeyi başka bir simgenin ortasına sürükle-bırak |
-| Klasöre ekle | Simgeyi klasörün üstüne bırak (üstünde beklersen klasör açılır) |
-| Klasörden çıkar | Açık klasörden simgeyi panelin dışına sürükle |
+| Grup oluştur | Bir simgeyi başka bir simgenin ortasına sürükle-bırak |
+| Gruba ekle | Simgeyi grubun üstüne bırak (üstünde beklersen grup açılır) |
+| Gruptan çıkar | Açık gruptan simgeyi panelin dışına sürükle |
 | Yer değiştir | Simgeyi dolu bir hücrenin kenarına bırak |
-| Klasörü aç | Klasöre tek tıkla; Esc bir üst seviyeye döner |
-| Yeniden adlandır | F2 (gerçek dosyanın adı değişir) ya da klasör başlığına tıkla |
-| Sil | Delete → Geri Dönüşüm Kutusu (klasör silinince içindekiler dışarı çıkar) |
+| Grubu aç | Gruba tek tıkla; Esc bir üst seviyeye döner |
+| Yeniden adlandır | F2 (gerçek dosyanın adı değişir) ya da grup başlığına tıkla |
+| Sil | Delete → Geri Dönüşüm Kutusu (grup silinince içindekiler dışarı çıkar) |
 | Geri al / yinele | Ctrl+Z / Ctrl+Y |
 | Sayfa değiştir | Fare tekerleği, PageUp / PageDown, ok tuşlarıyla sayfa kenarını geç, ya da sürüklerken ekran kenarında bekle |
 | Ok tuşları | En yakın simgeye geçer (sayfanın kenarında bir sonraki sayfaya); **Shift** + ok seçimi genişletir, Home / End ilk / son simge. Hiçbir şey seçili değilse ilk simgeyi seçer. Kutuda ↓ içine girer, ilk satırda ↑ kutuyu seçer; açık grupta grubun ızgarasında gezer |
@@ -29,7 +29,7 @@ kaydında tutulur. Uygulama kapanınca Windows'un kendi simgeleri geri gelir.
 | Komut paleti | Aramada `>` yaz ya da masaüstünde (simge seçili değilken) **Ctrl+Shift+P**: Yenile, Sırala, simge boyutu, Yeni grup, Yeni kutu / başlık / ayraç, Geri al… |
 | Çoklu seçim | Ctrl+tık ya da boş alanda dikdörtgen çiz |
 | Simgeleri düzenle | Sistem tepsisi menüsünde ya da komut paletinde **Simgeleri düzenle** ya da bir simgeye **uzun bas** (~0,6 sn, kıpırdatmadan). Simgeler sallanır, köşelerinde rozet çıkar: **×** dosyayı Geri Dönüşüm Kutusu'na taşır, **−** grubu dağıtır (içindekiler kalır) ya da başlığı kaldırır; hepsi Ctrl+Z / "Geri al" ile döner. Bu modda sürükleme hemen başlar, tıklamak dosya açmaz (gruplar açılır). Çıkmak için **Esc**, boş masaüstüne tık ya da üstteki **Bitti**. Düzen kilitliyken açılmaz; "Hareketi azalt" açıksa simgeler sallanmaz, yalnızca rozetler görünür |
-| Kutu (Fences) | Sistem tepsisi menüsünde Yeni ▸ **Kutu** ya da komut paletinde **Yeni kutu**: masaüstünde hep açık duran bir grup (varsayılan 3×2 hücre). Simgeleri içine sürükle (gövdede yer açılır, başlığa bırakmak sona ekler), dışarı sürükleyince masaüstüne çıkar. Başlıktan sürükle = taşı (hücreye oturur, kesik çizgi nereye gideceğini gösterir), sağ alt köşeden sürükle = boyutlandır, başlığa çift tık / F2 = ad, ⌄ düğmesi = katla / aç (katlanmış kutunun hücreleri ayrılmış kalır), sağ tık = Daralt / Genişlet, Yeniden adlandır, Ayarlar…, Klasörü dağıt, İçindekilerle birlikte sil; ayar düğmesi = grubun ayarları. Var olan bir grubu ayarlarındaki görünüm seçiminden kutuya çevirebilirsin |
+| Kutu (Fences) | Sistem tepsisi menüsünde Yeni ▸ **Kutu** ya da komut paletinde **Yeni kutu**: masaüstünde hep açık duran bir grup (varsayılan 3×2 hücre). Simgeleri içine sürükle (gövdede yer açılır, başlığa bırakmak sona ekler), dışarı sürükleyince masaüstüne çıkar. Başlıktan sürükle = taşı (hücreye oturur, kesik çizgi nereye gideceğini gösterir), sağ alt köşeden sürükle = boyutlandır, başlığa çift tık / F2 = ad, ⌄ düğmesi = katla / aç (katlanmış kutunun hücreleri ayrılmış kalır), sağ tık = Daralt / Genişlet, Yeniden adlandır, Ayarlar…, Kutuyu dağıt, İçindekilerle birlikte sil; ayar düğmesi = grubun ayarları. Var olan bir grubu ayarlarındaki görünüm seçiminden kutuya çevirebilirsin |
 | Başlık / Ayraç | Sistem tepsisi menüsünde Yeni ▸ **Başlık** (3 hücre) ya da **Ayraç** (sağdaki boş hücreler, en çok 6), ya da komut paletinde Yeni başlık / Yeni ayraç: ilk boş yere eklenir. Tık = seç, sürükle = taşı, sağ kenardaki tutamak = genişlik, çift tık / F2 / Ctrl+E = metni düzenle, Delete = sil (Ctrl+Z geri alır). Sağ tık: Düzenle, Hizala ▸ Sol / Orta, Biçim ▸ Başlık / Ayraç, Altı çizili, Sil |
 | Grup türü | Grubun ayarlarında **Tür**: Normal, **Akıllı** (kurala uyan masaüstü simgelerini kendisi toplar), **Canlı klasör**, **En çok kullanılanlar**, **Geçici masa**. Sistem tepsisi menüsünde Yeni ▸ Akıllı grup / Canlı klasör / En çok kullanılanlar (ya da komut paletindeki aynı komutlar) doğrudan oluşturur. Simgenin köşesindeki küçük rozet türü gösterir |
 | Akıllı grup kuralı | Koşullar: Uzantı (`png, jpg`), Ad içerir / ile başlar, Tür (Resim, Belge, Oyun…), Yaş (N günden yeni / eski); "Tümü" ya da "Herhangi biri". Altta kaç öğenin toplanacağı canlı görünür |
@@ -58,8 +58,8 @@ Windows masaüstü menüsündeki Görünüm/Sıralama komutları Explorer simgel
 uygulamanın simge boyutu ve düzeni uygulama ayarları, Ctrl+tekerlek ve komut paletinden yönetilir.
 Akıllı grup, canlı klasör, kutu, başlık ve ayraç oluşturma komutları sistem tepsisi menüsünün Yeni alt menüsünde ve komut paletinde bulunur.
 
-Gruba (sanal klasör) ya da kutuya sağ tıklamak küçük bir menü açar: Aç (kutuda Daralt / Genişlet),
-Yeniden adlandır, Ayarlar… (ad, renk, görünüm… penceresi), Klasörü dağıt, İçindekilerle birlikte sil.
+Gruba ya da kutuya sağ tıklamak küçük bir menü açar: Aç (kutuda Daralt / Genişlet),
+Yeniden adlandır, Ayarlar… (ad, renk, görünüm… penceresi), Grubu dağıt (kutuda Kutuyu dağıt), İçindekilerle birlikte sil.
 Seçili simge için Ctrl+E de ayar penceresini açar (dosyalar için özel ad ve simge).
 
 Yeni grup için: masaüstü menüsünde Yeni ▸ Yeni grup oluştur, sistem tepsisi menüsünde Yeni ▸ Grup,
@@ -68,7 +68,7 @@ Yeni ▸ **Yeni grup oluştur** (masaüstü öne gelir, boş grup açılır ve a
 sağ tıkladığın yerde belirir ve hemen adlandırılır.
 
 Her grup ayrı ayrı düzenlenebilir (sağ tık → Ayarlar… ya da açık grubun başlığındaki
-düğme): ad, renk, kutu opaklığı (%0 = tamamen saydam), bulanıklık, köşe, 2×2 / 3×3 önizleme,
+düğme): ad, renk, arka plan opaklığı (%0 = tamamen saydam), bulanıklık, köşe, 2×2 / 3×3 önizleme,
 özel resim, açılış stili (iOS / Android), açılış animasyonu ve panel opaklığı. Ayarlanmayanlar genel
 ayarları izler.
 
@@ -81,12 +81,12 @@ Ayarlar penceresinin bölümleri (çoğunda canlı önizleme var):
 * **Duvar kağıdı:** Windows / resim / renk / gradyan, bulanıklık, karartma; vurgu rengini duvar
   kağıdından alma; gece ayrı duvar kağıdı (gündüz ve gece başlangıç saatleri); bir ekranın belirli
   bir sayfasına özel duvar kağıdı.
-* **Simgeler ve ızgara:** simge plakası (yok, daire, squircle, kare, damla; renk, opaklık, iç
+* **Simgeler ve ızgara:** simge plakası (yok, daire, yumuşak kare, kare, damla; renk, opaklık, iç
   boşluk), simge paketi (PNG / ICO / SVG dosyaları olan bir klasör: dosya adı uygulamanın adıyla
   eşleşen simgeler değişir, ör. `chrome.png`), simge ölçeği (Ctrl+fare tekerleği ile de), ızgara.
 * **Etiketler:** yazı tipi, boyut, kalınlık, renk, gölge, yalnızca üzerine gelince göster.
-* **Klasörler:** klasör stili ve grup kutusu (kenarlık, gölge, gradyan, iç ışıma).
-* **Saydamlık**, **Animasyon** (hız, açılış stili, sayfa geçişi, fare üstü efekti, parallax, yay
+* **Gruplar:** grup stili ve grup çerçevesi (kenarlık, gölge, gradyan, iç ışıma).
+* **Saydamlık**, **Animasyon** (hız, açılış stili, sayfa geçişi, fare üstü efekti, derinlik efekti, yay
   sertliği / esneklik, sesler ve ses düzeyi), **Davranış** (çift tıkla gizle, Ctrl+tekerlek,
   Boşluk ile hızlı önizleme, dosyayı uygulamaya bırakınca o uygulamayla aç, Windows'un Yeni
   menüsünde "Yeni grup oluştur"), **Arama** (yazınca ara;
@@ -95,7 +95,7 @@ Ayarlar penceresinin bölümleri (çoğunda canlı önizleme var):
 
 **Duvar kağıdı ve görünüm ayrıntıları:** Bir sayfanın kendi duvar kağıdı varsa o gösterilir, yoksa
 gece saatlerinde gece duvar kağıdı, yoksa ana duvar kağıdı; sayfa değişince yumuşakça geçer. Gündüz /
-gece geçişi tam o saatte olur (uygulama arada hiçbir şeyi yoklamaz). Parallax ve bulanıklık yalnızca
+gece geçişi tam o saatte olur (uygulama arada hiçbir şeyi yoklamaz). Derinlik efekti ve bulanıklık yalnızca
 uygulamanın kendi çizdiği duvar kağıtlarında (resim, renk, gradyan) çalışır; "Windows" seçiliyken
 gerçek duvar kağıdı olduğu gibi görünür. "Vurgu rengini duvar kağıdından al" birincil ekranın o anki
 duvar kağıdının baskın rengini kullanır (Windows duvar kağıdı dahil); seçtiğin vurgu rengi silinmez,
@@ -109,7 +109,7 @@ etiketler seçili simgelerde de görünür. Sayı biçimli sayfa göstergesinde 
 netleşir), **Solma**; bir grubun ayarlarındaki "Açılış animasyonu" genel seçimi o grup için değiştirir,
 yığın yelpazesi de aynı stili kullanır. Sayfa geçişi: **Kaydırma**, **Küp** (iki sayfa bir küpün yüzleri gibi
 döner), **Kart destesi** (eski sayfa geriye çekilip solarken yenisi üstüne kayar), **Solma**; tekerlek, ← →,
-sayfa noktaları ve sürüklerken kenarda beklemek hepsiyle çalışır, her ekranın kendi sayfaları var. Parallax
+sayfa noktaları ve sürüklerken kenarda beklemek hepsiyle çalışır, her ekranın kendi sayfaları var. Derinlik efekti
 her geçişte sayfayla birlikte hareket eder. Fare üstü efektleri: Kalkma, Büyüme, 3B eğilme (imlece doğru),
 Parlama, Zıplama, Büyüteç (Dock gibi: üstündeki simge ve aynı satırdaki komşuları büyür). Sürüklerken,
 ad değiştirirken ve simgeleri düzenlerken efekt olmaz. Sesler (varsayılan kapalı) uygulamanın kendi
@@ -127,7 +127,7 @@ kapalı sayılır. Pil modu "Otomatik"te dizüstü bilgisayar pille çalışırk
 efektler azalır; "Her zaman" ve "Kapalı" seçenekleri de var. Uygulama boştayken hiçbir şeyi
 yoklamaz; kullanılmayan arama penceresi gizliyken belleği geri verir ve her
 pencere yalnızca kendi kodunu yükler. Windows'ta "Animasyon efektleri" kapalıysa masaüstü de
-animasyonsuz çalışır. Windows'un kendi duvar kağıdı kullanılırken grup kutularındaki bulanıklık
+animasyonsuz çalışır. Windows'un kendi duvar kağıdı kullanılırken grup arka planlarındaki bulanıklık
 (altında bulanacak bir şey olmadığından) hiç hesaplanmaz.
 
 Sistem tepsisi menüsünde Yeni ▸ (grup, akıllı grup, canlı klasör, en çok kullanılanlar, kutu, başlık, ayraç), simgeleri düzenle, uygulama ekle, ayarlar ve düzeni kilitle bulunur.
@@ -153,10 +153,21 @@ npm test
 ```
 
 ```bash
+npm run lint
+```
+
+```bash
 npm run tauri build
 ```
 
 Son komut kurulum dosyasını üretir (`src-tauri/target/release/bundle/nsis/`); canlı çalıştırma için gerekmez.
+
+**Sürüm:** numara yalnızca `package.json`'da tutulur. Yeni sürüm için `npm version 0.3.0 --no-git-tag-version`
+çalıştır (Rust tarafını da günceller) ve [CHANGELOG.md](CHANGELOG.md)'ye bir bölüm ekle. Ayarlar ▸ Hakkında
+sürümü ve derlendiği commit'i gösterir; `calistir.bat` ile açılan sürümde "geliştirme sürümü" yazar.
+
+**Otomatik kontrol:** GitHub'a her push'ta testler, tip denetimi, oxlint, derleme, Rust testleri ve clippy
+çalışır (`.github/workflows/ci.yml`).
 
 * `src/` — React + Motion arayüzü, yerleşim mantığı (`src/layout/model.ts`, birim testli).
 * `src-tauri/` — Rust: masaüstü katmanı, Windows simgeleri, kabuk menüleri, dosya işlemleri, kayıt.
