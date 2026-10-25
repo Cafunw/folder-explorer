@@ -121,6 +121,8 @@ export const t = {
   // dialogs
   cancel: "Vazgeç",
   save: "Kaydet",
+  unsavedChanges: "Kaydedilmemiş değişiklikler var",
+  dontSave: "Kaydetme",
   reset: "Sıfırla",
   close: "Kapat",
   confirmDeleteFolderTitle: "Klasör içindekilerle silinsin mi?",

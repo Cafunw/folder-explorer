@@ -882,6 +882,18 @@ textarea {
   padding: 14px 20px 18px;
 }
 
+/* "Kaydedilmemiş değişiklikler var" stands in for the dialog's own buttons while it asks */
+.dialog .actions.unsaved {
+  align-items: center;
+}
+.dialog .actions.unsaved span {
+  margin-right: auto;
+  color: var(--fg-dim);
+}
+.dialog .actions.unsaved + .actions {
+  display: none;
+}
+
 .btn {
   border: 1px solid var(--line);
   background: var(--input-bg);

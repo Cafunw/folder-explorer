@@ -12,6 +12,7 @@ import { GroupOptions, UnlockDialog } from "./GroupDialogs";
 import { draftOf, patchOf, type GroupDraft } from "./kinds";
 import { commit, expectItemAt, refreshItems, toast, useDesk } from "./store";
 import { FolderGlyph, ItemImage } from "./Tile";
+import { closeStep, isDirty, type CloseEvent } from "./unsaved";
 
 export function Dialogs() {
   const dialog = useDesk((s) => s.dialog);
@@ -19,6 +20,21 @@ export function Dialogs() {
   const grids = useDesk((s) => s.grids);
   const g = primaryGrid(grids);
   const close = () => useDesk.setState({ dialog: null });
+  // a dialog with a draft puts its own close attempt here, so the backdrop and Esc ask before discarding
+  const guard = useRef<(() => void) | null>(null);
+  const tryClose = () => (guard.current ?? close)();
+  // Esc reaches the dialog wherever the focus is (a click on a blank spot leaves it on <body>)
+  const open = !!dialog && dialog.kind !== "quicklook";
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation(); // not also the desktop's Esc (panel back, clear selection)
+      if (!e.repeat) tryClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open]);
   if (!g) return null;
   const folderEdit = dialog?.kind === "customize" && isFolderId(dialog.id);
 
@@ -30,7 +46,7 @@ export function Dialogs() {
             className="dialog-backdrop"
             onPointerDown={(e) => {
               e.stopPropagation();
-              close();
+              tryClose();
             }}
             onContextMenu={(e) => e.preventDefault()}
           />
@@ -45,13 +61,10 @@ export function Dialogs() {
               transition={spring(settings, 0.35, 0.18)}
               onPointerDown={(e) => e.stopPropagation()}
               onContextMenu={(e) => e.preventDefault()}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.key === "Escape") close();
-              }}
+              onKeyDown={(e) => e.stopPropagation()} // Esc is handled on the window, above
             >
               {dialog.kind === "addApp" && <AddApp placement={dialog.placement} onClose={close} />}
-              {dialog.kind === "customize" && <Customize id={dialog.id} focus={dialog.focus} onClose={close} />}
+              {dialog.kind === "customize" && <Customize id={dialog.id} focus={dialog.focus} guard={guard} onClose={close} />}
               {dialog.kind === "unlock" && <UnlockDialog key={dialog.id} id={dialog.id} onClose={close} />}
               {dialog.kind === "confirmDeleteFolder" && (
                 <Confirm
@@ -80,6 +93,46 @@ export function Dialogs() {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+type Guard = { current: (() => void) | null };
+
+/** Backdrop / Esc on a dialog with a draft: close when the draft is as opened, otherwise ask with `UnsavedBar`. */
+function useUnsaved(guard: Guard, draft: object | null, save: () => void, onClose: () => void) {
+  const [start] = useState(draft); // what the dialog was opened with
+  const [asking, setAsking] = useState(false);
+  const step = (ev: CloseEvent) => {
+    // a draft whose folder is gone has nothing left to save
+    const s = closeStep(!!draft && isDirty(start, draft), asking, ev);
+    if (s === "save") save();
+    else if (s === "close") onClose();
+    else setAsking(s === "ask");
+  };
+  useEffect(() => {
+    guard.current = () => step("request");
+    return () => {
+      guard.current = null;
+    };
+  });
+  return { asking, step };
+}
+
+/** "Kaydedilmemiş değişiklikler var"; it stands in for the dialog's own buttons while shown (styles.css). */
+function UnsavedBar({ onStep }: { onStep: (ev: CloseEvent) => void }) {
+  return (
+    <div className="actions unsaved">
+      <span>{t.unsavedChanges}</span>
+      <button className="btn" onClick={() => onStep("stay")}>
+        {t.cancel}
+      </button>
+      <button className="btn danger" onClick={() => onStep("discard")}>
+        {t.dontSave}
+      </button>
+      <button className="btn primary" onClick={() => onStep("save")} autoFocus>
+        {t.save}
+      </button>
+    </div>
   );
 }
 
@@ -260,14 +313,13 @@ function LookRow({
   );
 }
 
-function FolderCustomize({ id, focus, onClose }: { id: string; focus?: "rule" | "source"; onClose: () => void }) {
+function FolderCustomize({ id, focus, guard, onClose }: { id: string; focus?: "rule" | "source"; guard: Guard; onClose: () => void }) {
   const folder = useDesk((s) => s.layout.folders[id]);
   const settings = useDesk((s) => s.settings);
   const [name, setName] = useState(folder?.name ?? "");
   const [color, setColor] = useState<string | null>(folder?.color ?? null);
   const [look, setLook] = useState<FolderLook>(folder?.look ?? {});
   const [kinds, setKinds] = useState<GroupDraft | null>(() => (folder ? draftOf(folder) : null));
-  if (!folder || !kinds) return null;
 
   const eff = {
     opacity: look.opacity ?? settings.transparency.folderTile,
@@ -298,6 +350,7 @@ function FolderCustomize({ id, focus, onClose }: { id: string; focus?: "rule" | 
   };
 
   const save = () => {
+    if (!folder || !kinds) return;
     let l = useDesk.getState().layout;
     const n = name.trim();
     if (n && n !== folder.name) l = renameFolder(l, id, n);
@@ -307,6 +360,8 @@ function FolderCustomize({ id, focus, onClose }: { id: string; focus?: "rule" | 
     commit(l);
     onClose();
   };
+  const { asking, step } = useUnsaved(guard, folder ? { name: name.trim(), color, look, kinds } : null, save, onClose);
+  if (!folder || !kinds) return null;
 
   const pct = (v: number) => `%${Math.round(v * 100)}`;
   return (
@@ -400,6 +455,7 @@ function FolderCustomize({ id, focus, onClose }: { id: string; focus?: "rule" | 
           <span className="look-val">{pct(eff.panelOpacity)}</span>
         </LookRow>
       </div>
+      {asking && <UnsavedBar onStep={step} />}
       <div className="actions">
         <div style={{ display: "flex", gap: 8, marginRight: "auto" }}>
           <button className="btn" onClick={() => setLook({})}>
@@ -437,12 +493,12 @@ function FolderCustomize({ id, focus, onClose }: { id: string; focus?: "rule" | 
 
 // ---------------------------------------------------------------- customize
 
-function Customize({ id, focus, onClose }: { id: string; focus?: "rule" | "source"; onClose: () => void }) {
-  if (isFolderId(id)) return <FolderCustomize id={id} focus={focus} onClose={onClose} />;
-  return <ItemCustomize id={id} onClose={onClose} />;
+function Customize({ id, focus, guard, onClose }: { id: string; focus?: "rule" | "source"; guard: Guard; onClose: () => void }) {
+  if (isFolderId(id)) return <FolderCustomize id={id} focus={focus} guard={guard} onClose={onClose} />;
+  return <ItemCustomize id={id} guard={guard} onClose={onClose} />;
 }
 
-function ItemCustomize({ id, onClose }: { id: string; onClose: () => void }) {
+function ItemCustomize({ id, guard, onClose }: { id: string; guard: Guard; onClose: () => void }) {
   const layout = useDesk((s) => s.layout);
   const item = useDesk((s) => s.itemMap.get(id));
   const isFolder = isFolderId(id);
@@ -478,6 +534,7 @@ function ItemCustomize({ id, onClose }: { id: string; onClose: () => void }) {
     commit(l);
     onClose();
   };
+  const { asking, step } = useUnsaved(guard, { name: name.trim(), icon, color }, save, onClose);
 
   return (
     <>
@@ -525,6 +582,7 @@ function ItemCustomize({ id, onClose }: { id: string; onClose: () => void }) {
           </div>
         )}
       </div>
+      {asking && <UnsavedBar onStep={step} />}
       <div className="actions">
         <button className="btn" onClick={onClose}>
           {t.cancel}
