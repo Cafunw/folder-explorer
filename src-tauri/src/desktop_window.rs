@@ -33,6 +33,12 @@ use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_EXCLUDED_FROM_P
 use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::Media::{timeBeginPeriod, timeEndPeriod};
 use windows::Win32::UI::WindowsAndMessaging::*;
+use webview2_com::Microsoft::Web::WebView2::Win32::{
+    ICoreWebView2, ICoreWebView2Controller, COREWEBVIEW2_PROCESS_FAILED_KIND,
+    COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED, COREWEBVIEW2_PROCESS_FAILED_KIND_FRAME_RENDER_PROCESS_EXITED,
+    COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED, COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE,
+};
+use webview2_com::ProcessFailedEventHandler;
 
 use crate::env::{self, Point, Rect};
 use crate::{dlog, quiet, util, wallpaper};
@@ -297,6 +303,71 @@ pub fn restart_after_explorer() {
         .args(["--delayed-start", "4", "--autostart"])
         .creation_flags(DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB)
         .spawn();
+}
+
+/// Bring the Windows icons back, start a fresh copy (see `restart_after_explorer`) and leave.
+pub fn restart_and_exit(app: &AppHandle) {
+    restore_icons();
+    restart_after_explorer();
+    // the desktop window's Destroyed event must not start a second copy
+    mark_quitting(true);
+    app.exit(0);
+}
+
+#[derive(Debug, PartialEq)]
+enum Recovery {
+    Ignore,
+    Reload,
+    Restart,
+}
+
+const MAX_RELOADS: usize = 3;
+const RELOAD_WINDOW: Duration = Duration::from_secs(60);
+/// When the desktop page was reloaded after a crash, kept for `RELOAD_WINDOW`.
+static RELOADS: Mutex<Vec<std::time::Instant>> = Mutex::new(Vec::new());
+
+/// A dead or hung page is reloaded, at most `MAX_RELOADS` times a minute; a dead browser process (or a
+/// page that keeps dying) needs a fresh copy of the app. WebView2 restarts its other processes itself.
+fn recovery_for(kind: COREWEBVIEW2_PROCESS_FAILED_KIND, recent_reloads: usize) -> Recovery {
+    match kind {
+        COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED => Recovery::Restart,
+        COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED
+        | COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE
+        | COREWEBVIEW2_PROCESS_FAILED_KIND_FRAME_RENDER_PROCESS_EXITED => {
+            if recent_reloads < MAX_RELOADS { Recovery::Reload } else { Recovery::Restart }
+        }
+        _ => Recovery::Ignore,
+    }
+}
+
+/// Without this a crashed desktop page shows WebView2's error page (or nothing) while the Windows
+/// icons stay hidden.
+unsafe fn watch_crashes(c: &ICoreWebView2Controller, app: AppHandle) {
+    let Ok(wv) = c.CoreWebView2() else { return };
+    let handler = ProcessFailedEventHandler::create(Box::new(move |sender: Option<ICoreWebView2>, args| {
+        if is_quitting() {
+            return Ok(());
+        }
+        // unreadable kind: treat it as the worst case
+        let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
+        if let Some(a) = &args {
+            let _ = a.ProcessFailedKind(&mut kind);
+        }
+        let mut reloads = RELOADS.lock().unwrap();
+        reloads.retain(|t| t.elapsed() < RELOAD_WINDOW);
+        let action = recovery_for(kind, reloads.len());
+        dlog!("desktop webview process failed (kind {}): {:?}", kind.0, action);
+        let reloaded = action == Recovery::Reload && sender.is_some_and(|w| w.Reload().is_ok());
+        if reloaded {
+            reloads.push(std::time::Instant::now());
+        } else if action != Recovery::Ignore {
+            drop(reloads);
+            restart_and_exit(&app);
+        }
+        Ok(())
+    }));
+    let mut token = 0i64;
+    let _ = wv.add_ProcessFailed(&handler, &mut token);
 }
 
 /// Always safe to call; brings the Windows desktop icons back (unless Windows' own setting hides them).
@@ -1240,6 +1311,9 @@ pub fn create(app: &AppHandle) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
 
+    let crash_app = app.clone();
+    let _ = win.with_webview(move |wv| unsafe { watch_crashes(&wv.controller(), crash_app) });
+
     let hwnd = HWND(win.hwnd().map_err(|e| e.to_string())?.0 as *mut _);
     DESKTOP.store(hwnd.0 as isize, Ordering::SeqCst);
     enable_dark_menus(hwnd);
@@ -1436,5 +1510,22 @@ mod tests {
         assert!(!show_icons_on_restore(Some(1)));
         assert!(show_icons_on_restore(Some(0)));
         assert!(show_icons_on_restore(None));
+    }
+
+    #[test]
+    fn a_crashed_page_is_reloaded_a_few_times_then_the_app_restarts() {
+        for kind in [
+            COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED,
+            COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE,
+            COREWEBVIEW2_PROCESS_FAILED_KIND_FRAME_RENDER_PROCESS_EXITED,
+        ] {
+            assert_eq!(recovery_for(kind, 0), Recovery::Reload);
+            assert_eq!(recovery_for(kind, MAX_RELOADS - 1), Recovery::Reload);
+            assert_eq!(recovery_for(kind, MAX_RELOADS), Recovery::Restart);
+        }
+        assert_eq!(recovery_for(COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED, 0), Recovery::Restart);
+        // WebView2 brings its GPU and helper processes back itself
+        assert_eq!(recovery_for(COREWEBVIEW2_PROCESS_FAILED_KIND(6), 0), Recovery::Ignore);
+        assert_eq!(recovery_for(COREWEBVIEW2_PROCESS_FAILED_KIND(9), MAX_RELOADS), Recovery::Ignore);
     }
 }
