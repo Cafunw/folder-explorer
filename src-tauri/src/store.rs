@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -56,7 +57,7 @@ fn state_path() -> PathBuf {
 
 fn store() -> &'static Mutex<Inner> {
     STORE.get_or_init(|| {
-        let (layout, settings) = read_state_file(&state_path()).unwrap_or((Value::Null, Value::Null));
+        let (layout, settings) = load_or_recover(&state_path(), &backups_dir());
         Mutex::new(Inner { layout, settings, dirty_since_backup: false, last_backup: Instant::now() })
     })
 }
@@ -70,17 +71,52 @@ fn read_state_file(path: &Path) -> Option<(Value, Value)> {
     Some((v.get("layout").cloned().unwrap_or(Value::Null), v.get("settings").cloned().unwrap_or(Value::Null)))
 }
 
+/// A state file with a layout or settings; one with neither is as good as unreadable.
+fn read_nonempty(path: &Path) -> Option<(Value, Value)> {
+    read_state_file(path).filter(|(l, s)| !(l.is_null() && s.is_null()))
+}
+
+/// Reads state.json. One that doesn't parse is moved aside as `state.corrupt-<ms>.json` (kept for
+/// good) and the newest backup that parses takes its place; empty only when nothing parses.
+fn load_or_recover(state: &Path, backups: &Path) -> (Value, Value) {
+    if let Some(s) = read_state_file(state) {
+        return s;
+    }
+    if !state.exists() {
+        return (Value::Null, Value::Null);
+    }
+    let aside = state.with_file_name(format!("state.corrupt-{}.json", util::now_ms()));
+    if fs::rename(state, &aside).is_err() {
+        let _ = fs::copy(state, &aside);
+    }
+    dlog!("state.json unreadable, kept as {}", aside.display());
+    for b in list_backups_in(backups) {
+        if let Some((layout, settings)) = read_nonempty(&backups.join(&b.name)) {
+            // on disk right away: a crash before the first save must not find state.json missing
+            let _ = write_atomic(state, &serialize(&layout, &settings));
+            dlog!("state recovered from {}", b.name);
+            return (layout, settings);
+        }
+    }
+    (Value::Null, Value::Null)
+}
+
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     let tmp = path.with_extension("json.tmp");
-    fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
+    {
+        let mut f = fs::File::create(&tmp).map_err(|e| e.to_string())?;
+        f.write_all(bytes).map_err(|e| e.to_string())?;
+        // on disk before the rename, or a power loss can leave a zero-filled state.json
+        f.sync_all().map_err(|e| e.to_string())?;
+    }
     fs::rename(&tmp, path).map_err(|e| e.to_string())
 }
 
-fn serialize(inner: &Inner) -> Vec<u8> {
-    serde_json::to_vec_pretty(&json!({ "layout": inner.layout, "settings": inner.settings })).unwrap_or_default()
+fn serialize(layout: &Value, settings: &Value) -> Vec<u8> {
+    serde_json::to_vec_pretty(&json!({ "layout": layout, "settings": settings })).unwrap_or_default()
 }
 
 /// Loads state, makes the startup backup and starts the periodic backup thread.
@@ -113,23 +149,39 @@ fn make_backup() -> Result<(), String> {
         let mut g = store().lock().map_err(|e| e.to_string())?;
         g.dirty_since_backup = false;
         g.last_backup = Instant::now();
-        serialize(&g)
+        if g.layout.is_null() && g.settings.is_null() {
+            return Ok(());
+        }
+        serialize(&g.layout, &g.settings)
     };
-    let name = format!("state-{}.json", util::now_ms());
-    write_atomic(&backups_dir().join(&name), &bytes)?;
-    prune_backups();
-    dlog!("backup {name}");
+    if let Some(name) = write_backup(&backups_dir(), &bytes)? {
+        dlog!("backup {name}");
+    }
     Ok(())
 }
 
-fn prune_backups() {
-    let mut list = list_backups();
+/// Writes `bytes` as a new backup unless the newest one already holds exactly them, so restarts
+/// without changes don't push the good backups out.
+fn write_backup(dir: &Path, bytes: &[u8]) -> Result<Option<String>, String> {
+    if let Some(newest) = list_backups_in(dir).first() {
+        if fs::read(dir.join(&newest.name)).ok().as_deref() == Some(bytes) {
+            return Ok(None);
+        }
+    }
+    let name = format!("state-{}.json", util::now_ms());
+    write_atomic(&dir.join(&name), bytes)?;
+    prune_backups(dir);
+    Ok(Some(name))
+}
+
+fn prune_backups(dir: &Path) {
+    let mut list = list_backups_in(dir);
     if list.len() <= MAX_BACKUPS {
         return;
     }
     // list is newest first
     for b in list.drain(MAX_BACKUPS..) {
-        let _ = fs::remove_file(backups_dir().join(b.name));
+        let _ = fs::remove_file(dir.join(b.name));
     }
 }
 
@@ -144,7 +196,7 @@ pub fn settings() -> Value {
 
 fn persist(g: &mut Inner) -> Result<(), String> {
     g.dirty_since_backup = true;
-    write_atomic(&state_path(), &serialize(g))
+    write_atomic(&state_path(), &serialize(&g.layout, &g.settings))
 }
 
 pub fn save_layout(layout: Value) -> Result<(), String> {
@@ -160,8 +212,12 @@ pub fn save_settings(settings: Value) -> Result<(), String> {
 }
 
 pub fn list_backups() -> Vec<BackupInfo> {
+    list_backups_in(&backups_dir())
+}
+
+fn list_backups_in(dir: &Path) -> Vec<BackupInfo> {
     let mut out = Vec::new();
-    if let Ok(rd) = fs::read_dir(backups_dir()) {
+    if let Ok(rd) = fs::read_dir(dir) {
         for e in rd.flatten() {
             let name = e.file_name().to_string_lossy().to_string();
             if !(name.starts_with("state-") && name.ends_with(".json")) {
@@ -180,10 +236,19 @@ pub fn list_backups() -> Vec<BackupInfo> {
     out
 }
 
+/// Import / restore: a file with only a layout or only settings keeps the current other half.
+fn apply_halves(g: &mut Inner, layout: Value, settings: Value) {
+    if !layout.is_null() {
+        g.layout = layout;
+    }
+    if !settings.is_null() {
+        g.settings = settings;
+    }
+}
+
 fn replace_state(layout: Value, settings: Value) -> Result<PersistedState, String> {
     let mut g = store().lock().map_err(|e| e.to_string())?;
-    g.layout = layout;
-    g.settings = settings;
+    apply_halves(&mut g, layout, settings);
     persist(&mut g)?;
     Ok(PersistedState { layout: g.layout.clone(), settings: g.settings.clone() })
 }
@@ -193,7 +258,7 @@ pub fn restore_backup(name: &str) -> Result<PersistedState, String> {
         return Err("geçersiz yedek adı".into());
     }
     let path = backups_dir().join(name);
-    let (layout, settings) = read_state_file(&path).ok_or("yedek okunamadı")?;
+    let (layout, settings) = read_nonempty(&path).ok_or("yedek okunamadı ya da boş")?;
     // keep the current state as a backup before overwriting it
     let _ = make_backup();
     replace_state(layout, settings)
@@ -202,7 +267,7 @@ pub fn restore_backup(name: &str) -> Result<PersistedState, String> {
 pub fn export_state(path: &str) -> Result<(), String> {
     let bytes = {
         let g = store().lock().map_err(|e| e.to_string())?;
-        serialize(&g)
+        serialize(&g.layout, &g.settings)
     };
     fs::write(path, bytes).map_err(|e| e.to_string())
 }
@@ -353,4 +418,102 @@ pub fn import_theme(path: &str) -> Result<Value, String> {
         .ok()
         .filter(Value::is_object)
         .ok_or_else(|| "dosya geçerli bir tema değil".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `<temp>\fe-store-test-<tag>-<pid>\` with an empty `backups\`, never the real app dir.
+    fn temp_dir(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("fe-store-test-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(d.join("backups")).unwrap();
+        d
+    }
+
+    fn corrupt_files(d: &Path) -> Vec<PathBuf> {
+        fs::read_dir(d)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with("state.corrupt-"))
+            .map(|e| e.path())
+            .collect()
+    }
+
+    #[test]
+    fn corrupt_state_is_set_aside_and_newest_valid_backup_used() {
+        let d = temp_dir("corrupt");
+        let (state, b) = (d.join("state.json"), d.join("backups"));
+        fs::write(&state, [0u8; 64]).unwrap();
+        fs::write(b.join("state-100.json"), serialize(&json!({ "n": 1 }), &Value::Null)).unwrap();
+        fs::write(b.join("state-200.json"), serialize(&json!({ "n": 2 }), &json!({ "s": 2 }))).unwrap();
+        fs::write(b.join("state-300.json"), b"{ broken").unwrap();
+        fs::write(b.join("state-400.json"), serialize(&Value::Null, &Value::Null)).unwrap();
+
+        let got = load_or_recover(&state, &b);
+        assert_eq!(got, (json!({ "n": 2 }), json!({ "s": 2 })));
+        assert_eq!(read_state_file(&state), Some(got));
+        let aside = corrupt_files(&d);
+        assert_eq!(aside.len(), 1);
+        assert_eq!(fs::read(&aside[0]).unwrap(), vec![0u8; 64]);
+
+        // nothing parses: empty, and the bad file is still kept
+        let d2 = temp_dir("corrupt-nobackup");
+        fs::write(d2.join("state.json"), b"").unwrap();
+        assert_eq!(load_or_recover(&d2.join("state.json"), &d2.join("backups")), (Value::Null, Value::Null));
+        assert_eq!(corrupt_files(&d2).len(), 1);
+        fs::remove_dir_all(d).unwrap();
+        fs::remove_dir_all(d2).unwrap();
+    }
+
+    #[test]
+    fn no_backup_when_unchanged() {
+        let d = temp_dir("backup");
+        let b = d.join("backups");
+        let bytes = serialize(&json!({ "n": 1 }), &json!({}));
+        assert!(write_backup(&b, &bytes).unwrap().is_some());
+        assert_eq!(write_backup(&b, &bytes).unwrap(), None);
+        assert_eq!(list_backups_in(&b).len(), 1);
+        std::thread::sleep(Duration::from_millis(5)); // backup names are millisecond timestamps
+        assert!(write_backup(&b, &serialize(&json!({ "n": 2 }), &json!({}))).unwrap().is_some());
+        assert_eq!(list_backups_in(&b).len(), 2);
+        fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn partial_import_keeps_the_other_half() {
+        let mut g = Inner {
+            layout: json!({ "l": 1 }),
+            settings: json!({ "s": 1 }),
+            dirty_since_backup: false,
+            last_backup: Instant::now(),
+        };
+        apply_halves(&mut g, Value::Null, json!({ "s": 2 }));
+        assert_eq!((&g.layout, &g.settings), (&json!({ "l": 1 }), &json!({ "s": 2 })));
+        apply_halves(&mut g, json!({ "l": 2 }), Value::Null);
+        assert_eq!((&g.layout, &g.settings), (&json!({ "l": 2 }), &json!({ "s": 2 })));
+    }
+
+    #[test]
+    fn both_null_backup_is_refused() {
+        let d = temp_dir("null");
+        let p = d.join("backups").join("state-1.json");
+        fs::write(&p, serialize(&Value::Null, &Value::Null)).unwrap();
+        assert_eq!(read_nonempty(&p), None);
+        fs::write(&p, br#"{ "layout": { "l": 1 } }"#).unwrap();
+        assert_eq!(read_nonempty(&p), Some((json!({ "l": 1 }), Value::Null)));
+        fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn write_atomic_leaves_a_parsable_file() {
+        let d = temp_dir("atomic");
+        let p = d.join("state.json");
+        fs::write(&p, b"old garbage").unwrap();
+        write_atomic(&p, &serialize(&json!({ "l": 1 }), &json!({ "s": 1 }))).unwrap();
+        assert_eq!(read_state_file(&p), Some((json!({ "l": 1 }), json!({ "s": 1 }))));
+        assert!(!p.with_extension("json.tmp").exists());
+        fs::remove_dir_all(d).unwrap();
+    }
 }
