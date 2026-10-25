@@ -269,6 +269,7 @@ export type Settings = {
     typeToSearch: boolean;
     showIcons: boolean; // View ▸ Show desktop icons
     doubleClickHide: boolean; // double-click on the empty desktop toggles showIcons
+    longPressEdit: boolean; // holding an icon ~600 ms starts edit (jiggle) mode
     ctrlWheelZoom: boolean; // Ctrl+wheel changes grid.iconScale
     quickLook: boolean; // Space previews the selected item
     dropOnApp: boolean; // files dropped on an app open with it

@@ -1,7 +1,8 @@
 // Icon edit mode (iOS "jiggle"): entered from the desktop menu ("Simgeleri düzenle"), the command
-// palette or a long press on an icon. Icons wiggle (CSS, only while the mode is on; still with
-// reduced motion / in quiet modes) and carry a remove badge; dragging starts at once; clicks do
-// not launch files. Esc, a click on the empty desktop or "Bitti" ends it. Not with a locked layout.
+// palette or a long press on an icon (`behavior.longPressEdit`). Icons wiggle (CSS, only while the
+// mode is on; still with reduced motion / in quiet modes) and carry a remove badge; dragging starts
+// at once; clicks do not launch files. Esc, a click on the empty desktop or "Bitti" ends it. Not
+// with a locked layout.
 
 import { AnimatePresence, motion } from "motion/react";
 import { create } from "zustand";
@@ -86,6 +87,7 @@ let longPressed: number | null = null;
 /** Holding an icon ~600 ms without moving starts the mode (the press then goes on as a drag). */
 export function armLongPress(e: React.PointerEvent, id: string) {
   if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || jiggling()) return;
+  if (!useDesk.getState().settings.behavior.longPressEdit) return;
   const { pointerId, clientX: x0, clientY: y0 } = e;
   longPressed = null;
   const done = () => {
@@ -136,9 +138,15 @@ function badgeKind(id: string): BadgeKind | null {
   return it && it.kind !== "system" ? "delete" : null;
 }
 
+/** The badge's click: a real file asks first (Recycle Bin); a group or heading goes at once, undoable. */
+export function removeByBadge(id: string) {
+  if (badgeKind(id) === "delete") useDesk.setState({ dialog: { kind: "confirmRecycle", ids: [id] } });
+  else void deleteIds([id]);
+}
+
 /**
- * The remove badge of an item in edit mode: a file goes to the Recycle Bin, a group is dissolved
- * (its items stay), a heading is removed — the same as Delete, with an undo toast.
+ * The remove badge of an item in edit mode: a file goes to the Recycle Bin (after a confirm), a
+ * group is dissolved (its items stay), a heading is removed — the same as Delete, with an undo toast.
  */
 export function JiggleBadge({ id, style }: { id: string; style?: React.CSSProperties }) {
   const on = useJiggle((j) => j.on);
@@ -159,7 +167,7 @@ export function JiggleBadge({ id, style }: { id: string; style?: React.CSSProper
       onContextMenu={stop}
       onClick={(e) => {
         e.stopPropagation();
-        void deleteIds([id]);
+        removeByBadge(id);
       }}
     >
       {kind === "delete" ? "×" : "−"}

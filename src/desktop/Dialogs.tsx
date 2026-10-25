@@ -64,6 +64,17 @@ export function Dialogs() {
                   }}
                 />
               )}
+              {dialog.kind === "confirmRecycle" && (
+                <Confirm
+                  title={t.jiggle.confirmRecycle}
+                  body={t.confirmDeleteFolderBody(dialog.ids.length)}
+                  onCancel={close}
+                  onOk={() => {
+                    close();
+                    void deleteIds(dialog.ids);
+                  }}
+                />
+              )}
             </motion.div>
           </div>
         </motion.div>

@@ -991,6 +991,9 @@ function BehaviorSec({ s, update }: SecProps) {
         <Row title={t.doubleClickHide} desc={t.doubleClickHideDesc}>
           <Toggle on={be.doubleClickHide} onChange={(v) => set({ doubleClickHide: v })} />
         </Row>
+        <Row title={t.longPressEdit} desc={t.longPressEditDesc}>
+          <Toggle on={be.longPressEdit} onChange={(v) => set({ longPressEdit: v })} />
+        </Row>
         <Row title={t.ctrlWheelZoom} desc={t.ctrlWheelZoomDesc}>
           <Toggle on={be.ctrlWheelZoom} onChange={(v) => set({ ctrlWheelZoom: v })} />
         </Row>

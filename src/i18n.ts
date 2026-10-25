@@ -195,6 +195,7 @@ export const t = {
     recycle: "Geri Dönüşüm Kutusu'na taşı",
     dissolve: "Grubu dağıt (içindekiler kalır)",
     remove: "Kaldır",
+    confirmRecycle: "Geri Dönüşüm Kutusu'na taşınsın mı?",
   },
 
   // Quick Look
@@ -558,6 +559,8 @@ export const t = {
   hGeneral: "Genel",
   doubleClickHide: "Çift tıkla gizle",
   doubleClickHideDesc: "Boş masaüstüne çift tıklamak simgeleri gizler ya da geri getirir",
+  longPressEdit: "Uzun basınca düzenleme modu",
+  longPressEditDesc: "Bir simgeye basılı tutmak simgeleri düzenleme modunu açar",
   ctrlWheelZoom: "Ctrl+tekerlek ile boyut",
   ctrlWheelZoomDesc: "Ctrl basılıyken fare tekerleği simgeleri büyütüp küçültür",
   quickLookSetting: "Boşluk ile hızlı önizleme",

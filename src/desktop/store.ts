@@ -51,6 +51,7 @@ export type DialogState =
   | { kind: "addApp"; placement: Placement | null }
   | { kind: "customize"; id: string; focus?: "rule" | "source" }
   | { kind: "confirmDeleteFolder"; folderIds: string[]; files: string[] }
+  | { kind: "confirmRecycle"; ids: string[] } // the edit-mode × on a real file (Jiggle.tsx)
   | { kind: "quicklook"; id: string }
   | { kind: "unlock"; id: string } // a locked group asks for Windows Hello / its PIN (locks.ts)
   | null;
