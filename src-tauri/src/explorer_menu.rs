@@ -13,7 +13,7 @@ use windows::Win32::System::Variant::{VARIANT, VT_I4};
 use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
 use windows::Win32::UI::Shell::Common::{ITEMIDLIST, STRRET};
 use windows::Win32::UI::Shell::{
-    IFolderView, IShellBrowser, IShellFolder, IShellWindows, ShellWindows, StrRetToStrW,
+    IEnumIDList, IFolderView, IShellBrowser, IShellFolder, IShellView, IShellWindows, ShellWindows, StrRetToStrW,
     SHGDN_FORPARSING, SID_STopLevelBrowser, SVGIO_ALLVIEW, SVSI_DESELECTOTHERS, SVSI_FOCUSED,
     SVSI_SELECT, SWC_DESKTOP, SWFO_NEEDDISPATCH,
 };
@@ -177,6 +177,69 @@ fn observe_menu(path: String, token: u64) {
     });
 }
 
+/// Explorer's desktop shell view (the one behind the hidden icon list) and its folder view.
+unsafe fn desktop_view() -> Result<(IShellView, IFolderView), String> {
+    let sw: IShellWindows = CoCreateInstance(&ShellWindows, None, CLSCTX_ALL).map_err(|e| e.message())?;
+    let mut loc = VARIANT::default();
+    (*loc.Anonymous.Anonymous).vt = VT_I4;
+    let mut hwnd_i = 0i32;
+    let disp = sw.FindWindowSW(&loc, &VARIANT::default(), SWC_DESKTOP, &mut hwnd_i, SWFO_NEEDDISPATCH).map_err(|e| e.message())?;
+    let sp: IServiceProvider = disp.cast().map_err(|e| e.message())?;
+    let browser: IShellBrowser = sp.QueryService(&SID_STopLevelBrowser).map_err(|e| e.message())?;
+    let view = browser.QueryActiveShellView().map_err(|e| e.message())?;
+    let fv: IFolderView = view.cast().map_err(|e| e.message())?;
+    Ok((view, fv))
+}
+
+/// Selects exactly `paths` (parsing names) in the view, `focus` focused. Returns the paths that
+/// were not found and the focused item's position.
+unsafe fn select_paths(view: &IShellView, fv: &IFolderView, paths: &[String], focus: Option<&str>) -> Result<(HashSet<String>, Option<POINT>), String> {
+    let mut wanted: HashSet<String> = paths.iter().map(|p| util::norm_path(p)).collect();
+    view.SelectItem(std::ptr::null(), SVSI_DESELECTOTHERS.0 as u32).map_err(|e| e.message())?;
+    if wanted.is_empty() { return Ok((wanted, None)); }
+    let focus = focus.map(util::norm_path);
+    let folder: IShellFolder = fv.GetFolder().map_err(|e| e.message())?;
+    let en: IEnumIDList = fv.Items(SVGIO_ALLVIEW).map_err(|e| e.message())?;
+    let mut position = None;
+    while !wanted.is_empty() {
+        let mut arr: [*mut ITEMIDLIST; 1] = [std::ptr::null_mut()];
+        let mut fetched = 0;
+        if en.Next(&mut arr, Some(&mut fetched)).is_err() || fetched == 0 || arr[0].is_null() { break; }
+        let pidl = arr[0];
+        let mut name = STRRET::default();
+        let mut selected = Ok(());
+        if folder.GetDisplayNameOf(pidl, SHGDN_FORPARSING, &mut name).is_ok() {
+            let mut pw = windows::core::PWSTR::null();
+            if StrRetToStrW(&mut name, Some(pidl), &mut pw).is_ok() {
+                let path = util::norm_path(&util::take_pwstr(pw));
+                if wanted.remove(&path) {
+                    let focused = focus.as_deref() == Some(path.as_str());
+                    selected = view.SelectItem(pidl, (SVSI_SELECT.0 | if focused { SVSI_FOCUSED.0 } else { 0 }) as u32);
+                    if focused { position = fv.GetItemPosition(pidl).ok(); }
+                }
+            }
+        }
+        CoTaskMemFree(Some(pidl as *const _));
+        selected.map_err(|e| e.message())?;
+    }
+    Ok((wanted, position))
+}
+
+static MIRROR_GEN: AtomicU64 = AtomicU64::new(0);
+
+/// Keeps Explorer's hidden desktop view selected like our icons, so tools that read the desktop's
+/// selection through the Shell (Filee's shortcut, preview apps) get the icons selected here.
+/// Paths that are not in Explorer's view (live-folder entries) are skipped; a newer call wins.
+pub fn mirror_selection(paths: Vec<String>) -> Result<(), String> {
+    let generation = MIRROR_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    util::run_sta(move || unsafe {
+        let _lock = OPEN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        if MIRROR_GEN.load(Ordering::SeqCst) != generation { return Ok(()); }
+        let (view, fv) = desktop_view()?;
+        select_paths(&view, &fv, &paths, None).map(|_| ())
+    })?
+}
+
 /// Paths are parsing names of real desktop items, with the clicked item first.
 pub fn show_items(paths: Vec<String>, at: Option<POINT>) -> Result<&'static str, String> {
     if paths.is_empty() { return Err("menü için simge seçilmedi".into()); }
@@ -185,43 +248,9 @@ pub fn show_items(paths: Vec<String>, at: Option<POINT>) -> Result<&'static str,
         let _lock = OPEN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let dv = desktop_window::find_defview().ok_or("Windows masaüstü görünümü bulunamadı")?;
         let lv = desktop_window::find_listview().ok_or("Windows simge görünümü bulunamadı")?;
-        let sw: IShellWindows = CoCreateInstance(&ShellWindows, None, CLSCTX_ALL).map_err(|e| e.message())?;
-        let mut loc = VARIANT::default();
-        (*loc.Anonymous.Anonymous).vt = VT_I4;
-        let mut hwnd_i = 0i32;
-        let disp = sw.FindWindowSW(&loc, &VARIANT::default(), SWC_DESKTOP, &mut hwnd_i, SWFO_NEEDDISPATCH).map_err(|e| e.message())?;
-        let sp: IServiceProvider = disp.cast().map_err(|e| e.message())?;
-        let browser: IShellBrowser = sp.QueryService(&SID_STopLevelBrowser).map_err(|e| e.message())?;
-        let view = browser.QueryActiveShellView().map_err(|e| e.message())?;
-        let fv: IFolderView = view.cast().map_err(|e| e.message())?;
-        let folder: IShellFolder = fv.GetFolder().map_err(|e| e.message())?;
-        let en: windows::Win32::UI::Shell::IEnumIDList = fv.Items(SVGIO_ALLVIEW).map_err(|e| e.message())?;
-        let clicked = util::norm_path(&paths[0]);
-        let mut wanted: HashSet<String> = paths.iter().map(|p| util::norm_path(p)).collect();
-        view.SelectItem(std::ptr::null(), SVSI_DESELECTOTHERS.0 as u32).map_err(|e| e.message())?;
-        let mut position = None;
-        loop {
-            let mut arr: [*mut ITEMIDLIST; 1] = [std::ptr::null_mut()];
-            let mut fetched = 0;
-            if en.Next(&mut arr, Some(&mut fetched)).is_err() || fetched == 0 || arr[0].is_null() { break; }
-            let pidl = arr[0];
-            let mut name = STRRET::default();
-            let mut selected = Ok(());
-            if folder.GetDisplayNameOf(pidl, SHGDN_FORPARSING, &mut name).is_ok() {
-                let mut pw = windows::core::PWSTR::null();
-                if StrRetToStrW(&mut name, Some(pidl), &mut pw).is_ok() {
-                    let path = util::norm_path(&util::take_pwstr(pw));
-                    if wanted.remove(&path) {
-                        let focus = path == clicked;
-                        selected = view.SelectItem(pidl, (SVSI_SELECT.0 | if focus { SVSI_FOCUSED.0 } else { 0 }) as u32);
-                        if focus { position = fv.GetItemPosition(pidl).ok(); }
-                    }
-                }
-            }
-            CoTaskMemFree(Some(pidl as *const _));
-            selected.map_err(|e| e.message())?;
-        }
-        if !wanted.is_empty() { return Err("seçilen simgeler Windows masaüstünde bulunamadı".into()); }
+        let (view, fv) = desktop_view()?;
+        let (missing, position) = select_paths(&view, &fv, &paths, Some(&paths[0]))?;
+        if !missing.is_empty() { return Err("seçilen simgeler Windows masaüstünde bulunamadı".into()); }
         let position = position.ok_or("tıklanan simgenin konumu bulunamadı")?;
         let mut spacing = POINT::default();
         let _ = fv.GetSpacing(&mut spacing);

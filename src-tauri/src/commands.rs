@@ -58,6 +58,12 @@ pub async fn item_context_menu(paths: Vec<String>, at: Option<[i32; 2]>) -> R<()
     blocking(move || crate::explorer_menu::show_items(paths, point(at)).map(|_| ())).await
 }
 
+/// Selects the same items in Explorer's hidden desktop view (for tools that read its selection).
+#[tauri::command]
+pub async fn mirror_selection(paths: Vec<String>) -> R<()> {
+    blocking(move || crate::explorer_menu::mirror_selection(paths)).await
+}
+
 /// Classic Shell menu for live-folder entries that are not in Explorer's desktop view.
 #[tauri::command]
 pub async fn classic_menu(paths: Vec<String>, at: Option<[i32; 2]>) -> R<Option<String>> {
