@@ -150,8 +150,8 @@ pub async fn restore_from_recycle(paths: Vec<String>) -> R<Vec<String>> {
 }
 
 #[tauri::command]
-pub async fn rename_item(path: String, new_name: String) -> R<String> {
-    blocking(move || shell::rename_item(path, new_name)).await
+pub async fn rename_item(path: String, new_name: String, exact: Option<bool>) -> R<String> {
+    blocking(move || shell::rename_item(path, new_name, exact.unwrap_or(false))).await
 }
 
 #[tauri::command]

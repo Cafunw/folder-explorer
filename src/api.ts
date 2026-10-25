@@ -43,7 +43,9 @@ const realApi = {
   debugLog: (line: string) => invoke<void>("debug_log", { line }),
   recycle: (paths: string[]) => invoke<void>("recycle", { paths }),
   restoreFromRecycle: (paths: string[]) => invoke<string[]>("restore_from_recycle", { paths }),
-  renameItem: (path: string, newName: string) => invoke<string>("rename_item", { path, newName }),
+  /** `exact`: `newName` is the whole file name; otherwise a hidden extension (.lnk) is kept. */
+  renameItem: (path: string, newName: string, exact = false) =>
+    invoke<string>("rename_item", { path, newName, exact }),
   moveIntoFolder: (paths: string[], targetDir: string) =>
     invoke<void>("move_into_folder", { paths, targetDir }),
   copyIntoFolder: (paths: string[], targetDir: string) =>

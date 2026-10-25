@@ -177,7 +177,7 @@ fn fileops(dir: &str) {
     let path = std::path::Path::new(dir).join(&name).to_string_lossy().to_string();
     std::fs::write(&path, "Folder Explorer test").unwrap();
     println!("created {path}");
-    let renamed = match shell::rename_item(path.clone(), "fe-renamed".into()) {
+    let renamed = match shell::rename_item(path.clone(), "fe-renamed".into(), false) {
         Ok(p) => {
             println!("renamed -> {p} exists={}", std::path::Path::new(&p).exists());
             p
