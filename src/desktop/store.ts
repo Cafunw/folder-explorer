@@ -224,9 +224,10 @@ export function recordFileOpOnly(fileOp: FileOp) {
   syncHistoryFlags();
 }
 
+// renames replay recorded file names exactly: a typed name would get a hidden .lnk appended again
 async function revert(op: FileOp) {
   if (op.kind === "recycle") await api.restoreFromRecycle(op.paths);
-  else if (op.kind === "rename") await api.renameItem(op.to, baseName(op.from, true));
+  else if (op.kind === "rename") await api.renameItem(op.to, baseName(op.from, true), true);
   else if (op.kind === "move") {
     for (const mv of op.moves) await api.moveIntoFolder([mv.to], dirName(mv.from));
   }
@@ -234,7 +235,7 @@ async function revert(op: FileOp) {
 
 async function reapply(op: FileOp) {
   if (op.kind === "recycle") await api.recycle(op.paths);
-  else if (op.kind === "rename") await api.renameItem(op.from, baseName(op.to, true));
+  else if (op.kind === "rename") await api.renameItem(op.from, baseName(op.to, true), true);
   else if (op.kind === "move") {
     for (const mv of op.moves) await api.moveIntoFolder([mv.from], dirName(mv.to));
   }

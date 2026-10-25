@@ -485,7 +485,18 @@ fn invalid_name(name: &str) -> bool {
         || name.chars().any(|c| matches!(c, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || (c as u32) < 32)
 }
 
-pub fn rename_item(path: String, new_name: String) -> Result<String, String> {
+/// The file name a rename writes. A typed name keeps an extension the shell display hides (.lnk,
+/// known types); `exact` takes `name` as the whole file name (undo/redo replays a recorded one).
+fn renamed_file_name(name: &str, file_name: &str, display: &str, is_dir: bool, exact: bool) -> String {
+    if exact || is_dir {
+        return name.to_string();
+    }
+    let ext = Path::new(file_name).extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    let ext_hidden = !ext.is_empty() && !display.to_lowercase().ends_with(&ext.to_lowercase());
+    if ext_hidden { format!("{name}{ext}") } else { name.to_string() }
+}
+
+pub fn rename_item(path: String, new_name: String, exact: bool) -> Result<String, String> {
     let path = fs_norm(&path);
     let new_name = new_name.trim().trim_end_matches(['.', ' ']).to_string();
     if invalid_name(&new_name) {
@@ -497,15 +508,8 @@ pub fn rename_item(path: String, new_name: String) -> Result<String, String> {
     util::run_sta(move || unsafe {
         let p = Path::new(&path);
         let file_name = p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        let is_dir = p.is_dir();
-        let ext = if is_dir {
-            String::new()
-        } else {
-            p.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default()
-        };
         let display = items::display_name(&path).unwrap_or_else(|| file_name.clone());
-        let ext_hidden = !ext.is_empty() && !display.to_lowercase().ends_with(&ext.to_lowercase());
-        let new_file = if ext_hidden { format!("{new_name}{ext}") } else { new_name.clone() };
+        let new_file = renamed_file_name(&new_name, &file_name, &display, p.is_dir(), exact);
         if new_file == file_name {
             return Ok(path.clone());
         }
@@ -1275,5 +1279,30 @@ unsafe fn collect_found(folder: &IShellItem, limit: usize, keep_going: &dyn Fn()
         if found.len() >= limit {
             break;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn typed_name_keeps_hidden_extension() {
+        assert_eq!(renamed_file_name("Browser", "Chrome.lnk", "Chrome", false, false), "Browser.lnk");
+    }
+
+    #[test]
+    fn typed_name_with_visible_extension_is_the_file_name() {
+        assert_eq!(renamed_file_name("notes.md", "a.txt", "a.txt", false, false), "notes.md");
+    }
+
+    #[test]
+    fn folder_name_is_never_extended() {
+        assert_eq!(renamed_file_name("Old.v2", "Old.v1", "Old", true, false), "Old.v2");
+    }
+
+    #[test]
+    fn exact_name_is_not_extended_again() {
+        assert_eq!(renamed_file_name("Chrome.lnk", "Browser.lnk", "Browser", false, true), "Chrome.lnk");
     }
 }
