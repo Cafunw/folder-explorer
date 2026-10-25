@@ -246,23 +246,6 @@
   cursor: pointer;
 }
 
-.hotkey {
-  min-width: 170px;
-  text-align: center;
-  padding: 7px 12px;
-  border-radius: 9px;
-  border: 1px solid var(--line);
-  background: var(--input-bg);
-  cursor: pointer;
-  font-family: "Cascadia Mono", Consolas, monospace;
-  font-size: 12.5px;
-}
-
-.hotkey[data-listening="true"] {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-softer);
-}
-
 .preview-strip {
   display: flex;
   gap: 18px;

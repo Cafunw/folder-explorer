@@ -25,7 +25,7 @@ import { cellMetrics } from "../layout/grid";
 import { ACCENTS, applyTheme, DEFAULT_SETTINGS, FOLDER_COLORS, normalizeSettings, spring } from "../settings";
 import { applyPreset, readThemeFile, applyThemePatch, THEME_PRESETS, themeFile, visualSettings } from "../themes";
 import type { BackupInfo, IconShape, MonitorInfo, PersistedState, Settings, WallpaperSpec } from "../types";
-import { AutoColor, Colors, HotkeyInput, pct, px, Row, Seg, Slider, times, Toggle } from "./controls";
+import { AutoColor, Colors, pct, px, Row, Seg, Slider, times, Toggle } from "./controls";
 import { IconSample, MockFolder, PageIndicator, plateRadius, ThemeThumb, WallpaperThumb } from "./previews";
 import { previewSound } from "../desktop/sounds";
 import { WallpaperEditor } from "./WallpaperEditor";
@@ -1023,9 +1023,6 @@ function SearchSec({ s, update }: SecProps) {
   return (
     <>
       <div className="card">
-        <Row title={t.searchHotkey} desc={t.searchHotkeyDesc}>
-          <HotkeyInput value={s.behavior.searchHotkey} onChange={(v) => be({ searchHotkey: v })} />
-        </Row>
         <Row title={t.typeToSearch} desc={t.typeToSearchDesc}>
           <Toggle on={s.behavior.typeToSearch} onChange={(v) => be({ typeToSearch: v })} />
         </Row>

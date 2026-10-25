@@ -1,4 +1,4 @@
-//! Search & settings windows, tray icon and the global search hotkey.
+//! Search & settings windows and the tray icon.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -9,7 +9,6 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::utils::config::WindowEffectsConfig;
 use tauri::window::{Effect, EffectsBuilder};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder, Wry};
-use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use windows::Win32::Foundation::POINT;
 use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND};
 use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST};
@@ -20,12 +19,9 @@ use webview2_com::Microsoft::Web::WebView2::Win32::{
     COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
 };
 
-use crate::{desktop_window, dlog, quiet, store, util};
-
-pub const DEFAULT_HOTKEY: &str = "Ctrl+Space";
+use crate::{desktop_window, quiet, store, util};
 
 static PENDING_SEARCH: Mutex<Option<String>> = Mutex::new(None);
-static CURRENT_HOTKEY: Mutex<Option<String>> = Mutex::new(None);
 /// Started by `--new-group` (Windows' Yeni ▸ menu while the app was not running).
 static LAUNCH_NEW_GROUP: AtomicBool = AtomicBool::new(false);
 
@@ -378,15 +374,8 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Applies settings that live on the Rust side (hotkey, tray check state).
+/// Applies settings that live on the Rust side (startup shortcut, tray check state, New menu).
 pub fn apply_settings(app: &AppHandle, settings: &serde_json::Value) {
-    let hotkey = settings
-        .pointer("/behavior/searchHotkey")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or(DEFAULT_HOTKEY)
-        .to_string();
-    register_hotkey(app, &hotkey);
     // "Windows ile başlat" = a shortcut in the Startup folder (opt-in; never for dev builds)
     if !cfg!(debug_assertions) {
         let autostart = settings.pointer("/behavior/startWithWindows").and_then(|v| v.as_bool()).unwrap_or(false);
@@ -399,27 +388,7 @@ pub fn apply_settings(app: &AppHandle, settings: &serde_json::Value) {
         let _ = st.lock.set_checked(locked);
     }
     quiet::apply_settings(settings);
-    // a dev build would point Windows' menu at target\debug, which needs the dev server
-    if !cfg!(debug_assertions) {
-        let entry = settings.pointer("/behavior/newMenuEntry").and_then(|v| v.as_bool()).unwrap_or(true);
-        std::thread::spawn(move || crate::shell_new::sync(entry));
-    }
-}
-
-pub fn register_hotkey(app: &AppHandle, accel: &str) {
-    let mut cur = CURRENT_HOTKEY.lock().unwrap();
-    if cur.as_deref() == Some(accel) {
-        return;
-    }
-    let gs = app.global_shortcut();
-    if let Some(old) = cur.take() {
-        let _ = gs.unregister(old.as_str());
-    }
-    match gs.register(accel) {
-        Ok(_) => {
-            dlog!("hotkey registered: {accel}");
-            *cur = Some(accel.to_string());
-        }
-        Err(e) => dlog!("hotkey {accel} failed: {e}"),
-    }
+    // a dev build points the entry at target\debug: fine, the click only reaches the running app (main.rs)
+    let entry = settings.pointer("/behavior/newMenuEntry").and_then(|v| v.as_bool()).unwrap_or(true);
+    std::thread::spawn(move || crate::shell_new::sync(entry));
 }

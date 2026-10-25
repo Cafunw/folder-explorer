@@ -71,7 +71,6 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   behavior: {
     lockLayout: false,
-    searchHotkey: "Ctrl+Space",
     startWithWindows: false,
     showSystemIcons: true,
     typeToSearch: true,
@@ -261,7 +260,6 @@ export function normalizeSettings(raw: unknown): Settings {
     },
     behavior: {
       lockLayout: bool(be.lockLayout, d.behavior.lockLayout),
-      searchHotkey: str(be.searchHotkey, d.behavior.searchHotkey),
       startWithWindows: bool(be.startWithWindows, d.behavior.startWithWindows),
       showSystemIcons: bool(be.showSystemIcons, d.behavior.showSystemIcons),
       typeToSearch: bool(be.typeToSearch, d.behavior.typeToSearch),

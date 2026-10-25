@@ -23,7 +23,6 @@ mod wallpaper;
 mod windows_mgr;
 
 use tauri::{Manager, RunEvent, WindowEvent};
-use tauri_plugin_global_shortcut::ShortcutState;
 
 /// `folder-explorer.exe --watchdog <pid>`: wait for the main process and restore the icons.
 pub fn watchdog(pid: Option<&String>) {
@@ -43,6 +42,21 @@ pub fn launch_watchdog(pid: Option<&String>) {
 pub fn show_icons() {
     desktop_window::restore_icons();
     std::thread::sleep(std::time::Duration::from_millis(300));
+}
+
+/// `folder-explorer.exe --start-with-windows on|off` (installer): stores `behavior.startWithWindows`
+/// like Ayarlar ▸ Davranış does and makes the Startup shortcut match.
+pub fn set_start_with_windows(on: bool) {
+    let mut s = store::settings();
+    if !s.is_object() {
+        s = serde_json::json!({});
+    }
+    if !s["behavior"].is_object() {
+        s["behavior"] = serde_json::json!({});
+    }
+    s["behavior"]["startWithWindows"] = serde_json::Value::Bool(on);
+    let _ = store::save_settings(s);
+    let _ = startup::set(on);
 }
 
 /// `folder-explorer.exe --clean-legacy`: remove what earlier versions wrote into Windows, print what was found.
@@ -90,15 +104,6 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
-        .plugin(
-            tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
-                        let _ = windows_mgr::show_search(app, String::new());
-                    }
-                })
-                .build(),
-        )
         .register_asynchronous_uri_scheme_protocol("fe", icons::protocol)
         .invoke_handler(tauri::generate_handler![
             commands::get_environment,

@@ -8,6 +8,36 @@
 ; the icons could stay hidden, so every hook first asks a running copy to close gracefully
 ; (`--quit`), which brings the icons back.
 
+; "Start with Windows" checkbox on the welcome page: this file is included before the template's
+; pages, so these two defines go to its first page (the welcome page). After installing, the choice
+; is handed to the app (`--start-with-windows on|off`), which stores it like Ayarlar ▸ Davranış does
+; and creates or removes the Startup shortcut. Skipped pages (silent / passive update) change nothing.
+Var StartWithWindowsBox
+Var StartWithWindows
+
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW StartWithWindowsShow
+!define MUI_PAGE_CUSTOMFUNCTION_LEAVE StartWithWindowsLeave
+
+Function StartWithWindowsShow
+  ${NSD_CreateCheckbox} 120u 178u 195u 12u "Bilgisayar açılınca Folder Explorer'ı da başlat"
+  Pop $StartWithWindowsBox
+  SetCtlColors $StartWithWindowsBox "" "FFFFFF" ; the welcome page's white (MUI_BGCOLOR is not defined yet here)
+  ; checked when it already starts with Windows, or for someone who never ran the app
+  ${If} ${FileExists} "$SMSTARTUP\Folder Explorer.lnk"
+  ${OrIfNot} ${FileExists} "$APPDATA\Folder Explorer\state.json"
+    ${NSD_Check} $StartWithWindowsBox
+  ${EndIf}
+FunctionEnd
+
+Function StartWithWindowsLeave
+  ${NSD_GetState} $StartWithWindowsBox $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $StartWithWindows "on"
+  ${Else}
+    StrCpy $StartWithWindows "off"
+  ${EndIf}
+FunctionEnd
+
 !macro NSIS_HOOK_PREINSTALL
   ; Upgrading over a running copy.
   IfFileExists "$INSTDIR\${MAINBINARYNAME}.exe" 0 +2
@@ -15,6 +45,9 @@
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
+  ${If} $StartWithWindows != ""
+    ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --start-with-windows $StartWithWindows'
+  ${EndIf}
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL

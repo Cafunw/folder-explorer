@@ -5,7 +5,7 @@ icons can be merged into phone-style (iOS/Android) folders.
 
 * `src-tauri/` — Rust. Owns everything Win32: the desktop-level window, hiding the
   Windows icon view, enumerating desktop items, icons, shell menus, file operations,
-  wallpaper, persistence on disk, tray, global hotkey, extra windows.
+  wallpaper, persistence on disk, tray, extra windows.
 * `src/` — React + TypeScript + Motion. Owns all UI and **all layout logic**
   (grid placement, folders, undo/redo, reconciliation with the item list).
   The backend stores the layout and settings as opaque JSON.
@@ -375,7 +375,7 @@ type BackupInfo = { name: string; createdAt: number; size: number };
 | `get_quiet` | – | `Quiet` | game / battery quiet state (same as `quiet-changed`) |
 | `load_state` | – | `PersistedState` | `%APPDATA%\Folder Explorer\state.json` |
 | `save_layout` | `{ layout }` | `()` | atomic write (temp + rename), debounced by the UI |
-| `save_settings` | `{ settings }` | `()` | persists, emits `settings-changed` to all windows, re-registers the search hotkey from `settings.behavior.searchHotkey`, applies `settings.behavior.lockLayout` to the tray check item |
+| `save_settings` | `{ settings }` | `()` | persists, emits `settings-changed` to all windows, applies `settings.behavior.lockLayout` to the tray check item |
 | `list_backups` / `restore_backup` | `{ name }` | `BackupInfo[]` / `PersistedState` | backups in `…\backups\`, keep 10; one on startup and at most every 15 min while changed |
 | `export_state` / `import_state` | `{ path }` | `()` / `PersistedState` | |
 | `import_media` | `{ path, kind: "icon" \| "wallpaper" }` | `string` | copies into `…\media\`, returns stored path |
@@ -593,7 +593,7 @@ Group kinds / displays in the UI (`src/desktop/`):
   `{ "format": "folder-explorer-theme", "version": 1, "settings": <visual settings> }`; a full
   `export_state` file is accepted too (its visual settings are used).
 * Settings window (`src/settings/`): `SettingsView.tsx` (sections, rendered only when open),
-  `controls.tsx` (Row / Toggle / Seg / Slider / Colors / AutoColor / HotkeyInput),
+  `controls.tsx` (Row / Toggle / Seg / Slider / Colors / AutoColor),
   `previews.tsx` (CSS-only live previews: icon plate + label, selection, page indicator, group
   box, theme thumbnails), `WallpaperEditor.tsx` (edits one `WallpaperSpec`: main, night, per page).
   The previews and the desktop share the CSS helpers in `src/settings.ts` (`plateRadius`,
@@ -730,6 +730,7 @@ Group kinds / displays in the UI (`src/desktop/`):
 | `--watchdog <pid>` | internal: waits for `<pid>` to exit, then shows the Windows icons. |
 | `--watchdog-launch <pid>` | internal: starts `--watchdog <pid>` and exits, so the watchdog is outside the app's process tree. |
 | `--autostart` | passed by the "start with Windows" Startup-folder shortcut; a second instance launched with it stays silent. |
+| `--start-with-windows on\|off` | run by the installer after copying the files: stores `behavior.startWithWindows` in `state.json` (creating `settings` when there is none) and creates / removes the Startup shortcut, then exits. Settings without `grid` still count as a first run in the UI. |
 | `--selftest [dir]` | diagnostics without UI (monitors, items, Windows icon layout per column, wallpapers, an icon PNG). |
 | `--menutest [paths…]` | prints the classic menu (entries + verbs), New ▸ and Open with ▸ for `paths` (none = the desktop background). |
 
@@ -740,17 +741,21 @@ over / uninstalling a running copy and `--show-icons` on uninstall. It writes no
 shell. On uninstall it removes the Startup shortcut, the Yeni ▸ menu keys and the Run value of older
 versions. "Start with Windows" (`behavior.startWithWindows`, off by default)
 is a shortcut `Folder Explorer.lnk` in the user's Startup folder (`startup.rs`), never a registry
-value; dev builds never create it.
+value; dev builds never create it. The installer's welcome page has a "Bilgisayar açılınca Folder Explorer'ı da
+başlat" checkbox (checked when the shortcut exists or the app never ran, i.e. no `state.json`); after
+installing it runs `--start-with-windows on|off`. Silent / passive installs skip the page and change nothing.
 
 ## Yeni ▸ menu entry
 `shell_new.rs` keeps Windows' New menu in step with `behavior.newMenuEntry` (on by default), on
-every `apply_settings` (start and each settings save; release builds only — a dev build would point
-Windows at `target\debug`). On: `HKCU\Software\Classes\.fegroup` (default `FolderExplorer.Group`)
+every `apply_settings` (start and each settings save; dev builds too: their entry points at
+`target\debug`, and `main.rs` lets a dev build's `--new-group` only hand over to the running app,
+never start one, since its UI needs the dev server). On: `HKCU\Software\Classes\.fegroup` (default `FolderExplorer.Group`)
 with `ShellNew` `Command` = `"<exe>" --new-group`, `MenuText` = "Yeni grup oluştur", `IconPath` = `<exe>,0`, and
 `HKCU\Software\Classes\FolderExplorer.Group` (default = "Yeni grup oluştur" — the text Windows
 shows — plus `DefaultIcon`). Off: both trees are deleted. It writes only when something differs
-(e.g. the exe moved) and then sends `SHChangeNotify(SHCNE_ASSOCCHANGED)` so Explorer rebuilds its
-New menu. The entry appears in Explorer's and Windows 11's Yeni ▸ menu and in Windows' classic
+(e.g. the exe moved) and then sends `SHChangeNotify(SHCNE_ASSOCCHANGED)`. A newly started
+Explorer (sign-in) shows the entry; an Explorer that was already running can keep its New-menu list
+until it restarts. The entry appears in Explorer's and Windows 11's Yeni ▸ menu and in Windows' classic
 menu. The command creates a virtual group; it does not create a .fegroup file.
 
 ## Context menus

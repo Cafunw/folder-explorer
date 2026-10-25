@@ -21,8 +21,14 @@ fn main() {
         folder_explorer_lib::quit_running();
         return;
     }
-    // Windows' Yeni ▸ Folder Explorer grubu: the running desktop makes the group.
-    if args.iter().any(|a| a == "--new-group") && folder_explorer_lib::new_group() {
+    // Windows' Yeni ▸ Folder Explorer grubu: the running desktop makes the group. A dev build never
+    // starts from it: its UI comes from the dev server, so alone it would cover the desktop blank.
+    if args.iter().any(|a| a == "--new-group") && (folder_explorer_lib::new_group() || cfg!(debug_assertions)) {
+        return;
+    }
+    // Installer, after copying the files (the app is not running then): its "start with Windows" choice.
+    if let Some(i) = args.iter().position(|a| a == "--start-with-windows") {
+        folder_explorer_lib::set_start_with_windows(args.get(i + 1).map(String::as_str) == Some("on"));
         return;
     }
     if args.iter().any(|a| a == "--clean-legacy") {

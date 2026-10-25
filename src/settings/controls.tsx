@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { t } from "../i18n";
 
 export const pct = (v: number) => `%${Math.round(v * 100)}`;
@@ -99,39 +99,5 @@ export function AutoColor({
         onChange={(v) => onChange(v === "auto" ? null : (value ?? fallback))}
       />
     </div>
-  );
-}
-
-export function HotkeyInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [listening, setListening] = useState(false);
-  return (
-    <button
-      className="hotkey"
-      data-listening={listening}
-      onClick={() => setListening(true)}
-      onBlur={() => setListening(false)}
-      onKeyDown={(e) => {
-        if (!listening) return;
-        e.preventDefault();
-        if (e.key === "Escape") return setListening(false);
-        const mods: string[] = [];
-        if (e.ctrlKey) mods.push("Ctrl");
-        if (e.altKey) mods.push("Alt");
-        if (e.shiftKey) mods.push("Shift");
-        if (e.metaKey) mods.push("Super");
-        let key = e.code;
-        if (key.startsWith("Key")) key = key.slice(3);
-        else if (key.startsWith("Digit")) key = key.slice(5);
-        else if (key === "Space") key = "Space";
-        else if (!/^F\d{1,2}$/.test(key)) {
-          if (["ControlLeft", "ControlRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight", "MetaLeft", "MetaRight"].includes(key)) return;
-        }
-        if (mods.length === 0) return;
-        onChange([...mods, key].join("+"));
-        setListening(false);
-      }}
-    >
-      {listening ? t.pressKeys : value}
-    </button>
   );
 }

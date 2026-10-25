@@ -1,5 +1,5 @@
 // Theme presets and theme files: patches over the visual settings only.
-// Layout, behaviour, hotkeys, wallpaper, search and performance settings are never touched.
+// Layout, behaviour, wallpaper, search and performance settings are never touched.
 
 import { t } from "./i18n";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./settings";

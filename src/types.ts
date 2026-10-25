@@ -264,7 +264,6 @@ export type Settings = {
   };
   behavior: {
     lockLayout: boolean;
-    searchHotkey: string;
     startWithWindows: boolean;
     showSystemIcons: boolean;
     typeToSearch: boolean;
