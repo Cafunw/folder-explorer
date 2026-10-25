@@ -94,6 +94,13 @@ rule) in `src/desktop/input.ts` (tested):
   has no modifiers, so `key_state` asks Windows). Moves are one undo step (`FileOp move`), copies
   cannot be undone. Internal drags onto a folder always move (undoable) as before.
 
+### Desktop refreshes
+The desktop watcher can fire every second (a download growing on the desktop). A refresh keeps the
+previous item objects (and the items list / itemMap) for items whose data did not change, and skips
+replacing and saving the layout when the reconciled layout equals the current one, so unchanged
+tiles don't re-render and layout.json isn't rewritten; the selection mirror below fires only when
+the selection or the set of item ids changes (`refreshSame.test.ts`).
+
 ### Desktop selection for other tools
 Tools that act on "the files selected on the desktop" (Filee's selection shortcut, preview apps)
 read it from Explorer's desktop view (`IShellWindows::FindWindowSW(SWC_DESKTOP)` → `SelectedItems`).
@@ -215,6 +222,12 @@ events sent to the page:
   says it painted (`reveal_search`, after a rAF + task; fallback 400 ms in Rust, 120 ms in JS).
 * `desktop`: suspended while every monitor is covered (game mode) or the Windows icons are shown
   instead (tray toggle).
+* Every hidden webview gets the memory target Low right after `SetIsVisible(false)` and before any
+  `TrySuspend` (`memory_target`), Normal again on resume: a successful TrySuspend sets Low itself,
+  but a suspended webview ignores the setter, so this keeps memory low when it fails or is skipped.
+* Debug builds never `TrySuspend` (hidden + low memory only): a suspended page loses Vite's HMR
+  websocket, and Vite's client reloads the whole page on resume (`calistir.bat` users would see the
+  desktop restart after every game). Release builds suspend as described.
 
 ### Background threads and idle cost
 | thread | wakes |
@@ -227,7 +240,8 @@ events sent to the page:
 | `fe-live` | only while a live group is on screen: its folders changed (`notify`, non-recursive, 250 ms debounce); ends when the last one is unwatched |
 | wallpaper | `notify` on `%APPDATA%\Microsoft\Windows\Themes` (`Transcoded*` rewritten by every wallpaper change, slideshows and Spotlight included); `WM_SETTINGCHANGE` too. No polling. |
 
-Diagnostics (`diag.rs` → `fe-debug.log`, `src/desktop/diag.ts`) exist in debug / dev builds only;
+Diagnostics (`diag.rs` → `fe-debug.log`, moved to `fe-debug.old.log` at a session's first line once
+it passes 4 MB; `src/desktop/diag.ts`) exist in debug / dev builds only;
 the heavy JS monitors (rAF gap, 50 ms tile check) only with `localStorage["fe.diag"] = "1"`.
 
 ### Frontend cost (rules for contributors)
@@ -416,6 +430,10 @@ buffers, least recently used out first). `OPTIONS` preflights get `Access-Contro
 * `fe://icon?p=<parsingName>&s=<px>&v=<version>` → PNG (IShellItemImageFactory, thumbnails allowed,
   cached by (p,s,v)). `s` is physical px, 16–512. The faint square frame Windows draws around an
   icon without an image that big (Explorer's "extra large icons" look) is cleared (`strip_icon_frame`).
+  `fe://icon` and `fe://thumb` are answered by the STA render thread (the protocol worker only checks
+  the cache and hands the responder over), so a slow shell item, e.g. a shortcut on an offline network
+  drive, can't hold up wallpaper, preview or media requests. At most 1024 renders wait; past that, and
+  on any failure or panic, the answer is 404.
 * `fe://thumb?p=<path>&s=<px>&v=<version>` → large shell thumbnail PNG for Quick Look, `s` 16–1024,
   cached by (p,s,mtime+length). Only allowed roots (below).
 * `fe://preview?p=<path>` → the file itself for Quick Look with a `Content-Type` by extension (images,

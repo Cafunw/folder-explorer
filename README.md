@@ -142,7 +142,9 @@ Gerekenler: Node.js, Rust (MSVC), WebView2 (Windows 11'de hazır gelir). İlk ke
 **Canlı çalıştırma (kurulum gerekmez):** proje klasöründeki `calistir.bat` dosyasına çift tıkla.
 Çalışan Folder Explorer varsa düzgünce kapatır, sonra uygulamayı kaynak koddan başlatır. Arayüz
 kodunu (`src/`) değiştirince uygulama anında yenilenir; Rust kodunu (`src-tauri/`) değiştirince
-kendiliğinden yeniden derlenip açılır (yaklaşık 20 sn). Kapatmak için pencerede Ctrl+C.
+kendiliğinden yeniden derlenip açılır (yaklaşık 20 sn). Gerçek ayarların ve grupların kullanılır;
+oyundan dönünce sayfa baştan yüklenmez. 1420 portunu başka bir program tutuyorsa adını söyleyip durur.
+Kapatmak için pencerede Ctrl+C.
 
 Diğer komutlar:
 
