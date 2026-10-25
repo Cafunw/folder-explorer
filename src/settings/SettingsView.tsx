@@ -1147,10 +1147,12 @@ function BackupSec({ update }: { update: Update }) {
 }
 
 function About() {
+  // `import.meta.env.DEV` is true only under the Vite dev server (calistir.bat), never in an installed build
+  const build = [`${t.version} ${__APP_VERSION__}`, __APP_COMMIT__, import.meta.env.DEV && t.devBuild];
   return (
     <>
       <div className="card">
-        <Row title={t.appName} desc={`${t.version} 0.1.0`} />
+        <Row title={t.appName} desc={build.filter(Boolean).join(" · ")} />
         <div style={{ padding: "0 18px 16px", color: "var(--fg-dim)", lineHeight: 1.55 }}>{t.aboutText}</div>
       </div>
       <button className="btn danger" onClick={() => api.quitApp().catch(() => {})}>

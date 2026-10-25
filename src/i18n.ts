@@ -632,6 +632,7 @@ export const t = {
   importDone: "Düzen içe aktarıldı",
   exportDone: "Düzen dışa aktarıldı",
 
+  devBuild: "geliştirme sürümü",
   aboutText:
     "Folder Explorer, Windows masaüstündeki simgeleri telefondaki gibi birleştirip klasörlemeni sağlar. Klasörler sanaldır: dosyaların diskte yerinden oynamaz.",
   quit: "Folder Explorer'dan çık",
