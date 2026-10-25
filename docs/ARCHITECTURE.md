@@ -94,6 +94,17 @@ rule) in `src/desktop/input.ts` (tested):
   has no modifiers, so `key_state` asks Windows). Moves are one undo step (`FileOp move`), copies
   cannot be undone. Internal drags onto a folder always move (undoable) as before.
 
+### Desktop selection for other tools
+Tools that act on "the files selected on the desktop" (Filee's selection shortcut, preview apps)
+read it from Explorer's desktop view (`IShellWindows::FindWindowSW(SWC_DESKTOP)` → `SelectedItems`).
+So the hidden view keeps our selection: 150 ms after the selection or the item list changes (the
+first load clears what was selected on Windows' own desktop before we started), `store.ts` sends the
+parsing names of the selected items to `mirror_selection`, which selects exactly those in the view
+(`explorer_menu::select_paths`, shared with the item menu; a newer call wins, items not in the view
+such as live-folder entries are skipped). Such tools decide "is this the desktop?" by the window under
+the pointer / in front; ours is owned by Progman (`GA_ROOTOWNER` = Progman), which they can use to
+treat it as the desktop.
+
 ## Windows
 
 | label      | url                         | notes |
@@ -325,6 +336,7 @@ type BackupInfo = { name: string; createdAt: number; size: number };
 | `open_item` | `{ path }` | `()` | `ShellExecuteExW` "open"; system items via `explorer.exe shell:::{CLSID}` |
 | `desktop_context_menu` | `{ at: [x, y] }` | `()` | Explorer displays its actual desktop background context menu at physical screen coordinates. |
 | `item_context_menu` | `{ paths, at }` | `()` | Explorer opens the default desktop-item menu; paths are parsing names, clicked item first. |
+| `mirror_selection` | `{ paths }` | `()` | selects exactly these parsing names in Explorer's hidden desktop view (see *Desktop selection for other tools*) |
 | `classic_menu` | `{ paths, at }` | `string \| null` | Classic native Shell menu for non-desktop live-folder entries; rename/delete return to their undo flow. |
 | `native_menu` | `{ items, at }` | `string \| null` | Native Win32 popup for app-only headings/dividers; returns the selected action ID. |
 | `shell_verb` | `{ paths, verbs }` | `boolean` | runs the first of `verbs` (`pintohome`, `pintohomefile`, `PinToStartScreen`, `Windows.ModernShare`, `empty`, `properties`, `runas`, `opencontaining`…) the item's classic menu offers; false = none |

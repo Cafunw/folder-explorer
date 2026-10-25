@@ -25,6 +25,7 @@ const realApi = {
   openItem: (path: string) => invoke<void>("open_item", { path }),
   desktopContextMenu: (at: [number, number]) => invoke<void>("desktop_context_menu", { at }),
   itemContextMenu: (paths: string[], at: [number, number] | null) => invoke<void>("item_context_menu", { paths, at }),
+  mirrorSelection: (paths: string[]) => invoke<void>("mirror_selection", { paths }),
   nativeMenu: (items: unknown[], at: [number, number] | null) => invoke<string | null>("native_menu", { items, at }),
   classicMenu: (paths: string[], at: [number, number] | null) =>
     invoke<string | null>("classic_menu", { paths, at }),

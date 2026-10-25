@@ -107,6 +107,7 @@ pub fn run() {
             commands::open_item,
             commands::desktop_context_menu,
             commands::item_context_menu,
+            commands::mirror_selection,
             commands::native_menu,
             commands::classic_menu,
             commands::shell_verb,

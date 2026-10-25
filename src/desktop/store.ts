@@ -487,3 +487,17 @@ useDesk.subscribe((s, prev) => {
   const was = !!(prev.panel || prev.dialog);
   if (open !== was) api.raiseDesktop(open).catch(() => {});
 });
+
+// Explorer's hidden desktop view keeps the same selection, so tools that read the desktop's
+// selection (Filee's shortcut, preview apps) get the icons selected here. Item loads count too:
+// the first one clears what was selected on Windows' own desktop before we started.
+let mirrorTimer = 0;
+useDesk.subscribe((s, prev) => {
+  if (s.selection === prev.selection && s.itemMap === prev.itemMap) return;
+  window.clearTimeout(mirrorTimer);
+  mirrorTimer = window.setTimeout(() => {
+    const { selection, itemMap } = get();
+    const paths = [...selection].flatMap((id) => itemMap.get(id)?.parsingName ?? []);
+    api.mirrorSelection(paths).catch(() => {});
+  }, 150);
+});
