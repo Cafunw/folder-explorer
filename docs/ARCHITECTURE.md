@@ -242,7 +242,9 @@ the window's scale factor.)
 Icon / cell size (`settings.grid.autoSize`, on by default) is computed per monitor in
 `cellMetrics` (`src/layout/grid.ts`): the icon gets a physical edge that grows with the screen
 diagonal (`autoIconMm`, ~9 mm on 16"), converted with the monitor's own px/mm from `sizeMm`;
-without EDID it is 40 Windows-logical px at that monitor's scale. When a grid gets more / fewer
+without EDID it is 40 Windows-logical px at that monitor's scale. That cell width is a minimum:
+`computeGrids` spreads the leftover width over the columns, so the last column reaches the right
+edge (no unusable strip there). When a grid gets more / fewer
 cells, `anchorToEdges` keeps right / bottom runs against their edge.
 
 ## Types (TS ⇄ Rust, camelCase JSON)
@@ -386,7 +388,8 @@ are rendered by 3 STA workers (`fe-icon-*`) and kept in a 24 MB byte-bounded LRU
 buffers, least recently used out first). `OPTIONS` preflights get `Access-Control-Allow-Headers: Range`.
 
 * `fe://icon?p=<parsingName>&s=<px>&v=<version>` → PNG (IShellItemImageFactory, thumbnails allowed,
-  cached by (p,s,v)). `s` is physical px, 16–512.
+  cached by (p,s,v)). `s` is physical px, 16–512. The faint square frame Windows draws around an
+  icon without an image that big (Explorer's "extra large icons" look) is cleared (`strip_icon_frame`).
 * `fe://thumb?p=<path>&s=<px>&v=<version>` → large shell thumbnail PNG for Quick Look, `s` 16–1024,
   cached by (p,s,mtime+length). Only allowed roots (below).
 * `fe://preview?p=<path>` → the file itself for Quick Look with a `Content-Type` by extension (images,
