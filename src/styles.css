@@ -12,6 +12,9 @@
   --icon-opacity: 1;
   --sel: var(--accent);
   --marquee-radius: 4px;
+  /* text on the open-group card and its halo: white / black, swapped on the light card (.panel-card) */
+  --panel-fg-rgb: 255, 255, 255;
+  --panel-halo-rgb: 0, 0, 0;
 
   --fg: #f5f5f7;
   --fg-dim: rgba(245, 245, 247, 0.62);
@@ -503,9 +506,9 @@ textarea {
   margin-left: 10px;
   vertical-align: 4px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  border: 1px solid rgba(var(--panel-fg-rgb), 0.28);
+  background: rgba(var(--panel-fg-rgb), 0.14);
+  color: rgb(var(--panel-fg-rgb));
   cursor: pointer;
   opacity: 0.75;
   transition: opacity 120ms, background 120ms;
@@ -513,7 +516,7 @@ textarea {
 
 .panel-edit:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.26);
+  background: rgba(var(--panel-fg-rgb), 0.26);
 }
 
 .panel-inner-title .panel-edit {
@@ -543,25 +546,25 @@ textarea {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.85);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  color: rgba(var(--panel-fg-rgb), 0.85);
+  text-shadow: 0 1px 6px rgba(var(--panel-halo-rgb), 0.5);
 }
 
 .crumb {
   border: none;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(var(--panel-fg-rgb), 0.12);
   border-radius: 999px;
   padding: 3px 10px;
   cursor: pointer;
-  color: #fff;
+  color: rgb(var(--panel-fg-rgb));
 }
 
 .crumb:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(var(--panel-fg-rgb), 0.24);
 }
 
 .crumb[data-current="true"] {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(var(--panel-fg-rgb), 0.3);
   font-weight: 600;
 }
 
@@ -569,9 +572,16 @@ textarea {
   position: absolute;
   background: rgba(var(--glass-rgb), var(--panel-alpha));
   backdrop-filter: blur(var(--panel-blur)) saturate(1.7);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(var(--panel-fg-rgb), 0.16);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+}
+
+/* the card's glass follows the theme (--glass-rgb), so does what is drawn on it; the iOS title
+   and crumbs above the card sit on the dimmed desktop and stay white */
+:root[data-theme="light"] .panel-card {
+  --panel-fg-rgb: 28, 28, 30;
+  --panel-halo-rgb: 255, 255, 255;
 }
 
 .panel-scroll {
@@ -580,14 +590,14 @@ textarea {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  scrollbar-color: rgba(var(--panel-fg-rgb), 0.3) transparent;
 }
 
 .panel-inner-title {
   font-size: 15px;
   font-weight: 600;
-  color: #fff;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  color: rgb(var(--panel-fg-rgb));
+  text-shadow: 0 1px 4px rgba(var(--panel-halo-rgb), 0.4);
   padding: 14px 18px 0;
 }
 
@@ -596,7 +606,7 @@ textarea {
   inset: 0;
   display: grid;
   place-items: center;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(var(--panel-fg-rgb), 0.7);
   font-size: 13px;
   text-align: center;
   padding: 20px;

@@ -1,5 +1,7 @@
 /* ------------------------------------------------------------ fences */
 
+/* white in both themes on purpose: unlike the open panel, a fence's box is never the theme glass
+   but dark glass or the group's own colour (Fence.tsx useBoxStyle), like the group tiles beside it */
 .fence {
   position: absolute;
   overflow: hidden;

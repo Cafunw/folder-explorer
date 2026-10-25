@@ -266,7 +266,7 @@ function PanelCard({
           width: cardW,
           height: cardH,
           backgroundColor: `rgba(var(--glass-rgb), ${pOpacity})`,
-          ...(box.border ? null : { borderColor: `rgba(255, 255, 255, ${0.16 * pEdge})` }),
+          ...(box.border ? null : { borderColor: `rgba(var(--panel-fg-rgb), ${0.16 * pEdge})` }),
           boxShadow: pOpacity > 0.005 ? undefined : "none",
           backdropFilter: pOpacity > 0.005 ? undefined : "none",
           ...groupBoxStyle(box, pOpacity > 0.005 ? "var(--shadow-lg)" : undefined),
