@@ -105,6 +105,7 @@ export const t = {
   renameFailed: "Ad değiştirilemedi",
   renameNeedsAdmin: "Bu öğe yönetici izni istiyor; ad yalnızca Folder Explorer'da değişti",
   operationFailed: "İşlem başarısız oldu",
+  saveFailed: "Değişiklikler kaydedilemedi. Diskte yer ya da yazma izni olup olmadığına bak.",
   layoutLocked: "Düzen kilitli. Kilidi tepsi menüsünden ya da ayarlardan açabilirsin.",
   cantDropIntoItself: "Bir klasör kendi içine taşınamaz",
   restored: "Geri yüklendi",

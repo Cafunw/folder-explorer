@@ -108,17 +108,28 @@ const set = useDesk.setState;
 
 // ---------------------------------------------------------------- persistence
 
+// a failing disk fails every save: tell the user once, again only after a save went through
+let saveFailShown = false;
+function trackSave(what: string, p: Promise<void>) {
+  p.then(
+    () => (saveFailShown = false),
+    (e) => {
+      console.error(what, e);
+      if (!saveFailShown) toast(t.saveFailed, undefined, 10000);
+      saveFailShown = true;
+    },
+  );
+}
+
 let saveTimer: number | undefined;
 function scheduleSave() {
   window.clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => {
-    api.saveLayout(get().layout).catch((e) => console.error("save_layout", e));
-  }, 350);
+  saveTimer = window.setTimeout(() => trackSave("save_layout", api.saveLayout(get().layout)), 350);
 }
 
 export function saveSettings(next: Settings) {
   applySettings(next);
-  api.saveSettings(next).catch((e) => console.error("save_settings", e));
+  trackSave("save_settings", api.saveSettings(next));
 }
 
 // ---------------------------------------------------------------- pending placements for new items
@@ -443,7 +454,7 @@ export async function initDesktop() {
     ready: true,
   });
   scheduleSave();
-  if (firstRun || migrating) api.saveSettings(settings).catch(() => {});
+  if (firstRun || migrating) trackSave("save_settings", api.saveSettings(settings));
   refreshWallpapers();
 }
 
