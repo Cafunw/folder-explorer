@@ -274,4 +274,6 @@ export type Settings = {
     dropOnApp: boolean; // files dropped on an app open with it
     newMenuEntry: boolean; // "Folder Explorer grubu" in Windows' Yeni ▸ menu (per-user registry entry)
   };
+  /** the user's own look (visual settings, see themes.ts) kept when a theme preset replaced it; read through applyThemePatch */
+  customLook: Record<string, unknown> | null;
 };

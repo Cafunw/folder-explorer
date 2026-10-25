@@ -23,7 +23,7 @@ import { api, emitToWindow, mediaUrl, on } from "../api";
 import { t } from "../i18n";
 import { cellMetrics } from "../layout/grid";
 import { ACCENTS, applyTheme, DEFAULT_SETTINGS, FOLDER_COLORS, normalizeSettings, spring } from "../settings";
-import { applyPreset, readThemeFile, applyThemePatch, THEME_PRESETS, themeFile, visualSettings } from "../themes";
+import { applyPreset, choosePreset, customLookSettings, readThemeFile, applyThemePatch, THEME_PRESETS, themeFile, visualSettings } from "../themes";
 import type { BackupInfo, IconShape, MonitorInfo, PersistedState, Settings, WallpaperSpec } from "../types";
 import { AutoColor, Colors, pct, px, Row, Seg, Slider, times, Toggle } from "./controls";
 import { IconSample, MockFolder, PageIndicator, plateRadius, ThemeThumb, WallpaperThumb } from "./previews";
@@ -276,6 +276,7 @@ function ThemesSec({ s, update }: SecProps) {
       return { p, ps, active: JSON.stringify(visualSettings(ps)) === cur };
     });
   }, [s]);
+  const custom = useMemo(() => customLookSettings(s), [s]);
 
   const exportFile = async () => {
     const path = await saveDialog({ defaultPath: "folder-explorer-tema.json", filters: [{ name: "JSON", extensions: ["json"] }] });
@@ -305,7 +306,7 @@ function ThemesSec({ s, update }: SecProps) {
       <p className="small-note">{t.themesDesc}</p>
       <div className="theme-grid">
         {presets.map(({ p, ps, active }) => (
-          <button key={p.id} className="theme-card" data-active={active} onClick={() => update((c) => applyPreset(c, p))}>
+          <button key={p.id} className="theme-card" data-active={active} onClick={() => update((c) => choosePreset(c, p))}>
             <ThemeThumb s={ps} />
             <div className="theme-name">
               {p.name}
@@ -318,6 +319,12 @@ function ThemesSec({ s, update }: SecProps) {
             </div>
           </button>
         ))}
+        {custom && (
+          <button className="theme-card" onClick={() => update((c) => applyThemePatch(c, c.customLook))}>
+            <ThemeThumb s={custom} />
+            <div className="theme-name">{t.themeCustom}</div>
+          </button>
+        )}
       </div>
       <Title>{t.hThemeFile}</Title>
       <div className="card">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./settings";
-import { applyPreset, applyThemePatch, isPresetActive, pickVisual, readThemeFile, THEME_PRESETS, themeFile, visualSettings } from "./themes";
+import { applyPreset, applyThemePatch, choosePreset, customLookSettings, isPresetActive, pickVisual, readThemeFile, THEME_PRESETS, themeFile, visualSettings } from "./themes";
 import type { Settings } from "./types";
 
 /** A user with non-default everything outside the visual groups. */
@@ -73,6 +73,40 @@ describe("theme presets", () => {
   it("the default preset restores the default look", () => {
     const def = THEME_PRESETS.find((p) => p.id === "default")!;
     expect(visualSettings(applyPreset(customized(), def))).toEqual(visualSettings(DEFAULT_SETTINGS));
+  });
+});
+
+describe("custom look", () => {
+  const preset = (id: string) => THEME_PRESETS.find((p) => p.id === id)!;
+  /** customized() with a hand-made look that matches no preset. */
+  const own = () => applyThemePatch(customized(), { accent: "#ff00aa", labels: { color: "#abcdef", size: 15 }, groupBox: { glow: 0.4 } });
+
+  it("choosing a preset over an own look keeps it, and restoring brings it back exactly", () => {
+    const cur = own();
+    expect(THEME_PRESETS.some((p) => isPresetActive(cur, p))).toBe(false);
+    const out = choosePreset(cur, preset("neon"));
+    expect(visualSettings(out)).toEqual(visualSettings(applyPreset(cur, preset("neon"))));
+    expect(out.customLook).toEqual(visualSettings(cur));
+    expect(customLookSettings(out)).not.toBeNull();
+    const back = applyThemePatch(out, out.customLook);
+    expect(visualSettings(back)).toEqual(visualSettings(cur));
+    expect(nonVisual(back)).toEqual(nonVisual(cur));
+    expect(customLookSettings(back)).toBeNull(); // the card hides once the look is back
+  });
+
+  it("choosing a preset over another preset keeps the saved custom look", () => {
+    const saved = choosePreset(own(), preset("glass"));
+    const out = choosePreset(choosePreset(saved, preset("night")), preset("default"));
+    expect(out.customLook).toEqual(saved.customLook);
+  });
+
+  it("a fresh install has no custom look, and junk on disk is dropped", () => {
+    expect(choosePreset(DEFAULT_SETTINGS, preset("glass")).customLook).toBeNull();
+    expect(customLookSettings(DEFAULT_SETTINGS)).toBeNull();
+    expect(normalizeSettings({ customLook: [1] }).customLook).toBeNull();
+    const junk = normalizeSettings({ customLook: { accent: 5, labels: { size: 99 }, behavior: { lockLayout: true } } });
+    expect(applyThemePatch(junk, junk.customLook).labels.size).toBe(18);
+    expect(applyThemePatch(junk, junk.customLook).behavior).toEqual(DEFAULT_SETTINGS.behavior);
   });
 });
 

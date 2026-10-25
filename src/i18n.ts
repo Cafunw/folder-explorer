@@ -589,7 +589,8 @@ export const t = {
   batteryAlways: "Her zaman",
   batteryOff: "Kapalı",
 
-  themesDesc: "Hazır temalar yalnızca görünümü değiştirir; düzen, kısayollar ve davranış ayarları olduğu gibi kalır.",
+  themesDesc:
+    "Hazır temalar yalnızca görünümü değiştirir; düzen, kısayollar ve davranış ayarları olduğu gibi kalır. Hazır tema kendi ayarladığın görünümün yerini alırsa onu \"Özel\" kartından geri getirebilirsin.",
   themeDefault: "Varsayılan",
   themeGlass: "Cam",
   themeNeon: "Neon",
@@ -597,6 +598,7 @@ export const t = {
   themeMac: "macOS",
   themeNight: "Gece",
   themeActive: "Etkin",
+  themeCustom: "Özel (önceki görünümün)",
   hThemeFile: "Tema dosyası",
   exportTheme: "Dışa aktar…",
   exportThemeDesc: "Görünüm ayarlarını bir JSON dosyasına kaydeder",
