@@ -96,6 +96,7 @@ export const mockEnv = (): Environment => {
     desktopDir: "C:\\Users\\demo\\Desktop",
     publicDesktopDir: "C:\\Users\\Public\\Desktop",
     isDev: true,
+    windowsIconSize: 48,
   };
 };
 

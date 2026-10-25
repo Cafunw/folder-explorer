@@ -381,7 +381,7 @@ export const t = {
   wpAngle: "Açı",
 
   autoSize: "Otomatik boyut",
-  autoSizeDesc: "Simgeler her monitörün inç ölçüsüne ve çözünürlüğüne göre boyutlanır",
+  autoSizeDesc: "Simgeler Windows masaüstündeki boyutla aynı olur (Görünüm ▸ Küçük / Orta / Büyük)",
   iconSize: "Simge boyutu",
   cellWidth: "Yatay aralık",
   cellHeight: "Dikey aralık",

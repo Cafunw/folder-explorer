@@ -8,7 +8,6 @@ export type MonitorInfo = {
   bounds: Rect;
   work: Rect;
   scale: number;
-  sizeMm?: { width: number; height: number } | null; // physical size (EDID); null when unknown
 };
 
 export type Environment = {
@@ -18,6 +17,7 @@ export type Environment = {
   desktopDir: string;
   publicDesktopDir: string;
   isDev: boolean;
+  windowsIconSize: number; // Windows' own desktop icon size, logical px (View ▸ Small 32 / Medium 48 / Large 96)
 };
 
 /** Quiet modes (`quiet-changed` / `get_quiet`): game = a fullscreen app covers a monitor. */

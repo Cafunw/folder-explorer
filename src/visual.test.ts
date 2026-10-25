@@ -221,17 +221,16 @@ describe("label size and the grid", () => {
     bounds: { x: 0, y: 0, width: 1920, height: 1080 },
     work: { x: 0, y: 0, width: 1920, height: 1032 },
     scale: 1.25,
-    sizeMm: { width: 344, height: 194 },
   };
 
   it("bigger labels make taller and wider cells", () => {
-    const base = cellMetrics(laptop, 1.25, DEFAULT_SETTINGS);
-    const big = cellMetrics(laptop, 1.25, normalizeSettings({ labels: { size: 16 } }));
+    const base = cellMetrics(laptop, 1.25, DEFAULT_SETTINGS, 48);
+    const big = cellMetrics(laptop, 1.25, normalizeSettings({ labels: { size: 16 } }), 48);
     expect(big.iconSize).toBe(base.iconSize);
     expect(big.cellH - base.cellH).toBe(Math.round(2 * 4 * 1.28));
-    expect(base.cellW).toBe(76);
+    expect(base.cellW).toBe(78);
     expect(big.cellW).toBe(101);
-    const small = cellMetrics(laptop, 1.25, normalizeSettings({ labels: { size: 10 } }));
-    expect(small.cellW).toBe(76);
+    const small = cellMetrics(laptop, 1.25, normalizeSettings({ labels: { size: 10 } }), 48);
+    expect(small.cellW).toBe(78);
   });
 });

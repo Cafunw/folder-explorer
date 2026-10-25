@@ -32,6 +32,7 @@ const env: Environment = {
   ],
   windowOrigin: { x: 0, y: 0 },
   scaleFactor: 1,
+  windowsIconSize: 48,
   desktopDir: "C:\\Users\\u\\Desktop",
   publicDesktopDir: "C:\\Users\\Public\\Desktop",
   isDev: true,

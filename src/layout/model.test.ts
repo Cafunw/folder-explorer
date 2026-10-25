@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DesktopItem, Environment, Layout, MonitorInfo, Placement } from "../types";
 import { DEFAULT_SETTINGS } from "../settings";
-import { autoIconMm, cellMetrics, computeGrids, coveredKeys, placementKey, spanInBounds, type GridMap } from "./grid";
+import { cellMetrics, computeGrids, coveredKeys, placementKey, spanInBounds, type GridMap } from "./grid";
 import { createFenceAt } from "./blocks";
 import {
   acceptsDrops,
@@ -56,6 +56,8 @@ const env: Environment = {
   ],
   windowOrigin: { x: 0, y: 0 },
   scaleFactor: 1,
+  // 40 px icons: the 13-column grid the layout tests below were written for
+  windowsIconSize: 40,
   desktopDir: "C:\\Users\\u\\Desktop",
   publicDesktopDir: "C:\\Users\\Public\\Desktop",
   isDev: true,
@@ -101,63 +103,52 @@ describe("grid", () => {
     bounds: { x: 0, y: 0, width: 1920, height: 1200 },
     work: { x: 0, y: 0, width: 1920, height: 1140 },
     scale: 1.25,
-    sizeMm: { width: 344, height: 215 },
   };
 
   it("fits cells into the work area", () => {
-    const min = cellMetrics(env.monitors[0], 1, DEFAULT_SETTINGS).cellW;
+    const min = cellMetrics(env.monitors[0], 1, DEFAULT_SETTINGS, env.windowsIconSize).cellW;
     expect(g.cols).toBe(Math.floor((1000 - 6) / min));
     expect(g.rows).toBeGreaterThan(3);
   });
 
   it("stretches the columns so the last one reaches the right edge", () => {
-    expect(g.cellW).toBeGreaterThanOrEqual(cellMetrics(env.monitors[0], 1, DEFAULT_SETTINGS).cellW);
+    expect(g.cellW).toBeGreaterThanOrEqual(cellMetrics(env.monitors[0], 1, DEFAULT_SETTINGS, env.windowsIconSize).cellW);
     expect(g.originX + g.cols * g.cellW).toBeCloseTo(g.workLeft + g.workWidth - 3);
   });
 
   it("uses the manual sizes when automatic size is off", () => {
-    expect(cellMetrics(laptop, 1.25, manual)).toEqual({ iconSize: 48, cellW: 84, cellH: 96 });
+    expect(cellMetrics(laptop, 1.25, manual, 96)).toEqual({ iconSize: 48, cellW: 84, cellH: 96 });
   });
 
-  it("sizes icons from the physical screen size", () => {
-    // ~8.9 mm on a 16" panel = 50 physical px = 40 css px at 125 %
-    expect(cellMetrics(laptop, 1.25, DEFAULT_SETTINGS)).toEqual({ iconSize: 40, cellW: 76, cellH: 88 });
-    // same panel at 4K: same physical size, twice the pixels
-    const sharp = { ...laptop, bounds: { ...laptop.bounds, width: 3840, height: 2400 }, scale: 2.5 };
-    expect(cellMetrics(sharp, 2.5, DEFAULT_SETTINGS).iconSize).toBe(40);
+  it("uses Windows' own desktop icon size", () => {
+    // View ▸ Medium on a 125 % laptop: 48 logical px, as on Windows' desktop
+    expect(cellMetrics(laptop, 1.25, DEFAULT_SETTINGS, 48)).toEqual({ iconSize: 48, cellW: 78, cellH: 96 });
+    expect(cellMetrics(laptop, 1.25, DEFAULT_SETTINGS, 96).iconSize).toBe(96);
+    expect(cellMetrics(laptop, 1.25, DEFAULT_SETTINGS, 0).iconSize).toBe(16);
   });
 
-  it("follows Windows' scaling when the physical size is unknown, per monitor", () => {
-    const noEdid = { ...laptop, sizeMm: null };
-    expect(cellMetrics(noEdid, 1.25, DEFAULT_SETTINGS).iconSize).toBe(40);
-    // a 150 % monitor next to a 125 % window: 40 logical px there = 48 css px of our window
-    expect(cellMetrics({ ...noEdid, scale: 1.5 }, 1.25, DEFAULT_SETTINGS).iconSize).toBe(48);
-  });
-
-  it("grows icons with the screen, within limits", () => {
-    expect(autoIconMm(13)).toBeLessThan(autoIconMm(16));
-    expect(autoIconMm(16)).toBeLessThan(autoIconMm(24));
-    expect(autoIconMm(6)).toBe(7.5);
-    expect(autoIconMm(80)).toBe(13);
+  it("scales Windows' icon size per monitor", () => {
+    // a 150 % monitor next to a 125 % window: 48 logical px there = 58 css px of our window
+    expect(cellMetrics({ ...laptop, scale: 1.5 }, 1.25, DEFAULT_SETTINGS, 48).iconSize).toBe(58);
   });
 
   it("leaves room for the chosen label lines", () => {
     const three = { ...DEFAULT_SETTINGS, grid: { ...DEFAULT_SETTINGS.grid, labelLines: 3 as const } };
     const none = { ...DEFAULT_SETTINGS, grid: { ...DEFAULT_SETTINGS.grid, labels: false } };
-    expect(cellMetrics(laptop, 1.25, three).cellH).toBeGreaterThan(88);
-    expect(cellMetrics(laptop, 1.25, none).cellH).toBe(50);
+    expect(cellMetrics(laptop, 1.25, three, 48).cellH).toBeGreaterThan(96);
+    expect(cellMetrics(laptop, 1.25, none, 48).cellH).toBe(58);
   });
 
   it("scales icons for View ▸ Large / Small icons", () => {
     const at = (iconScale: number, autoSize = true) => ({ ...DEFAULT_SETTINGS, grid: { ...DEFAULT_SETTINGS.grid, iconScale, autoSize } });
-    expect(cellMetrics(laptop, 1.25, at(2)).iconSize).toBe(80);
-    expect(cellMetrics(laptop, 1.25, at(0.67)).iconSize).toBe(27);
-    expect(cellMetrics(laptop, 1.25, at(0.67)).cellW).toBe(76);
-    const big = cellMetrics(laptop, 1.25, at(2, false));
+    expect(cellMetrics(laptop, 1.25, at(2), 48).iconSize).toBe(96);
+    expect(cellMetrics(laptop, 1.25, at(0.67), 48).iconSize).toBe(32);
+    expect(cellMetrics(laptop, 1.25, at(0.67), 48).cellW).toBe(76);
+    const big = cellMetrics(laptop, 1.25, at(2, false), 48);
     expect(big.iconSize).toBe(96);
     expect(big.cellW).toBeGreaterThanOrEqual(126);
     expect(big.cellH).toBeGreaterThan(96);
-    expect(cellMetrics(laptop, 1.25, at(0.67, false))).toEqual({ iconSize: 32, cellW: 84, cellH: 96 });
+    expect(cellMetrics(laptop, 1.25, at(0.67, false), 48)).toEqual({ iconSize: 32, cellW: 84, cellH: 96 });
   });
 });
 

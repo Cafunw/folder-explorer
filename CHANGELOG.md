@@ -24,6 +24,7 @@ Kullanıcının fark edeceği değişiklikler. Kurulu sürümün numarası ve de
 - Özelleştirme pencereleri kaydedilmemiş değişiklikleri atmadan önce sorar.
 - Izgara ekranın sağ kenarına kadar uzanır; bazı simgelerin (çoğu Steam oyunu) çevresindeki soluk çerçeve kalktı.
 - Açık grup panelindeki yazılar açık temaya uyar.
+- Otomatik simge boyutu artık Windows masaüstündeki boyutla aynı (Görünüm ▸ Küçük / Orta / Büyük); simgeler Windows'takinden küçük ve bulanık görünmez.
 
 ### Düzeltmeler
 

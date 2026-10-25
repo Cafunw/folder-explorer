@@ -284,9 +284,10 @@ come from `get_environment`. (Mixed-DPI multi-monitor setups are approximated wi
 the window's scale factor.)
 
 Icon / cell size (`settings.grid.autoSize`, on by default) is computed per monitor in
-`cellMetrics` (`src/layout/grid.ts`): the icon gets a physical edge that grows with the screen
-diagonal (`autoIconMm`, ~9 mm on 16"), converted with the monitor's own px/mm from `sizeMm`;
-without EDID it is 40 Windows-logical px at that monitor's scale. That cell width is a minimum:
+`cellMetrics` (`src/layout/grid.ts`): the icon is the size Windows' own desktop shows,
+`windowsIconSize` (`HKCU\Software\Microsoft\Windows\Shell\Bags\1\Desktop\IconSize`, read only;
+View ▸ Small 32 / Medium 48 / Large 96, absent = 48) logical px at that monitor's scale, so the
+icon image is requested and drawn at the size Windows uses. That cell width is a minimum:
 `computeGrids` spreads the leftover width over the columns, so the last column reaches the right
 edge (no unusable strip there). When a grid gets more / fewer
 cells, `anchorToEdges` keeps right / bottom runs against their edge.
@@ -302,7 +303,6 @@ type MonitorInfo = {
   bounds: Rect;          // physical, screen coords
   work: Rect;            // physical, screen coords (excludes taskbar)
   scale: number;         // monitor DPI / 96
-  sizeMm: { width: number; height: number } | null; // physical size from EDID (read-only registry), null if unknown
 };
 
 type Environment = {
@@ -312,6 +312,7 @@ type Environment = {
   desktopDir: string;
   publicDesktopDir: string;
   isDev: boolean;
+  windowsIconSize: number;                // Windows' desktop icon size, logical px (see Coordinates)
 };
 
 type DesktopItem = {
