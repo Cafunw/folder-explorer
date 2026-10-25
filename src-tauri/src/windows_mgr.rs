@@ -15,8 +15,8 @@ use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORIN
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
-    ICoreWebView2Controller, ICoreWebView2_19, ICoreWebView2_3, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
-    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+    ICoreWebView2Controller, ICoreWebView2_19, ICoreWebView2_3, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL,
+    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
 };
 
 use crate::{desktop_window, quiet, store, util};
@@ -56,7 +56,7 @@ fn effects(effect: Effect) -> WindowEffectsConfig {
 enum Rest {
     /// IsVisible false + memory target low
     Light,
-    /// IsVisible false + TrySuspend (script and timers stop too)
+    /// IsVisible false + memory target low + TrySuspend (script and timers stop too)
     Suspend,
 }
 
@@ -95,6 +95,16 @@ fn set_webview_active(app: &AppHandle, label: &str, active: bool, rest: Rest) {
     });
 }
 
+/// Low whenever hidden: TrySuspend sets it too, but it may fail or be skipped, and a suspended
+/// webview ignores the setter, so it is set first.
+fn memory_target(active: bool) -> COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL {
+    if active {
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+    } else {
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+    }
+}
+
 unsafe fn apply_active(c: &ICoreWebView2Controller, active: bool, rest: Rest) {
     use windows::core::{Interface, BOOL};
     let wv = c.CoreWebView2().ok();
@@ -109,16 +119,15 @@ unsafe fn apply_active(c: &ICoreWebView2Controller, active: bool, rest: Rest) {
         }
         let _ = c.SetIsVisible(true);
         if let Some(v19) = &v19 {
-            let _ = v19.SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL);
+            let _ = v19.SetMemoryUsageTargetLevel(memory_target(true));
         }
     } else {
         let _ = c.SetIsVisible(false);
+        if let Some(v19) = &v19 {
+            let _ = v19.SetMemoryUsageTargetLevel(memory_target(false));
+        }
         match rest {
-            Rest::Light => {
-                if let Some(v19) = &v19 {
-                    let _ = v19.SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW);
-                }
-            }
+            Rest::Light => {}
             Rest::Suspend => {
                 if let Some(v3) = &v3 {
                     let done = webview2_com::TrySuspendCompletedHandler::create(Box::new(|_, _| Ok(())));
@@ -409,4 +418,15 @@ pub fn apply_settings(app: &AppHandle, settings: &serde_json::Value) {
     // a dev build points the entry at target\debug: fine, the click only reaches the running app (main.rs)
     let entry = settings.pointer("/behavior/newMenuEntry").and_then(|v| v.as_bool()).unwrap_or(true);
     std::thread::spawn(move || crate::shell_new::sync(entry));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hidden_webviews_aim_for_low_memory() {
+        assert_eq!(memory_target(false), COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW);
+        assert_eq!(memory_target(true), COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL);
+    }
 }
