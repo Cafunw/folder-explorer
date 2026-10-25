@@ -122,9 +122,11 @@ treat it as the desktop.
   (Win+D, "Show desktop") Windows lifts it for a moment; without ownership it went over our window and covered every icon for a frame
   (a visible blink on each click). Ownership is a property of OUR window only; nothing in Explorer is
   changed. It is re-applied by the keep-alive and after `TaskbarCreated`. Because an owned window is destroyed
-  with its owner, an Explorer restart destroys the desktop window; the app then starts a fresh copy
-  (`--delayed-start 4`, only when it had run for 20 s, never when it is closing on purpose: tray, installer,
-  log-off).
+  with its owner, an Explorer restart destroys the desktop window; the app then restores the Windows
+  icons, starts a fresh copy (`--delayed-start 4 --autostart`, only when it had run for 20 s since its
+  desktop window was created — `should_restart` — never when it is closing on purpose: tray,
+  installer, log-off) and exits, so a hidden search or settings window cannot keep the old process
+  alive and swallow the new copy's launch (single-instance).
 * An event-driven guard fixes both directions of drift (`misplaced` → `place_bottom`): Progman
   above us (Win+D / "Show desktop" lifts it) and a visible, non-minimized window between us and
   Progman (we drifted over app windows). It also re-shows us if we were hidden or minimized.
@@ -160,7 +162,9 @@ treat it as the desktop.
   an Explorer restart/reboot always brings icons back). Hidden again at once when Explorer shows it
   (`EVENT_OBJECT_SHOW` hook on Explorer's process), by the keep-alive and after `TaskbarCreated`
   (Explorer restart).
-* Restored on quit, panic, console Ctrl+C, `WM_ENDSESSION`, and by a watchdog
+* Restored on quit, a panic on the main (event-loop) thread — which ends the app; panics in command
+  or STA worker threads are caught and become errors, so the icons stay hidden (`panic_ends_app`) —,
+  console Ctrl+C, `WM_ENDSESSION`, and by a watchdog
   (`folder-explorer.exe --watchdog <pid>`) that waits for the app to exit and then shows the icons
   again. It is started through `--watchdog-launch <pid>`, which exits at once, so the watchdog is not
   a child of the app and survives "kill the process tree" (Task Manager, a dev tool stopping
@@ -351,8 +355,8 @@ type BackupInfo = { name: string; createdAt: number; size: number };
 | `show_properties` / `run_as_admin` | `{ path }` | `()` | `SHObjectProperties` / `ShellExecuteEx` verb `runas` |
 | `recycle` | `{ paths }` | `()` | IFileOperation + FOFX_RECYCLEONDELETE / FOF_ALLOWUNDO |
 | `restore_from_recycle` | `{ paths }` | `string[]` | restores the most recently deleted entries with these original paths ("undelete" verb); returns restored paths |
-| `rename_item` | `{ path, newName }` | `string` (new path) | `newName` is a display name; keeps a hidden extension (.lnk, known types) |
-| `move_into_folder` | `{ paths, targetDir }` | `()` | real move via IFileOperation (shows Windows conflict UI) |
+| `rename_item` | `{ path, newName, exact? }` | `string` (new path) | `newName` is a display name and keeps a hidden extension (.lnk, known types), unless `exact`: then it is the whole file name (undo / redo replay recorded names) |
+| `move_into_folder` | `{ paths, targetDir }` | `(string \| null)[]` | real move via IFileOperation (shows Windows conflict UI); each source's real new path from an `IFileOperationProgressSink` (`x (2)` after "Keep both"), `null` where it was skipped or cancelled |
 | `copy_into_folder` | `{ paths, targetDir }` | `()` | the same as a copy (external files dropped into a real folder from another volume / with Ctrl) |
 | `import_dropped` | `{ paths, copy?: boolean }` | `string[]` | copy/move external files into the user desktop (default like Explorer: same drive moves, other drive copies; name collisions get a new name); returns the real new paths. Files already on a desktop are returned unchanged. |
 | `start_drag_out` | `{ paths }` | `string` | native OLE drag (`SHDoDragDrop`), call while the mouse button is down; returns `"copy" \| "move" \| "link" \| "none"` |
@@ -373,11 +377,11 @@ type BackupInfo = { name: string; createdAt: number; size: number };
 | `create_url_shortcut` | `{ url, name }` | `string` | `.url` file on the user desktop |
 | `get_wallpapers` | – | `WallpaperInfo[]` | IDesktopWallpaper, on demand |
 | `get_quiet` | – | `Quiet` | game / battery quiet state (same as `quiet-changed`) |
-| `load_state` | – | `PersistedState` | `%APPDATA%\Folder Explorer\state.json` |
-| `save_layout` | `{ layout }` | `()` | atomic write (temp + rename), debounced by the UI |
+| `load_state` | – | `PersistedState` | `%APPDATA%\Folder Explorer\state.json`; one that doesn't parse is kept as `state.corrupt-<ms>.json` and the newest valid backup is loaded (and written back) instead |
+| `save_layout` | `{ layout }` | `()` | atomic write (temp flushed with `sync_all`, then renamed), debounced by the UI; a failure shows one toast (`saveFailed`) until a save works again |
 | `save_settings` | `{ settings }` | `()` | persists, emits `settings-changed` to all windows, applies `settings.behavior.lockLayout` to the tray check item |
-| `list_backups` / `restore_backup` | `{ name }` | `BackupInfo[]` / `PersistedState` | backups in `…\backups\`, keep 10; one on startup and at most every 15 min while changed |
-| `export_state` / `import_state` | `{ path }` | `()` / `PersistedState` | |
+| `list_backups` / `restore_backup` | `{ name }` | `BackupInfo[]` / `PersistedState` | backups in `…\backups\`, keep 10; on startup and at most every 15 min while changed, but only when the state is not empty and differs from the newest backup; a backup with neither half is refused |
+| `export_state` / `import_state` | `{ path }` | `()` / `PersistedState` | a file with only a layout or only settings keeps the current other half |
 | `import_media` | `{ path, kind: "icon" \| "wallpaper" }` | `string` | copies into `…\media\`, returns stored path |
 | `import_icon_pack` | `{ dir }` | `{ name, map }` | copies the PNG / ICO / SVG files of `dir` (subfolders up to 4 deep, max 2000 icons, ≤ 8 MB each) into `…\media\iconpacks\<folder name>\`; `name` = the folder's name, `map` = lowercased file stem → stored path (one file per stem: SVG first, else the biggest). Built in a staging folder, then replaces an earlier pack of the same name. The UI stores it as `settings.icons.pack`; "Kaldır" only clears the setting. |
 | `export_theme` / `import_theme` | `{ path, theme }` / `{ path }` | `()` / `object` | writes / reads a theme JSON file (path from the dialog plugin, like `export_state`); import rejects non-objects and files > 4 MB. Merging is done by `src/themes.ts`. |
@@ -496,6 +500,11 @@ and special kinds always stay; reconciliation (files gone outside the app) remov
 An action that waits for a file operation (recycle, move into a folder, rename) builds the layout
 it commits from `get().layout` *after* the wait, never from a copy taken before it: the Recycle Bin
 can take seconds, and a move made meanwhile would otherwise be undone (`deleteRace.test.ts`).
+Undo / redo run the file operation first (`step` in `store.ts`): a change committed in the meantime
+keeps the screen and the top of the undo stack, and a failed file operation leaves its entry where it
+was. A move records only the files that really moved, with their real paths. Each toast's "Geri al"
+undoes its own entry (`undoEntry`), only while nothing newer is above it; toasts stay while hovered
+(`history.test.ts`, `moveToDir.test.ts`, `renameUndo.test.ts`).
 
 Layout logic lives in `src/layout/model.ts` (geometry, operations, `reconcile`) and
 `src/layout/smart.ts` (group kinds), both pure and unit-tested:
