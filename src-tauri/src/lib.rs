@@ -88,10 +88,19 @@ pub fn selftest(args: &[String]) {
     selftest::run(args);
 }
 
+/// A panic on the main thread (Tauri's event loop) ends the app; one on a worker thread is caught
+/// (spawn_blocking, run_sta) and becomes an error, so the Windows icons must stay hidden. A worker
+/// panic that aborts the process is covered by the watchdog.
+fn panic_ends_app(thread_name: Option<&str>) -> bool {
+    thread_name == Some("main")
+}
+
 pub fn run() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        desktop_window::restore_icons();
+        if panic_ends_app(std::thread::current().name()) {
+            desktop_window::restore_icons();
+        }
         default_hook(info);
     }));
 
@@ -224,4 +233,17 @@ pub fn run() {
         RunEvent::Exit => desktop_window::restore_icons(),
         _ => {}
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_main_thread_panic_restores_the_icons() {
+        assert!(panic_ends_app(Some("main")));
+        assert!(!panic_ends_app(Some("fe-sta")));
+        assert!(!panic_ends_app(Some("tokio-runtime-worker")));
+        assert!(!panic_ends_app(None));
+    }
 }
