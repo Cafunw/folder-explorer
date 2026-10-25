@@ -171,6 +171,14 @@ treat it as the desktop.
   again. It is started through `--watchdog-launch <pid>`, which exits at once, so the watchdog is not
   a child of the app and survives "kill the process tree" (Task Manager, a dev tool stopping
   `tauri dev`). `main()` handles both flags before Tauri starts.
+* Restoring respects Windows' own "Masaüstü simgelerini göster": when
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\HideIcons` is 1 the icon list
+  stays hidden (`show_icons_on_restore`, read only; the app never writes it), so Explorer's
+  checkmark stays right.
+* WebView2 crash (`watch_crashes`, a `ProcessFailed` handler on the desktop webview): a renderer
+  that exits or hangs is reloaded, at most 3 times a minute (`recovery_for`); when the browser
+  process dies or reloads keep failing, the Windows icons are restored and a fresh copy is started
+  like after an Explorer restart (`restart_and_exit`, not within the first 20 s).
 * Before hiding for the first time, the current Windows icon positions are captured via
   `IShellWindows::FindWindowSW(CSIDL_DESKTOP)` → `IFolderView::GetItemPosition` (+ `GetSpacing`).
 
@@ -349,7 +357,7 @@ type BackupInfo = { name: string; createdAt: number; size: number };
 | `new_item` | `{ id }` | `()` | an entry of Windows' New ▸ list (`menu-extra.newItems`), on the desktop |
 | `open_with` | `{ paths, index }` | `()` | Open with ▸ app `index` (`menu-extra.openWith`), `null` = Windows' "Başka bir uygulama seçin" dialog |
 | `open_verb` | `{ path, verbs }` | `()` | `ShellExecuteEx` with the first verb that works (`opennewtab`, `opennewwindow`) |
-| `open_terminal` | `{ dir }` | `()` | Windows Terminal (`wt.exe -d`) in `dir`, else cmd |
+| `open_terminal` | `{ dir }` | `()` | Windows Terminal (`wt.exe -d .`), else cmd, with `dir` only as the process working directory, never on a command line: wt splits at `;` and cmd expands `%VAR%`, so a folder name could start a program (`terminal_commands`) |
 | `compress` | `{ paths, format: "zip" \| "7z" \| "tar" }` | `string` | "Şuna sıkıştır…": an archive next to the first item, via Windows' own libarchive (`archiveint.dll`, UTF-8 names); returns its path |
 | `paste_files` | `{ shortcuts?: boolean }` | `string[]` | Paste / Paste shortcut onto the desktop from the clipboard (`CF_HDROP` + `Preferred DropEffect`), through `IFileOperation` |
 | `clipboard_files` | `{ paths, cut }` | `()` | Explorer's Copy / Cut: the shell data object on the clipboard (`OleSetClipboard` + flush; cut adds `Preferred DropEffect` = move). No shell extensions, so instant. |
@@ -435,7 +443,7 @@ buffers, least recently used out first). `OPTIONS` preflights get `Access-Contro
 | `menu-extra` | `{ key, verbs?, newItems?, openWith? }` | to `menu`: what the shell offers for the open menu (`key` = `menuKey(paths)`) |
 | `search-open` | `{ initial: string }` | to the search window |
 | `open-virtual-folder` | `{ folderId: string }` | from search to the desktop window (desktop also gets raised) |
-| `tray-action` | `{ action: "toggle-lock" | "add-app" | "new-group" }` | `add-app` / `new-group` also raise the desktop window (tray menu) |\| "add-app" \| "new-group" }` | `add-app` / `new-group` also raise the desktop window |
+| `tray-action` | `{ action: "toggle-lock" \| "add-app" \| "new-group" \| <menu-action id> }` | from the tray menu: `add-app` / `new-group` raise the desktop window; the Yeni ▸ submenu (Grup, Akıllı grup, Canlı klasör, En çok kullanılanlar, Kutu, Başlık, Ayraç) and Simgeleri düzenle send the desktop's menu-action ids, which DesktopView passes to `runMenuAction` with no cell (first free spot) |
 
 Between windows (JS → JS, `emitTo`): `item-opened` (`{ id }`, search → desktop: an item was opened,
 counts for frequent groups), `menu-action` (`MenuPick`, menu → desktop; the search window's command
@@ -609,7 +617,10 @@ Group kinds / displays in the UI (`src/desktop/`):
   `labels`, `groupBox`, `selection`, `pageIndicator`, `animation` (openStyle, pageTransition,
   hover). Presets (Varsayılan, Cam, Neon, Minimal, macOS, Gece) are patches over Varsayılan, so
   switching never leaves leftovers; an imported file is patched over the current settings. Both go
-  through `pickVisual` (only these keys, right types) and `normalizeSettings`. Theme file:
+  through `pickVisual` (only these keys, right types) and `normalizeSettings`. When a preset
+  replaces a look that matches no preset, that look is kept in `settings.customLook`
+  (`choosePreset`); an "Özel (önceki görünümün)" card restores it while it differs from the current
+  look (`customLookSettings`; only the last one is kept). Theme file:
   `{ "format": "folder-explorer-theme", "version": 1, "settings": <visual settings> }`; a full
   `export_state` file is accepted too (its visual settings are used).
 * Settings window (`src/settings/`): `SettingsView.tsx` (sections, rendered only when open),
@@ -619,7 +630,10 @@ Group kinds / displays in the UI (`src/desktop/`):
   The previews and the desktop share the CSS helpers in `src/settings.ts` (`plateRadius`,
   `plateColor`, `fontStack`, `labelShadow`, `groupTileStyle`), so they look the same.
 * Visual settings on the desktop are CSS, set once per settings change by `applyTheme`
-  (`src/settings.ts`); memoized tiles do not re-render for them:
+  (`src/settings.ts`); memoized tiles do not re-render for them. Text on the open-group card
+  follows the theme through `--panel-fg-rgb` / `--panel-halo-rgb` (dark inside `.panel-card` in the
+  light theme); the iOS title and crumbs above the card, and fences, stay white because their
+  background never follows the theme:
   * `:root[data-plate="circle|squircle|square|teardrop"]` (absent = none) + `--plate-bg`,
     `--plate-radius`, `--plate-pad` style `.item-plate`, the wrapper `ItemImage` draws with `plate`
     (desktop / panel / fence tiles and the drag ghost; not the mini previews inside group tiles).
@@ -720,11 +734,12 @@ Group kinds / displays in the UI (`src/desktop/`):
     top, ≤ 2.5 cells: `rowNeighbours`) is measured once, then `magnifyScale` (cosine fall-off, 1.3 →
     1 at 2 cells) per neighbour on pointer moves. Nothing runs while the pointer is still.
   * **Edit mode** (`Jiggle.tsx`, `useJiggle`): desktop menu "Simgeleri düzenle" (`editicons`),
-    the palette, or a 600 ms press on an icon without moving (`armLongPress`; that release does not
-    open the group, `takeLongPress`). `:root[data-jiggle="wiggle" | "still"]` (still with reduced
+    the palette, the tray, or a 600 ms press on an icon without moving (`armLongPress`, unless
+    `behavior.longPressEdit` is off; that release does not open the group, `takeLongPress`). `:root[data-jiggle="wiggle" | "still"]` (still with reduced
     motion / quiet); tiles get `data-wiggle` + a per-id phase (`jigglePhase` → `--jd` / `--jt`) for a
     CSS `rotate` keyframe that only exists while the mode is on. A badge per item (`JiggleBadge`): ×
-    on files = `deleteIds` (Recycle Bin + undo toast), − on groups (dissolve) / fences / headings;
+    on files asks first (`confirmRecycle` dialog, then `deleteIds`: Recycle Bin + undo toast), − on
+    groups (dissolve) / fences / headings at once (undoable);
     none on system icons. Drags start after 2 px, double-click does not launch files (groups still
     open on click, iOS-like). Esc (when no panel / dialog), a press on the empty desktop or "Bitti"
     (`JiggleDone`, top of each monitor) ends it; `behavior.lockLayout` refuses it (toast) and ends it.
@@ -806,7 +821,12 @@ menu. The command creates a virtual group; it does not create a .fegroup file.
   it is under **Show more options ▸ New**). It runs `--new-group`, which signals
   the running app or launches it, waits for desktop initialization, and creates/edits a virtual
   group. The same entry works from Explorer; no physical .fegroup file is created.
-* **Virtual groups/fences:** their existing settings dialog; they have no underlying Shell item.
+* **Virtual groups/fences:** an OS-rendered popup from `groupMenu` (`src/menu/model.ts`) through
+  `native_menu`, like headings: Aç (fences: Daralt / Genişlet), Yeniden adlandır, Ayarlar… (the
+  settings dialog), Klasörü dağıt, İçindekilerle birlikte sil. They have no underlying Shell item.
+* **Customize dialogs** (Klasörü düzenle, Özelleştir) remember what they were opened with; closing
+  them with unsaved changes (backdrop click or Esc) shows an inline Kaydet / Kaydetme / Vazgeç row
+  (`unsaved.ts`). While any dialog is open, Esc is handled at window level, wherever the focus is.
 * **Headings/dividers:** `native_menu` renders Edit, Align, Style, Underline and Delete using
   Win32 menus, with the current radio/check states; it never includes desktop Shell entries.
 * Custom creation commands (smart/live/frequent group, fence, heading, divider) and icon edit
