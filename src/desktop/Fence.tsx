@@ -171,6 +171,8 @@ function Fence({ id, g, pl, moving }: { id: string; g: GridInfo; pl: Placement; 
             className="fence-btn fence-fold"
             data-collapsed={collapsed}
             title={collapsed ? t.fence.expand : t.fence.collapse}
+            aria-label={collapsed ? t.fence.expand : t.fence.collapse}
+            aria-expanded={!collapsed}
             onPointerDown={stop}
             onClick={() => commit(setCollapsed(useDesk.getState().layout, id, !collapsed))}
           >
@@ -178,7 +180,7 @@ function Fence({ id, g, pl, moving }: { id: string; g: GridInfo; pl: Placement; 
           </button>
           {renaming ? <TitleEditor id={id} name={folder.name} /> : <span className="fence-name">{folder.name}</span>}
           {collapsed && !hidden && items.length > 0 && <span className="fence-count">{items.length}</span>}
-          <button className="fence-btn fence-edit" title={t.fence.edit} onPointerDown={stop} onClick={customize}>
+          <button className="fence-btn fence-edit" title={t.fence.edit} aria-label={t.fence.edit} onPointerDown={stop} onClick={customize}>
             <Icon name="sliders" size={13} />
           </button>
         </div>

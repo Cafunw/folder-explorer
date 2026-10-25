@@ -24,6 +24,7 @@ import { api } from "../api";
 import { t } from "../i18n";
 import { holdsChildren, SMART_TYPES } from "../layout/model";
 import type { GroupDisplay, GroupKind, GroupLock, SmartType } from "../types";
+import { DIALOG_TITLE } from "../ui/dialog";
 import { checkPin, makeLock, newRow, PIN_MAX, ruleOf, smartMatchCount, validPin, type GroupDraft, type RowDraft, type RuleDraft } from "./kinds";
 import { helloAvailable, helloVerify, notePinResult, pinBlockedFor, unlockCancelled, unlockSucceeded } from "./locks";
 import { useDesk } from "./store";
@@ -74,7 +75,7 @@ export function GroupOptions({
       <div className="look-section">{t.grp.kindSection}</div>
       <div className="kind-chips">
         {KINDS.map(({ kind, icon }) => (
-          <button key={kind} className="kind-chip" data-active={draft.kind === kind} onClick={() => set({ kind })}>
+          <button key={kind} className="kind-chip" data-active={draft.kind === kind} aria-pressed={draft.kind === kind} onClick={() => set({ kind })}>
             {icon}
             {t.grp.kinds[kind]}
           </button>
@@ -121,6 +122,7 @@ export function GroupOptions({
               key={display}
               className="kind-chip"
               data-active={draft.display === display}
+              aria-pressed={draft.display === display}
               disabled={off}
               style={off ? { opacity: 0.4, cursor: "default" } : undefined}
               onClick={() => set({ display })}
@@ -157,7 +159,7 @@ function NumberRow({
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="look-row">
+    <div className="look-row" role="group" aria-label={label}>
       <div className="look-label">
         <span>{label}</span>
         {hint && <small>{hint}</small>}
@@ -201,10 +203,10 @@ function RuleEditor({ id, value, onChange, autoFocus }: { id: string; value: Rul
         </div>
         <div className="look-control">
           <div className="mini-seg">
-            <button data-active={value.all} onClick={() => onChange({ ...value, all: true })}>
+            <button data-active={value.all} aria-pressed={value.all} onClick={() => onChange({ ...value, all: true })}>
               {t.grp.matchAll}
             </button>
-            <button data-active={!value.all} onClick={() => onChange({ ...value, all: false })}>
+            <button data-active={!value.all} aria-pressed={!value.all} onClick={() => onChange({ ...value, all: false })}>
               {t.grp.matchAny}
             </button>
           </div>
@@ -420,6 +422,7 @@ function LockEditor({
       autoComplete="off"
       maxLength={PIN_MAX}
       placeholder={placeholder}
+      aria-label={placeholder}
       value={v}
       autoFocus={autoFocus}
       onChange={(e) => {
@@ -496,7 +499,7 @@ function LockEditor({
           </button>
         </div>
       )}
-      {error && <div className="form-error" style={{ marginTop: 6 }}>{error}</div>}
+      {error && <div className="form-error" role="alert" style={{ marginTop: 6 }}>{error}</div>}
       <div className="lock-note">{t.grp.lockNote}</div>
     </div>
   );
@@ -571,8 +574,8 @@ export function UnlockDialog({ id, onClose }: { id: string; onClose: () => void 
   return (
     <div className="unlock">
       <div className="unlock-icon">{mode === "hello" ? <ScanFace size={28} /> : <Lock size={26} />}</div>
-      <h2>{name || t.grp.unlockTitle}</h2>
-      <div className="unlock-sub" data-error={!!msg?.error}>
+      <h2 id={DIALOG_TITLE}>{name || t.grp.unlockTitle}</h2>
+      <div className="unlock-sub" data-error={!!msg?.error} aria-live="polite">
         {msg?.text ?? (mode === "pin" ? t.grp.enterPin : "")}
       </div>
       {mode === "pin" && (

@@ -1,12 +1,13 @@
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { api, iconUrl, mediaUrl } from "../api";
 import { t } from "../i18n";
 import { primaryGrid } from "../layout/grid";
 import { isFolderId, renameFolder, setCustom, setFolderColor, setFolderLook, updateFolder } from "../layout/model";
 import { FOLDER_COLORS, spring } from "../settings";
 import type { FolderLook, OpenStyle, StartApp } from "../types";
+import { DIALOG_BODY, DIALOG_TITLE, useDialogFocus } from "../ui/dialog";
 import { askDeleteFolderDeep, deleteFolderDeep, deleteIds } from "./actions";
 import { GroupOptions, UnlockDialog } from "./GroupDialogs";
 import { draftOf, patchOf, type GroupDraft } from "./kinds";
@@ -23,6 +24,7 @@ export function Dialogs() {
   // a dialog with a draft puts its own close attempt here, so the backdrop and Esc ask before discarding
   const guard = useRef<(() => void) | null>(null);
   const tryClose = () => (guard.current ?? close)();
+  const box = useRef<HTMLDivElement>(null);
   // Esc reaches the dialog wherever the focus is (a click on a blank spot leaves it on <body>)
   const open = !!dialog && dialog.kind !== "quicklook";
   useEffect(() => {
@@ -37,6 +39,7 @@ export function Dialogs() {
   }, [open]);
   if (!g) return null;
   const folderEdit = dialog?.kind === "customize" && isFolderId(dialog.id);
+  const confirm = dialog?.kind === "confirmDeleteFolder" || dialog?.kind === "confirmRecycle";
 
   return (
     <AnimatePresence>
@@ -53,6 +56,11 @@ export function Dialogs() {
           {/* centred in the primary work area, so a tall dialog scrolls instead of running under the taskbar */}
           <div className="dialog-place" style={{ left: g.left + g.workLeft, top: g.top + g.workTop, width: g.workWidth, height: g.workHeight }}>
             <motion.div
+              ref={box}
+              role={confirm ? "alertdialog" : "dialog"}
+              aria-modal="true"
+              aria-labelledby={DIALOG_TITLE}
+              aria-describedby={confirm ? DIALOG_BODY : undefined}
               className={folderEdit ? "dialog folder-edit" : "dialog"}
               style={dialog.kind === "unlock" ? { width: 320 } : undefined}
               initial={{ opacity: 0, scale: 0.94, y: 10 }}
@@ -88,12 +96,19 @@ export function Dialogs() {
                   }}
                 />
               )}
+              <DialogFocus box={box} />
             </motion.div>
           </div>
         </motion.div>
       )}
     </AnimatePresence>
   );
+}
+
+/** Mounts and leaves with the open dialog (last, so the content's own focus effects run first). */
+function DialogFocus({ box }: { box: RefObject<HTMLElement | null> }) {
+  useDialogFocus(box, useIsPresent());
+  return null;
 }
 
 type Guard = { current: (() => void) | null };
@@ -122,7 +137,7 @@ function useUnsaved(guard: Guard, draft: object | null, save: () => void, onClos
 function UnsavedBar({ onStep }: { onStep: (ev: CloseEvent) => void }) {
   return (
     <div className="actions unsaved">
-      <span>{t.unsavedChanges}</span>
+      <span role="alert">{t.unsavedChanges}</span>
       <button className="btn" onClick={() => onStep("stay")}>
         {t.cancel}
       </button>
@@ -139,8 +154,8 @@ function UnsavedBar({ onStep }: { onStep: (ev: CloseEvent) => void }) {
 function Confirm({ title, body, onOk, onCancel }: { title: string; body: ReactNode; onOk: () => void; onCancel: () => void }) {
   return (
     <>
-      <h2>{title}</h2>
-      <div className="body" style={{ color: "var(--fg-dim)", lineHeight: 1.5 }}>
+      <h2 id={DIALOG_TITLE}>{title}</h2>
+      <div className="body" id={DIALOG_BODY} style={{ color: "var(--fg-dim)", lineHeight: 1.5 }}>
         {body}
       </div>
       <div className="actions">
@@ -226,19 +241,19 @@ function AddApp({ placement, onClose }: { placement: import("../types").Placemen
 
   return (
     <>
-      <h2>{t.addAppTitle}</h2>
+      <h2 id={DIALOG_TITLE}>{t.addAppTitle}</h2>
       <div className="tabs">
-        <button className="tab" data-active={tab === "apps"} onClick={() => setTab("apps")}>
+        <button className="tab" data-active={tab === "apps"} aria-pressed={tab === "apps"} onClick={() => setTab("apps")}>
           {t.appsTab}
         </button>
-        <button className="tab" data-active={tab === "web"} onClick={() => setTab("web")}>
+        <button className="tab" data-active={tab === "web"} aria-pressed={tab === "web"} onClick={() => setTab("web")}>
           {t.webTab}
         </button>
       </div>
       <div className="body" style={{ minHeight: 320 }}>
         {tab === "apps" ? (
           <>
-            <input className="input" placeholder={t.searchApps} value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+            <input className="input" placeholder={t.searchApps} aria-label={t.searchApps} value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
             <div className="app-list">
               {!apps && <div style={{ padding: 12, color: "var(--fg-dim)" }}>{t.loading}</div>}
               {filtered.map((a) => (
@@ -253,11 +268,11 @@ function AddApp({ placement, onClose }: { placement: import("../types").Placemen
           <>
             <div className="field">
               <label>{t.urlLabel}</label>
-              <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} autoFocus />
+              <input className="input" aria-label={t.urlLabel} value={url} onChange={(e) => setUrl(e.target.value)} autoFocus />
             </div>
             <div className="field">
               <label>{t.nameLabel}</label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+              <input className="input" aria-label={t.nameLabel} value={name} onChange={(e) => setName(e.target.value)} />
             </div>
           </>
         )}
@@ -300,7 +315,7 @@ function LookRow({
   children: ReactNode;
 }) {
   return (
-    <div className="look-row">
+    <div className="look-row" role="group" aria-label={label}>
       <div className="look-label">
         <span>{label}</span>
         {hint && <small>{hint}</small>}
@@ -364,9 +379,10 @@ function FolderCustomize({ id, focus, guard, onClose }: { id: string; focus?: "r
   if (!folder || !kinds) return null;
 
   const pct = (v: number) => `%${Math.round(v * 100)}`;
+  const fence = folder.display === "fence";
   return (
     <>
-      <h2>{t.editFolder}</h2>
+      <h2 id={DIALOG_TITLE}>{fence ? t.fence.edit : t.editFolder}</h2>
       <div className="body">
         <div className="look-preview">
           <div style={{ width: 56, height: 56 }}>
@@ -376,14 +392,37 @@ function FolderCustomize({ id, focus, guard, onClose }: { id: string; focus?: "r
         </div>
         <div className="field">
           <label>{t.folderName}</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && save()} autoFocus />
+          <input
+            className="input"
+            aria-label={t.folderName}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && save()}
+            autoFocus
+          />
         </div>
         <div className="field">
           <label>{t.color}</label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button className="swatch none" style={{ width: 24, height: 24 }} data-active={color === null} onClick={() => setColor(null)} title={t.noColor} />
+            <button
+              className="swatch none"
+              style={{ width: 24, height: 24 }}
+              data-active={color === null}
+              aria-pressed={color === null}
+              onClick={() => setColor(null)}
+              title={t.noColor}
+              aria-label={t.noColor}
+            />
             {FOLDER_COLORS.map((c) => (
-              <button key={c} className="swatch" style={{ background: c, width: 24, height: 24 }} data-active={color === c} onClick={() => setColor(c)} />
+              <button
+                key={c}
+                className="swatch"
+                style={{ background: c, width: 24, height: 24 }}
+                data-active={color === c}
+                aria-pressed={color === c}
+                aria-label={`${t.color} ${c}`}
+                onClick={() => setColor(c)}
+              />
             ))}
           </div>
         </div>
@@ -414,7 +453,12 @@ function FolderCustomize({ id, focus, guard, onClose }: { id: string; focus?: "r
         <LookRow label={t.previewGrid} overridden={look.preview !== undefined} onReset={() => reset("preview")}>
           <div className="mini-seg">
             {([2, 3] as const).map((n) => (
-              <button key={n} data-active={(look.preview ?? settings.folders.preview) === n} onClick={() => patch({ preview: n })}>
+              <button
+                key={n}
+                data-active={(look.preview ?? settings.folders.preview) === n}
+                aria-pressed={(look.preview ?? settings.folders.preview) === n}
+                onClick={() => patch({ preview: n })}
+              >
                 {n} × {n}
               </button>
             ))}
@@ -430,7 +474,12 @@ function FolderCustomize({ id, focus, guard, onClose }: { id: string; focus?: "r
         <LookRow label={t.panelStyleLabel} overridden={look.panelStyle !== undefined} onReset={() => reset("panelStyle")}>
           <div className="mini-seg">
             {(["ios", "android"] as const).map((st) => (
-              <button key={st} data-active={(look.panelStyle ?? settings.folders.style) === st} onClick={() => patch({ panelStyle: st })}>
+              <button
+                key={st}
+                data-active={(look.panelStyle ?? settings.folders.style) === st}
+                aria-pressed={(look.panelStyle ?? settings.folders.style) === st}
+                onClick={() => patch({ panelStyle: st })}
+              >
                 {st === "ios" ? t.styleIos : t.styleAndroid}
               </button>
             ))}
@@ -468,7 +517,7 @@ function FolderCustomize({ id, focus, guard, onClose }: { id: string; focus?: "r
               deleteIds([id]);
             }}
           >
-            {t.ungroup}
+            {fence ? t.fence.dissolve : t.ungroup}
           </button>
           <button
             className="btn danger"
@@ -538,13 +587,14 @@ function ItemCustomize({ id, guard, onClose }: { id: string; guard: Guard; onClo
 
   return (
     <>
-      <h2>{t.customizeTitle}</h2>
+      <h2 id={DIALOG_TITLE}>{t.customizeTitle}</h2>
       <div className="body">
         <div className="field">
           <label>{isFolder ? t.folderName : t.displayName}</label>
           <input
             ref={inputRef}
             className="input"
+            aria-label={isFolder ? t.folderName : t.displayName}
             value={name}
             placeholder={item?.name}
             onChange={(e) => setName(e.target.value)}
@@ -557,9 +607,24 @@ function ItemCustomize({ id, guard, onClose }: { id: string; guard: Guard; onClo
           <div className="field">
             <label>{t.color}</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="swatch none" style={{ width: 26, height: 26 }} data-active={color === null} onClick={() => setColor(null)} />
+              <button
+                className="swatch none"
+                style={{ width: 26, height: 26 }}
+                data-active={color === null}
+                aria-pressed={color === null}
+                aria-label={t.noColor}
+                onClick={() => setColor(null)}
+              />
               {FOLDER_COLORS.map((c) => (
-                <button key={c} className="swatch" style={{ background: c, width: 26, height: 26 }} data-active={color === c} onClick={() => setColor(c)} />
+                <button
+                  key={c}
+                  className="swatch"
+                  style={{ background: c, width: 26, height: 26 }}
+                  data-active={color === c}
+                  aria-pressed={color === c}
+                  aria-label={`${t.color} ${c}`}
+                  onClick={() => setColor(c)}
+                />
               ))}
             </div>
           </div>

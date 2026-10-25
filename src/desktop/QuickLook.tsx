@@ -12,6 +12,7 @@ import { isFolderId } from "../layout/model";
 import { DEFAULT_FREQUENT_LIMIT, frequentItems } from "../layout/smart";
 import { spring, tween } from "../settings";
 import type { DesktopItem, DirPreview, ShortcutInfo } from "../types";
+import { useDialogFocus } from "../ui/dialog";
 import { openId } from "./actions";
 import { LiveImage, useFrequentIds } from "./GroupContent";
 import { liveItem, liveSiblings, useLive, useLiveItem } from "./live";
@@ -147,6 +148,8 @@ function Card({ id }: { id: string }) {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [id]);
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box, useIsPresent());
 
   const g = (monitorId && grids[monitorId]) || primaryGrid(grids);
   if (!g) return null;
@@ -165,6 +168,7 @@ function Card({ id }: { id: string }) {
     item && item.kind === "file" ? formatBytes(item.size) : "",
     item?.modified ? formatDate(item.modified) : "",
   ].filter(Boolean);
+  const name = liveEntry ? liveEntry.name : displayName(id);
 
   return (
     <>
@@ -181,6 +185,10 @@ function Card({ id }: { id: string }) {
         onContextMenu={(e) => e.preventDefault()}
       />
       <motion.div
+        ref={box}
+        role="dialog"
+        aria-modal="true"
+        aria-label={name}
         className="ql-card"
         initial={{ opacity: 0, ...from, left, top, width: W, height: H }}
         animate={{ opacity: 1, x: 0, y: 0, scale: 1, left, top, width: W, height: H }}
@@ -200,7 +208,7 @@ function Card({ id }: { id: string }) {
             )}
           </span>
           <div className="ql-title">
-            <div className="ql-name">{liveEntry ? liveEntry.name : displayName(id)}</div>
+            <div className="ql-name">{name}</div>
             <div className="ql-sub">{sub.join(" · ")}</div>
           </div>
           <button
@@ -417,7 +425,7 @@ function GroupGrid({ folderId }: { folderId: string }) {
   const freq = useFrequentIds(folder);
   if (folder?.kind === "live") return folder.source ? <DirList path={folder.source} /> : <div className="ql-center">{t.grp.liveNoSource}</div>;
   const children = folder?.kind === "frequent" ? freq : folder?.children ?? EMPTY;
-  if (!children.length) return <div className="ql-center">{t.ql.emptyFolder}</div>;
+  if (!children.length) return <div className="ql-center">{t.ql.emptyGroup}</div>;
   return (
     <div className="ql-grid">
       {children.slice(0, GROUP_MAX).map((c) => (

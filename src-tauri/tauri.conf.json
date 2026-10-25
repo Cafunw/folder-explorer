@@ -42,8 +42,8 @@
     "publisher": "Folder Explorer",
     "copyright": "© 2026 Folder Explorer",
     "category": "Utility",
-    "shortDescription": "Telefon tarzı klasörlerle Windows masaüstü",
-    "longDescription": "Masaüstü simgelerini telefondaki gibi birleştirip klasörlemeni sağlar. Klasörler sanaldır; dosyalar yerinden oynamaz.",
+    "shortDescription": "Telefon tarzı gruplarla Windows masaüstü",
+    "longDescription": "Masaüstü simgelerini telefondaki gibi birleştirip gruplamanı sağlar. Gruplar sanaldır; dosyalar yerinden oynamaz.",
     "windows": {
       "nsis": {
         "installMode": "currentUser",

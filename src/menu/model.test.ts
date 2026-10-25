@@ -34,4 +34,10 @@ describe("native group menu", () => {
     expect(groupMenu(true, false)[0].text).toBe(t.fence.collapse);
     expect(groupMenu(true, true)[0].text).toBe(t.fence.expand);
   });
+
+  it("names the dissolve entry after a group or a fence", () => {
+    const dissolve = (fence: boolean) => groupMenu(fence).find((item) => item.id === "group:dissolve")?.text;
+    expect(dissolve(false)).toBe(t.ungroup);
+    expect(dissolve(true)).toBe(t.fence.dissolve);
+  });
 });

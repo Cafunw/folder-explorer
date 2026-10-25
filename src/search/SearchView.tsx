@@ -8,6 +8,7 @@ import { isFolderId, normalizeLayout } from "../layout/model";
 import type { MenuPick } from "../menu/model";
 import { applyTheme, DEFAULT_SETTINGS, normalizeSettings, rgba } from "../settings";
 import type { DesktopItem, FoundFile, Layout, RecentFile, Settings, StartApp } from "../types";
+import { useDialogFocus } from "../ui/dialog";
 import { calculate } from "./calc";
 import { SETTINGS_PAGES } from "./settingsPages";
 import "./search.css";
@@ -207,6 +208,8 @@ export function SearchView() {
   const [copied, setCopied] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(rootRef); // the window is the palette: Tab stays in it
   const fileSeq = useRef(0);
   const [accent, setAccent] = useState("#3b82f6");
 
@@ -447,7 +450,14 @@ export function SearchView() {
 
   let lastGroup = "";
   return (
-    <div className="search-root" style={{ ["--accent" as string]: accent, ["--accent-soft" as string]: rgba(accent, 0.22) }}>
+    <div
+      ref={rootRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={t.secSearch}
+      className="search-root"
+      style={{ ["--accent" as string]: accent, ["--accent-soft" as string]: rgba(accent, 0.22) }}
+    >
       <div className="search-bar">
         {q.trimStart().startsWith(">") ? (
           <ChevronsRight size={22} strokeWidth={2} style={{ opacity: 0.7 }} />
@@ -458,6 +468,7 @@ export function SearchView() {
           ref={inputRef}
           value={q}
           placeholder={t.searchPlaceholder}
+          aria-label={t.searchPlaceholder}
           spellCheck={false}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKey}
@@ -487,7 +498,7 @@ export function SearchView() {
                   <span className="search-name">{r.name}</span>
                   {r.sub && <span className="search-sub">{r.kind === "folder" ? `${t.folderKind} · ${r.sub}` : r.sub}</span>}
                 </span>
-                {i === sel && <span className="search-enter">↵</span>}
+                {i === sel && <span className="search-enter" aria-hidden>↵</span>}
               </button>
             </div>
           );
