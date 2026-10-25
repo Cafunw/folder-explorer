@@ -333,6 +333,9 @@ function filterItems(items: DesktopItem[], s: Settings) {
 
 let rawItems: DesktopItem[] = [];
 
+const sameItem = (a: DesktopItem, b: DesktopItem) =>
+  Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((k) => a[k as keyof DesktopItem] === b[k as keyof DesktopItem]);
+
 export async function refreshItems(renames: { from: string; to: string }[] = []) {
   const fresh = await api.listDesktopItems();
   rawItems = fresh;
@@ -340,9 +343,16 @@ export async function refreshItems(renames: { from: string; to: string }[] = [])
 }
 
 function applyItems(renames: { from: string; to: string }[] = []) {
-  const { settings, grids, itemMap: prevMap } = get();
-  const items = filterItems(rawItems, settings);
-  const itemMap = new Map(items.map((i) => [i.id, i]));
+  const { settings, grids, itemMap: prevMap, items: prevItems } = get();
+  // the watcher refreshes every second during a download: unchanged items keep their objects (and
+  // the list / map theirs), so only the tiles whose item changed re-render
+  let items = filterItems(rawItems, settings).map((i) => {
+    const p = prevMap.get(i.id);
+    return p && sameItem(p, i) ? p : i;
+  });
+  const unchanged = items.length === prevItems.length && items.every((i, k) => i === prevItems[k]);
+  if (unchanged) items = prevItems;
+  const itemMap = unchanged ? prevMap : new Map(items.map((i) => [i.id, i]));
   let layout = get().layout;
   if (renames.length) layout = remapIds(layout, new Map(renames.map((r) => [r.from, r.to])));
 
@@ -366,9 +376,12 @@ function applyItems(renames: { from: string; to: string }[] = []) {
     layout = reconcile(layout, items, grids, pend);
     if (fresh.size) layout = collectSmart(layout, items, Date.now(), { only: fresh });
   }
-  const sel = new Set([...get().selection].filter((id) => itemMap.has(id) || isFolderId(id) || isHeadingId(id)));
-  set({ items, itemMap, selection: sel });
-  replaceLayout(get().settings.grid.autoArrange ? autoArrange(layout, grids) : layout);
+  const prevSel = get().selection;
+  const sel = new Set([...prevSel].filter((id) => itemMap.has(id) || isFolderId(id) || isHeadingId(id)));
+  set({ items, itemMap, selection: sel.size === prevSel.size ? prevSel : sel });
+  if (get().settings.grid.autoArrange) layout = autoArrange(layout, grids);
+  // reconcile / autoArrange always clone: an equal layout is no change (no save, no re-render)
+  if (JSON.stringify(layout) !== JSON.stringify(get().layout)) replaceLayout(layout);
   if (renameId && get().layout.placements[renameId] && !get().panel) {
     set({ rename: { id: renameId, where: "desktop" }, selection: new Set([renameId]) });
   }
@@ -549,7 +562,9 @@ useDesk.subscribe((s, prev) => {
 // the first one clears what was selected on Windows' own desktop before we started.
 let mirrorTimer = 0;
 useDesk.subscribe((s, prev) => {
-  if (s.selection === prev.selection && s.itemMap === prev.itemMap) return;
+  const sameIds =
+    s.itemMap === prev.itemMap || (s.itemMap.size === prev.itemMap.size && [...s.itemMap.keys()].every((id) => prev.itemMap.has(id)));
+  if (s.selection === prev.selection && sameIds) return; // a changed file (a download growing) is no reason
   clearTimeout(mirrorTimer);
   mirrorTimer = setTimeout(() => {
     const { selection, itemMap } = get();
