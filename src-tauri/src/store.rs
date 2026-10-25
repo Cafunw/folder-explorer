@@ -232,7 +232,7 @@ fn list_backups_in(dir: &Path) -> Vec<BackupInfo> {
             out.push(BackupInfo { name, created_at, size });
         }
     }
-    out.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    out.sort_by_key(|b| std::cmp::Reverse(b.created_at));
     out
 }
 
@@ -359,7 +359,7 @@ pub fn import_icon_pack(dir: &str) -> Result<IconPack, String> {
                 continue;
             }
             let rank = |ext: &str, size: u64| (ext == "svg", size);
-            let better = found.get(&stem).map_or(true, |(_, oe, os)| rank(&ext, size) > rank(oe, *os));
+            let better = found.get(&stem).is_none_or(|(_, oe, os)| rank(&ext, size) > rank(oe, *os));
             if better {
                 if !found.contains_key(&stem) && found.len() >= PACK_MAX_ICONS {
                     break 'walk;
@@ -478,6 +478,20 @@ mod tests {
         std::thread::sleep(Duration::from_millis(5)); // backup names are millisecond timestamps
         assert!(write_backup(&b, &serialize(&json!({ "n": 2 }), &json!({}))).unwrap().is_some());
         assert_eq!(list_backups_in(&b).len(), 2);
+        fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn prune_keeps_the_newest_backups() {
+        let d = temp_dir("prune");
+        let b = d.join("backups");
+        // as text "state-9" sorts after "state-12": the age must come from the number
+        for ms in 1..=MAX_BACKUPS as u64 + 2 {
+            fs::write(b.join(format!("state-{ms}.json")), b"{}").unwrap();
+        }
+        prune_backups(&b);
+        let left: Vec<u64> = list_backups_in(&b).iter().map(|x| x.created_at).collect();
+        assert_eq!(left, (3..=MAX_BACKUPS as u64 + 2).rev().collect::<Vec<_>>());
         fs::remove_dir_all(d).unwrap();
     }
 

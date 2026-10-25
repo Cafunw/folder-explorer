@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { defaultExclude } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { execSync } from "node:child_process";
 import { version } from "./package.json";
@@ -29,4 +30,6 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
   },
+  // agent worktrees under .claude/ carry their own copies of the tests
+  test: { exclude: [...defaultExclude, ".claude/**"] },
 });

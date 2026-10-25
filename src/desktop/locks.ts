@@ -67,11 +67,11 @@ useDesk.subscribe((s, prev) => {
 
 // ---------------------------------------------------------------- verification flow
 
-let pending: { id: string; then: () => void } | null = null;
+let pending: { id: string; run: () => void } | null = null;
 
 /** Ask for the group's Windows Hello / PIN; `then` runs once it is unlocked. */
 export function requestUnlock(id: string, then: () => void) {
-  pending = { id, then };
+  pending = { id, run: then };
   useDesk.setState({ dialog: { kind: "unlock", id } });
 }
 
@@ -81,7 +81,7 @@ export function unlockSucceeded(id: string) {
   markUnlocked(id);
   const p = pending;
   pending = null;
-  if (p?.id === id) p.then();
+  if (p?.id === id) p.run();
   // the continuation may have asked for the next locked group on the way already
   const d = useDesk.getState().dialog;
   if (d?.kind === "unlock" && d.id === id) useDesk.setState({ dialog: null });

@@ -924,7 +924,7 @@ export const setHeadingText = (l0: Layout, id: string, text: string) => setHeadi
 
 export function setCustom(l0: Layout, id: string, patch: { name?: string | null; icon?: string | null }): Layout {
   const l = clone(l0);
-  const cur = { ...(l.custom[id] ?? {}) };
+  const cur = { ...l.custom[id] };
   if (patch.name !== undefined) {
     if (patch.name) cur.name = patch.name;
     else delete cur.name;

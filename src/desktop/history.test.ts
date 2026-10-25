@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => {
   const ok = () => Promise.resolve(undefined);
   return {
     api: {
-      listDesktopItems: vi.fn(() => Promise.resolve([])), restoreFromRecycle: vi.fn(ok),
+      listDesktopItems: vi.fn(() => Promise.resolve([])), restoreFromRecycle: vi.fn(ok), recycle: vi.fn(ok),
+      moveIntoFolder: vi.fn((paths: string[]) => Promise.resolve(paths.map((): string | null => "moved"))),
       saveLayout: vi.fn(ok), saveSettings: vi.fn(ok), mirrorSelection: vi.fn(ok), raiseDesktop: vi.fn(ok),
     },
   };
@@ -106,5 +107,47 @@ describe("undo history", () => {
     await run(); // now the delete is on top
     expect(mocks.api.restoreFromRecycle).toHaveBeenCalledWith(["C:\\a.txt"]);
     expect(state().layout.placements.a).toBeDefined();
+  });
+
+  it("ignores a second undo while the first still waits for the Recycle Bin", async () => {
+    s.commit(layout([5, 5])); // an older drag
+    deleteA();
+    const restore = holdRestore();
+    const first = s.undo();
+    await s.undo(); // pressed again meanwhile
+    restore.release();
+    await first;
+
+    expect(mocks.api.restoreFromRecycle).toHaveBeenCalledTimes(1);
+    expect(state().layout.placements.a).toBeDefined();
+    expect(state().layout.placements.b).toMatchObject({ c: 5, r: 5 }); // the drag is not undone
+    expect(state().canUndo).toBe(true);
+  });
+
+  it("keeps the entry when a redo fails, so it can be tried again", async () => {
+    deleteA();
+    await s.undo();
+    mocks.api.recycle.mockRejectedValueOnce(new Error("busy"));
+    await s.redo();
+
+    expect(lastToast()).toBe(t.operationFailed);
+    expect(state().layout.placements.a).toBeDefined();
+    expect(state().canRedo).toBe(true);
+    expect(state().canUndo).toBe(false);
+
+    await s.redo();
+    expect(mocks.api.recycle).toHaveBeenCalledTimes(2);
+    expect(state().layout.placements.a).toBeUndefined();
+  });
+
+  it("fails undoing a move that Windows skipped, and keeps the entry", async () => {
+    s.commit(layout([0, 1], false), { kind: "move", moves: [{ from: "C:\\D\\a.txt", to: "D:\\Docs\\a.txt" }] });
+    mocks.api.moveIntoFolder.mockResolvedValueOnce([null]); // "Skip" in Windows' conflict dialog
+    await s.undo();
+
+    expect(mocks.api.moveIntoFolder).toHaveBeenCalledWith(["D:\\Docs\\a.txt"], "C:\\D");
+    expect(lastToast()).toBe(t.operationFailed);
+    expect(state().layout.placements.a).toBeUndefined();
+    expect(state().canUndo).toBe(true);
   });
 });

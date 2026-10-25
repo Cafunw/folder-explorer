@@ -277,7 +277,7 @@ pub fn clipboard_files(paths: Vec<String>, cut: bool) -> Result<(), String> {
             let fe = FORMATETC {
                 cfFormat: fmt as u16,
                 ptd: std::ptr::null_mut(),
-                dwAspect: DVASPECT_CONTENT.0 as u32,
+                dwAspect: DVASPECT_CONTENT.0,
                 lindex: -1,
                 tymed: TYMED_HGLOBAL.0 as u32,
             };
@@ -487,7 +487,7 @@ pub fn dump_recycle(limit: usize) -> Vec<String> {
             let when = i2.GetFileTime(&PKEY_DATE_DELETED).map(|ft| ((ft.dwHighDateTime as u64) << 32) | ft.dwLowDateTime as u64);
             rows.push((when.clone().unwrap_or(0), format!("from={from:?} disp={disp:?} edit={edit:?} when={when:?}")));
         }
-        rows.sort_by(|a, b| b.0.cmp(&a.0));
+        rows.sort_by_key(|r| std::cmp::Reverse(r.0));
         rows.into_iter().take(limit).map(|r| r.1).collect()
     }
 }
@@ -983,7 +983,7 @@ pub fn list_start_apps_sta() -> Result<Vec<StartApp>, String> {
             }
             out.push(StartApp { name, parsing_name: format!("shell:AppsFolder\\{id}") });
         }
-        out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        out.sort_by_key(|a| a.name.to_lowercase());
         Ok(out)
     }
 }
@@ -1210,7 +1210,7 @@ pub fn list_recent(limit: usize) -> Result<Vec<RecentFile>, String> {
         .filter(|e| e.path().extension().map(|x| x.eq_ignore_ascii_case("lnk")).unwrap_or(false))
         .filter_map(|e| e.metadata().ok().map(|m| (mtime_ms(&m), e.path())))
         .collect();
-    links.sort_by(|a, b| b.0.cmp(&a.0));
+    links.sort_by_key(|l| std::cmp::Reverse(l.0));
     let limit = limit.clamp(1, 200);
     util::run_sta(move || unsafe {
         let mut out = Vec::new();

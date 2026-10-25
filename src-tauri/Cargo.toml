@@ -75,3 +75,9 @@ features = [
   "Win32_UI_Shell_PropertiesSystem",
   "Win32_UI_WindowsAndMessaging",
 ]
+
+[lints.clippy]
+# archive.rs: GetProcAddress results take their fn type from the Lib field they fill
+missing_transmute_annotations = "allow"
+# SetPropW flags store the handle value 1; it is a marker, not a dangling pointer
+manual_dangling_ptr = "allow"

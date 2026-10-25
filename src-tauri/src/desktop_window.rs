@@ -1230,13 +1230,13 @@ unsafe extern "system" fn subclass_proc(
         WM_CLOSE => return LRESULT(0),
         WM_FE_QUIT => {
             if let Some(app) = util::app() {
-                crate::windows_mgr::quit(&app);
+                crate::windows_mgr::quit(app);
             }
             return LRESULT(0);
         }
         WM_FE_NEWGROUP => {
             if let Some(app) = util::app() {
-                crate::windows_mgr::new_group(&app);
+                crate::windows_mgr::new_group(app);
             }
             return LRESULT(0);
         }
