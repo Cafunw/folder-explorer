@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "search",
+  "description": "Arama penceresinin uygulama komutları",
+  "windows": [
+    "search"
+  ],
+  "permissions": [
+    "allow-copy-text",
+    "allow-hide-search",
+    "allow-list-desktop-items",
+    "allow-list-recent",
+    "allow-list-start-apps",
+    "allow-load-state",
+    "allow-open-item",
+    "allow-open-settings-window",
+    "allow-raise-desktop",
+    "allow-reveal-search",
+    "allow-search-files",
+    "allow-set-windows-icons-mode",
+    "allow-take-search-initial"
+  ]
+}

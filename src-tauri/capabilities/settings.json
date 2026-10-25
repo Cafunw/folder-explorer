@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings",
+  "description": "Ayarlar penceresinin uygulama komutları",
+  "windows": [
+    "settings"
+  ],
+  "permissions": [
+    "allow-export-state",
+    "allow-export-theme",
+    "allow-get-environment",
+    "allow-import-icon-pack",
+    "allow-import-media",
+    "allow-import-state",
+    "allow-import-theme",
+    "allow-list-backups",
+    "allow-load-state",
+    "allow-quit-app",
+    "allow-restore-backup",
+    "allow-save-settings"
+  ]
+}

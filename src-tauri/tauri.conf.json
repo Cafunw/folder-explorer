@@ -13,7 +13,18 @@
     "withGlobalTauri": false,
     "windows": [],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: http://fe.localhost",
+        "media-src": "'self' http://fe.localhost",
+        "connect-src": "'self' http://ipc.localhost http://fe.localhost",
+        "frame-src": "http://fe.localhost",
+        "object-src": "'none'",
+        "base-uri": "'self'"
+      },
+      "dangerousDisableAssetCspModification": ["style-src"]
     }
   },
   "bundle": {
