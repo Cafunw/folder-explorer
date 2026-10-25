@@ -14,6 +14,7 @@ use windows::Win32::Foundation::{CloseHandle, COLORREF, HANDLE, HWND, LPARAM, LR
 use windows::Win32::System::Com::{CoCreateInstance, IServiceProvider, CLSCTX_ALL};
 use windows::Win32::System::Console::SetConsoleCtrlHandler;
 use windows::Win32::System::Power::RegisterPowerSettingNotification;
+use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
 use windows::Win32::System::SystemServices::GUID_POWER_SAVING_STATUS;
 use windows::Win32::System::Threading::{
     CreateEventW, CreateWaitableTimerExW, GetCurrentProcessId, OpenProcess, SetEvent, SetWaitableTimer,
@@ -157,8 +158,34 @@ pub fn show_context_menu(at: POINT) -> Result<(), String> {
     })?
 }
 
+/// Windows' own "Masaüstü simgelerini göster" setting (Explorer\Advanced\HideIcons; missing = shown).
+/// Restoring must not show icons the user had turned off there.
+fn show_icons_on_restore(hide_icons: Option<u32>) -> bool {
+    hide_icons.unwrap_or(0) == 0
+}
+
+/// Read only: the app never writes HideIcons.
+fn hide_icons_setting() -> Option<u32> {
+    let mut data: u32 = 0;
+    let mut size: u32 = 4;
+    let res = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced"),
+            w!("HideIcons"),
+            RRF_RT_REG_DWORD,
+            None,
+            Some(&mut data as *mut u32 as *mut _),
+            Some(&mut size),
+        )
+    };
+    res.is_ok().then_some(data)
+}
+
 fn set_windows_icons_visible(visible: bool) {
+    // restore_view still runs: it undoes a staged menu view even when the icons stay hidden.
     if visible { crate::explorer_menu::restore_view(); }
+    if visible && !show_icons_on_restore(hide_icons_setting()) { return; }
     if let Some(lv) = find_listview() {
         if !visible && crate::explorer_menu::is_staged(lv) { return; }
         unsafe {
@@ -272,7 +299,7 @@ pub fn restart_after_explorer() {
         .spawn();
 }
 
-/// Always safe to call; brings the Windows desktop icons back.
+/// Always safe to call; brings the Windows desktop icons back (unless Windows' own setting hides them).
 pub fn restore_icons() {
     HIDE_WANTED.store(false, Ordering::SeqCst);
     set_windows_icons_visible(true);
@@ -1402,5 +1429,12 @@ mod tests {
         assert!(!should_restart(Duration::from_secs(19), false));
         assert!(!should_restart(Duration::ZERO, false));
         assert!(!should_restart(Duration::from_secs(3600), true));
+    }
+
+    #[test]
+    fn restore_respects_windows_hide_icons_setting() {
+        assert!(!show_icons_on_restore(Some(1)));
+        assert!(show_icons_on_restore(Some(0)));
+        assert!(show_icons_on_restore(None));
     }
 }
