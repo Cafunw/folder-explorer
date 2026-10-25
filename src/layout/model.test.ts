@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DesktopItem, Environment, Layout, MonitorInfo, Placement } from "../types";
 import { DEFAULT_SETTINGS } from "../settings";
 import { autoIconMm, cellMetrics, computeGrids, coveredKeys, placementKey, spanInBounds, type GridMap } from "./grid";
+import { createFenceAt } from "./blocks";
 import {
   acceptsDrops,
   anchorToEdges,
@@ -11,6 +12,7 @@ import {
   createHeadingAt,
   DEFAULT_FENCE_SIZE,
   dissolveFolder,
+  dropEmptiedGroups,
   emptyLayout,
   firstFree,
   forgetHomes,
@@ -289,6 +291,44 @@ describe("folders", () => {
     l = r.layout; // [A, B, C, D]
     l = moveIntoFolder(l, [A.id], r.folderId, 2); // [B, C, A, D]
     expect(l.folders[r.folderId].children).toEqual([B.id, C.id, A.id, D.id]);
+  });
+
+  it("a group goes once its last item leaves", () => {
+    const r = mergeIntoNewFolder(base(), A.id, [B.id], "F", null)!;
+    const one = moveToDesktop(r.layout, grids, [B.id]);
+    expect(dropEmptiedGroups(r.layout, one, grids)).toBe(one); // one item left: stays
+    const none = moveToDesktop(one, grids, [A.id]);
+    const out = dropEmptiedGroups(one, none, grids);
+    expect(out.folders[r.folderId]).toBeUndefined();
+    expect(out.placements[r.folderId]).toBeUndefined();
+    allPlacedOnce(out, items.map((i) => i.id));
+  });
+
+  it("keeps a new empty group until it has had items, then lets it go like any other", () => {
+    const made = createFolderAt(base(), grids, { placement: { m: "M1", p: 0, c: 5, r: 5 } }, "Yeni grup", null);
+    expect(dropEmptiedGroups(base(), made.layout, grids)).toBe(made.layout); // created empty: stays
+    const filled = moveIntoFolder(made.layout, [A.id], made.folderId);
+    const emptied = moveToDesktop(filled, grids, [A.id]);
+    expect(dropEmptiedGroups(filled, emptied, grids).folders[made.folderId]).toBeUndefined();
+  });
+
+  it("keeps an emptied fence", () => {
+    const fence = createFenceAt(base(), grids, { m: "M1", p: 0, c: 4, r: 2 }, "Kutu", null);
+    const filled = moveIntoFolder(fence.layout, [A.id], fence.folderId);
+    const emptied = moveToDesktop(filled, grids, [A.id]);
+    expect(dropEmptiedGroups(filled, emptied, grids).folders[fence.folderId]).toBeDefined();
+  });
+
+  it("removes a parent that only held the emptied group", () => {
+    let l = base();
+    const outer = mergeIntoNewFolder(l, A.id, [B.id], "outer", null)!;
+    const inner = mergeIntoNewFolder(outer.layout, B.id, [C.id], "inner", null)!;
+    l = moveToDesktop(inner.layout, grids, [A.id]); // outer: [inner], inner: [B, C]
+    const after = moveToDesktop(l, grids, [B.id, C.id]);
+    const out = dropEmptiedGroups(l, after, grids);
+    expect(out.folders[inner.folderId]).toBeUndefined();
+    expect(out.folders[outer.folderId]).toBeUndefined();
+    allPlacedOnce(out, items.map((i) => i.id));
   });
 
   it("dissolving moves children to the folder's place", () => {

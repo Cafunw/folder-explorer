@@ -20,8 +20,7 @@ export function Dialogs() {
   const g = primaryGrid(grids);
   const close = () => useDesk.setState({ dialog: null });
   if (!g) return null;
-  const cx = g.left + g.workLeft + g.workWidth / 2;
-  const cy = g.top + g.workTop + g.workHeight / 2;
+  const folderEdit = dialog?.kind === "customize" && isFolderId(dialog.id);
 
   return (
     <AnimatePresence>
@@ -35,41 +34,38 @@ export function Dialogs() {
             }}
             onContextMenu={(e) => e.preventDefault()}
           />
-          <motion.div
-            className="dialog"
-            style={
-              dialog.kind === "customize" && isFolderId(dialog.id)
-                ? { left: cx - 250, top: cy - 330, width: 500, maxHeight: "86vh" }
-                : dialog.kind === "unlock"
-                  ? { left: cx - 160, top: cy - 230, width: 320 }
-                  : { left: cx - 220, top: cy - 260 }
-            }
-            initial={{ opacity: 0, scale: 0.94, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97 }}
-            transition={spring(settings, 0.35, 0.18)}
-            onPointerDown={(e) => e.stopPropagation()}
-            onContextMenu={(e) => e.preventDefault()}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === "Escape") close();
-            }}
-          >
-            {dialog.kind === "addApp" && <AddApp placement={dialog.placement} onClose={close} />}
-            {dialog.kind === "customize" && <Customize id={dialog.id} focus={dialog.focus} onClose={close} />}
-            {dialog.kind === "unlock" && <UnlockDialog key={dialog.id} id={dialog.id} onClose={close} />}
-            {dialog.kind === "confirmDeleteFolder" && (
-              <Confirm
-                title={t.confirmDeleteFolderTitle}
-                body={t.confirmDeleteFolderBody(dialog.files.length)}
-                onCancel={close}
-                onOk={() => {
-                  close();
-                  deleteFolderDeep(dialog.folderIds, dialog.files);
-                }}
-              />
-            )}
-          </motion.div>
+          {/* centred in the primary work area, so a tall dialog scrolls instead of running under the taskbar */}
+          <div className="dialog-place" style={{ left: g.left + g.workLeft, top: g.top + g.workTop, width: g.workWidth, height: g.workHeight }}>
+            <motion.div
+              className={folderEdit ? "dialog folder-edit" : "dialog"}
+              style={dialog.kind === "unlock" ? { width: 320 } : undefined}
+              initial={{ opacity: 0, scale: 0.94, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={spring(settings, 0.35, 0.18)}
+              onPointerDown={(e) => e.stopPropagation()}
+              onContextMenu={(e) => e.preventDefault()}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Escape") close();
+              }}
+            >
+              {dialog.kind === "addApp" && <AddApp placement={dialog.placement} onClose={close} />}
+              {dialog.kind === "customize" && <Customize id={dialog.id} focus={dialog.focus} onClose={close} />}
+              {dialog.kind === "unlock" && <UnlockDialog key={dialog.id} id={dialog.id} onClose={close} />}
+              {dialog.kind === "confirmDeleteFolder" && (
+                <Confirm
+                  title={t.confirmDeleteFolderTitle}
+                  body={t.confirmDeleteFolderBody(dialog.files.length)}
+                  onCancel={close}
+                  onOk={() => {
+                    close();
+                    deleteFolderDeep(dialog.folderIds, dialog.files);
+                  }}
+                />
+              )}
+            </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -307,8 +303,8 @@ function FolderCustomize({ id, focus, onClose }: { id: string; focus?: "rule" | 
       <h2>{t.editFolder}</h2>
       <div className="body">
         <div className="look-preview">
-          <div style={{ width: 84, height: 84 }}>
-            <FolderGlyph folderId={id} size={84} lookOverride={look} colorOverride={color} />
+          <div style={{ width: 56, height: 56 }}>
+            <FolderGlyph folderId={id} size={56} lookOverride={look} colorOverride={color} />
           </div>
           <span>{name || folder.name}</span>
         </div>

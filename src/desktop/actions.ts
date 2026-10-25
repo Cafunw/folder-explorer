@@ -42,6 +42,7 @@ import {
   recordOpen,
   redo,
   refreshItems,
+  renameNewItem,
   saveSettings,
   toast,
   undo,
@@ -149,10 +150,8 @@ export async function deleteIds(ids: string[]) {
   const headings = ids.filter((id) => isHeadingId(id) && layout.headings[id]);
   if (folders.length === 0 && files.length === 0 && headings.length === 0) return;
 
-  let next = headings.length ? removeIds(layout, headings) : layout;
-  for (const f of folders) next = dissolveFolder(next, get().grids, f);
+  const paths = files.map((id) => itemMap.get(id)!.path);
   if (files.length) {
-    const paths = files.map((id) => itemMap.get(id)!.path);
     try {
       await api.recycle(paths);
     } catch (e) {
@@ -161,6 +160,11 @@ export async function deleteIds(ids: string[]) {
       playSound("error");
       return;
     }
+  }
+  // the Recycle Bin can take a while: build on the layout as it is now, so moves made meanwhile stay
+  let next = headings.length ? removeIds(get().layout, headings) : get().layout;
+  for (const f of folders) if (next.folders[f]) next = dissolveFolder(next, get().grids, f);
+  if (files.length) {
     next = removeIds(next, files);
     commit(next, { kind: "recycle", paths });
     playSound("delete");
@@ -170,7 +174,7 @@ export async function deleteIds(ids: string[]) {
     playSound("delete");
     toast(folders.length ? t.folderDissolved : t.fence.headingRemoved, { label: t.undo, run: () => undo() });
   }
-  set({ selection: new Set() });
+  set({ selection: new Set([...get().selection].filter((id) => !ids.includes(id))) });
 }
 
 export function askDeleteFolderDeep(folderIds: string[]) {
@@ -186,7 +190,7 @@ export function askDeleteFolderDeep(folderIds: string[]) {
 }
 
 export async function deleteFolderDeep(folderIds: string[], fileIds: string[]) {
-  const { layout, itemMap } = get();
+  const { itemMap } = get();
   const paths = fileIds.map((id) => itemMap.get(id)?.path).filter((p): p is string => !!p);
   try {
     if (paths.length) await api.recycle(paths);
@@ -195,7 +199,7 @@ export async function deleteFolderDeep(folderIds: string[], fileIds: string[]) {
     toast(t.operationFailed);
     return;
   }
-  const next = removeDeep(layout, folderIds);
+  const next = removeDeep(get().layout, folderIds); // current layout: changes made meanwhile stay
   commit(next, paths.length ? { kind: "recycle", paths } : undefined);
   if (folderIds.some((f) => get().panel?.stack.includes(f))) set({ panel: null });
   toast(paths.length ? t.movedToRecycle(paths.length) : t.folderDissolved, { label: t.undo, run: () => undo() });
@@ -400,6 +404,9 @@ export async function runMenuAction(p: MenuPick): Promise<void> {
         break;
       case "rename":
         startRename(ids[0]);
+        break;
+      case "renameNew":
+        renameNewItem();
         break;
       case "delete":
         deleteIds(ids);

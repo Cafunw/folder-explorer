@@ -6,6 +6,7 @@ import { computeGrids, type GridMap } from "../layout/grid";
 import {
   anchorToEdges,
   autoArrange,
+  dropEmptiedGroups,
   emptyLayout,
   forgetHomes,
   importWindowsLayout,
@@ -137,6 +138,17 @@ export function expectNewItem(placement: Placement | null, rename = false) {
   newItemHook = { placement, rename, until: Date.now() + 20000 };
 }
 
+/** The single item the last New ▸ / Paste made, while `renameNewItem` may still want it. */
+let lastNew: { id: string; at: number } | null = null;
+
+/** Explorer wanted to rename what its New menu just made (in its hidden view): rename it here. */
+export function renameNewItem() {
+  const id = lastNew && Date.now() - lastNew.at < 10000 ? lastNew.id : null;
+  lastNew = null;
+  if (id && get().layout.placements[id] && !get().panel) set({ rename: { id, where: "desktop" }, selection: new Set([id]) });
+  else if (newItemHook) newItemHook.rename = true; // not here yet: rename it when it shows up
+}
+
 function pendingMap(): Map<string, Placement> {
   const now = Date.now();
   const m = new Map<string, Placement>();
@@ -164,6 +176,7 @@ export function commit(next: Layout, fileOp?: FileOp, priority?: Set<string>) {
   // a new smart group / changed rule collects the matching loose items in the same undo step
   const smart = smartChanged(before, after);
   if (smart.length) after = collectSmart(after, get().items, Date.now(), { groups: smart });
+  after = dropEmptiedGroups(before, after, grids);
   if (settings.grid.autoArrange) after = autoArrange(after, grids, priority);
   if (after === before) return;
   after = forgetHomes(before, after);
@@ -171,6 +184,8 @@ export function commit(next: Layout, fileOp?: FileOp, priority?: Set<string>) {
   if (undoStack.length > 100) undoStack.shift();
   redoStack.length = 0;
   set({ layout: after });
+  // an open panel whose group just went (its last item left)
+  if (get().panel?.stack.some((f) => !after.folders[f])) set({ panel: null });
   syncHistoryFlags();
   scheduleSave();
 }
@@ -299,6 +314,7 @@ function applyItems(renames: { from: string; to: string }[] = []) {
     if (fresh.length > 0) {
       if (newItemHook.placement) for (const it of fresh) expectItemAt(it.id, newItemHook.placement);
       if (newItemHook.rename && fresh.length === 1) renameId = fresh[0].id;
+      else if (fresh.length === 1) lastNew = { id: fresh[0].id, at: Date.now() };
       newItemHook = null;
     }
   }
@@ -495,8 +511,8 @@ useDesk.subscribe((s, prev) => {
 let mirrorTimer = 0;
 useDesk.subscribe((s, prev) => {
   if (s.selection === prev.selection && s.itemMap === prev.itemMap) return;
-  window.clearTimeout(mirrorTimer);
-  mirrorTimer = window.setTimeout(() => {
+  clearTimeout(mirrorTimer);
+  mirrorTimer = setTimeout(() => {
     const { selection, itemMap } = get();
     const paths = [...selection].flatMap((id) => itemMap.get(id)?.parsingName ?? []);
     api.mirrorSelection(paths).catch(() => {});
