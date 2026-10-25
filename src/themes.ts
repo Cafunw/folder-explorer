@@ -164,6 +164,19 @@ export function isPresetActive(cur: Settings, preset: ThemePreset): boolean {
   return JSON.stringify(visualSettings(applyPreset(cur, preset))) === JSON.stringify(visualSettings(cur));
 }
 
+/** applyPreset for a click: a look that matches no preset is kept in customLook first, so it can be restored. */
+export function choosePreset(cur: Settings, preset: ThemePreset): Settings {
+  const out = applyPreset(cur, preset);
+  return THEME_PRESETS.some((p) => isPresetActive(cur, p)) ? out : { ...out, customLook: visualSettings(cur) };
+}
+
+/** The saved custom look as full settings, or null when there is none or it is already the current look. */
+export function customLookSettings(cur: Settings): Settings | null {
+  if (!cur.customLook) return null;
+  const out = applyThemePatch(cur, cur.customLook);
+  return JSON.stringify(visualSettings(out)) === JSON.stringify(visualSettings(cur)) ? null : out;
+}
+
 export function themeFile(s: Settings) {
   return { format: THEME_FILE_FORMAT, version: 1, settings: visualSettings(s) };
 }

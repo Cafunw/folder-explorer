@@ -81,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
     dropOnApp: true,
     newMenuEntry: true,
   },
+  customLook: null,
 };
 
 export const ACCENTS = [
@@ -270,6 +271,8 @@ export function normalizeSettings(raw: unknown): Settings {
       dropOnApp: bool(be.dropOnApp, d.behavior.dropOnApp),
       newMenuEntry: bool(be.newMenuEntry, d.behavior.newMenuEntry),
     },
+    // only the shape is checked here: applyThemePatch drops wrong keys and clamps values when it is restored
+    customLook: r.customLook && typeof r.customLook === "object" && !Array.isArray(r.customLook) ? r.customLook : null,
   };
 }
 
