@@ -164,7 +164,9 @@ treat it as the desktop.
   (Explorer restart).
 * Restored on quit, a panic on the main (event-loop) thread — which ends the app; panics in command
   or STA worker threads are caught and become errors, so the icons stay hidden (`panic_ends_app`) —,
-  console Ctrl+C, `WM_ENDSESSION`, and by a watchdog
+  console Ctrl+C (only when attached to a console: every build is a GUI-subsystem exe, so no console
+  window flashes when Windows starts it from the New menu; stopping `tauri dev` ends the process and
+  the watchdog restores), `WM_ENDSESSION`, and by a watchdog
   (`folder-explorer.exe --watchdog <pid>`) that waits for the app to exit and then shows the icons
   again. It is started through `--watchdog-launch <pid>`, which exits at once, so the watchdog is not
   a child of the app and survives "kill the process tree" (Task Manager, a dev tool stopping

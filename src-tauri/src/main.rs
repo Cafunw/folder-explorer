@@ -1,5 +1,6 @@
-// Prevents an extra console window on Windows in release.
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// No console window, dev builds included: Windows starts the exe from the New menu (`--new-group`)
+// and at sign-in. `tauri dev` / `cargo run` still get its output through the handles they pass in.
+#![windows_subsystem = "windows"]
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
