@@ -47,8 +47,10 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, active = true
     window.addEventListener("keydown", onKey, true);
     return () => {
       window.removeEventListener("keydown", onKey, true);
-      // focus that already moved on (e.g. into a rename field) stays where it is
-      if (!ref.current?.contains(document.activeElement)) return;
+      // focus that already moved on (e.g. into a rename field) stays where it is; `root`, not the
+      // ref, which React has cleared when the surface unmounts without an exit animation
+      const now = document.activeElement;
+      if (now && now !== document.body && !root?.contains(now)) return;
       if (back instanceof HTMLElement && back !== document.body && back.isConnected) back.focus();
       else (document.activeElement as HTMLElement | null)?.blur();
     };
