@@ -31,7 +31,7 @@ import { jiggling, takeLongPress } from "./Jiggle";
 import { lockedOnPath } from "./locks";
 import { fenceBodies, flyFrom, iconEls, panelGrid } from "./registry";
 import { playSound } from "./sounds";
-import { baseName, commit, refreshItems, replaceLayout, setPage, toast, useDesk } from "./store";
+import { commit, refreshItems, replaceLayout, setPage, toast, useDesk } from "./store";
 
 export const RECYCLE_ID = "::{645ff040-5081-101b-9f08-00aa002f954e}";
 
@@ -745,19 +745,22 @@ export async function moveToDir(ids: string[], dir: string): Promise<boolean> {
   if (!movable.length) return false;
   const paths = movable.map((id) => itemMap.get(id)!.path);
   try {
-    await api.moveIntoFolder(paths, dir);
-    const moves = paths.map((p) => ({ from: p, to: `${dir.replace(/[\\/]+$/, "")}\\${baseName(p, true)}` }));
-    // the move can take a while: build on the layout as it is now, so changes made meanwhile stay
-    commit(removeIds(desk().layout, movable), { kind: "move", moves });
-    toast(t.moved);
-    playSound("drop");
-    return true;
+    // Windows' conflict dialog may skip an item or rename it ("x (2)"): only real moves count. The move
+    // can take a while: build on the layout as it is now, so changes made meanwhile stay.
+    const landed = await api.moveIntoFolder(paths, dir);
+    const moves = landed.flatMap((to, i) => (to ? [{ from: paths[i], to }] : []));
+    if (moves.length) {
+      commit(removeIds(desk().layout, movable.filter((_, i) => landed[i])), { kind: "move", moves });
+      toast(t.moved);
+      playSound("drop");
+      return true;
+    }
   } catch (e) {
     console.error(e);
-    toast(t.operationFailed);
-    playSound("error");
-    return false;
   }
+  toast(t.operationFailed);
+  playSound("error");
+  return false;
 }
 
 /** Short "absorb" pulse on a folder tile after something was dropped in. */

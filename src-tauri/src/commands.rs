@@ -155,7 +155,7 @@ pub async fn rename_item(path: String, new_name: String, exact: Option<bool>) ->
 }
 
 #[tauri::command]
-pub async fn move_into_folder(paths: Vec<String>, target_dir: String) -> R<()> {
+pub async fn move_into_folder(paths: Vec<String>, target_dir: String) -> R<Vec<Option<String>>> {
     blocking(move || shell::move_into_folder(paths, target_dir)).await
 }
 

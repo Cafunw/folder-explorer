@@ -46,8 +46,9 @@ const realApi = {
   /** `exact`: `newName` is the whole file name; otherwise a hidden extension (.lnk) is kept. */
   renameItem: (path: string, newName: string, exact = false) =>
     invoke<string>("rename_item", { path, newName, exact }),
+  /** Each path's new place, in order; `null` where it did not move (skipped in Windows' conflict dialog). */
   moveIntoFolder: (paths: string[], targetDir: string) =>
-    invoke<void>("move_into_folder", { paths, targetDir }),
+    invoke<(string | null)[]>("move_into_folder", { paths, targetDir }),
   copyIntoFolder: (paths: string[], targetDir: string) =>
     invoke<void>("copy_into_folder", { paths, targetDir }),
   dropOnItem: (target: string, paths: string[]) => invoke<string>("drop_on_item", { target, paths }),
