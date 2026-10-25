@@ -13,7 +13,6 @@ import { dropEffect } from "./input";
 import { dropKindOf, dropOnApp, heldKeys, realDirOf, refreshHeldKeys, warmDropKinds } from "./interaction";
 import { panelGrid } from "./registry";
 import {
-  baseName,
   commit,
   dirName,
   expectItemAt,
@@ -82,15 +81,17 @@ async function dropIntoDir(paths: string[], dir: string, keys: Keys) {
   const copy = src.filter((p) => dropEffect(p, d, keys) === "copy");
   const move = src.filter((p) => !copy.includes(p));
   if (copy.length) await api.copyIntoFolder(copy, d);
-  if (move.length) {
-    await api.moveIntoFolder(move, d);
-    const op: FileOp = { kind: "move", moves: move.map((p) => ({ from: p, to: `${d}\\${baseName(p, true)}` })) };
+  // Windows' conflict dialog may skip a file or rename it ("x (2)"): only real moves count
+  const landed = move.length ? await api.moveIntoFolder(move, d) : [];
+  const moves = landed.flatMap((to, i) => (to ? [{ from: move[i], to }] : []));
+  if (moves.length) {
+    const op: FileOp = { kind: "move", moves };
     // icons of our desktop that went with it leave the layout in the same undo step
-    const gone = move.map((p) => p.toLowerCase()).filter((id) => desk().itemMap.has(id));
+    const gone = moves.map((m) => m.from.toLowerCase()).filter((id) => desk().itemMap.has(id));
     if (gone.length) commit(removeIds(desk().layout, gone), op);
     else recordFileOpOnly(op);
-  }
-  toast(move.length ? t.moved : t.copied, move.length ? { label: t.undo, run: () => void undo() } : undefined);
+    toast(t.moved, { label: t.undo, run: () => void undo() });
+  } else toast(copy.length ? t.copied : t.operationFailed);
 }
 
 function toCss(pos: { x: number; y: number }) {

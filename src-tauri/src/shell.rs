@@ -1,12 +1,13 @@
 //! Shell operations: open, clipboard, file operations, recycle bin, OLE drag-out, Start-menu apps
 //! and shortcut creation. The right-click menus are in `ctxmenu.rs`.
 
-use std::collections::HashSet;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 use std::path::Path;
 
 use serde::Serialize;
-use windows::core::{w, Interface, GUID, HSTRING, PCSTR, PCWSTR};
+use windows::core::{implement, w, ComObject, Interface, Ref, GUID, HRESULT, HSTRING, PCSTR, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, HWND, POINT, PROPERTYKEY, SIZE};
 use windows::Win32::Graphics::Gdi::{DeleteObject, GetObjectW, BITMAP, HGDIOBJ};
 use windows::Win32::System::Com::{CoCreateInstance, IDataObject, IPersistFile, CLSCTX_ALL, CLSCTX_INPROC_SERVER};
@@ -15,7 +16,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_SH
 use windows::Win32::UI::Shell::Common::ITEMIDLIST;
 use windows::Win32::UI::Shell::{
     FileOperation, IContextMenu, IDragSourceHelper, IEnumShellItems,
-    IFileOperation, IShellFolder, IShellItem, IShellItem2, IShellLinkW, ILFindLastID, ILFree,
+    IFileOperation, IFileOperationProgressSink, IFileOperationProgressSink_Impl, IShellFolder, IShellItem, IShellItem2, IShellLinkW, ILFindLastID, ILFree,
     SHBindToParent, SHCreateItemFromParsingName, SHCreateShellItemArrayFromIDLists, SHDoDragDrop,
     SHGetKnownFolderItem, SHParseDisplayName, ShellExecuteExW, ShellLink, BHID_DataObject, BHID_EnumItems,
     BHID_SFUIObject, CMF_NORMAL, CMINVOKECOMMANDINFO,
@@ -523,10 +524,106 @@ pub fn rename_item(path: String, new_name: String, exact: bool) -> Result<String
     })?
 }
 
-pub fn move_into_folder(paths: Vec<String>, target_dir: String) -> Result<(), String> {
+/// Where each moved item really landed, by its source path (lower-cased): Windows' conflict
+/// dialog may skip an item or rename it ("x (2)").
+#[implement(IFileOperationProgressSink)]
+#[derive(Default)]
+struct MoveSink(RefCell<HashMap<String, String>>);
+
+impl IFileOperationProgressSink_Impl for MoveSink_Impl {
+    fn PostMoveItem(
+        &self,
+        _flags: u32,
+        item: Ref<IShellItem>,
+        _dest: Ref<IShellItem>,
+        _new_name: &PCWSTR,
+        hr: HRESULT,
+        created: Ref<IShellItem>,
+    ) -> windows::core::Result<()> {
+        use windows::Win32::UI::Shell::SIGDN_FILESYSPATH;
+        if let (true, Some(item), Some(created)) = (hr.is_ok(), item.as_ref(), created.as_ref()) {
+            unsafe {
+                let from = item.GetDisplayName(SIGDN_FILESYSPATH).map(|p| util::take_pwstr(p));
+                let to = created.GetDisplayName(SIGDN_FILESYSPATH).map(|p| util::take_pwstr(p));
+                if let (Ok(from), Ok(to)) = (from, to) {
+                    self.0.borrow_mut().insert(util::norm_path(&from), to);
+                }
+            }
+        }
+        Ok(())
+    }
+    fn StartOperations(&self) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn FinishOperations(&self, _: HRESULT) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn PreRenameItem(&self, _: u32, _: Ref<IShellItem>, _: &PCWSTR) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn PostRenameItem(&self, _: u32, _: Ref<IShellItem>, _: &PCWSTR, _: HRESULT, _: Ref<IShellItem>) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn PreMoveItem(&self, _: u32, _: Ref<IShellItem>, _: Ref<IShellItem>, _: &PCWSTR) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn PreCopyItem(&self, _: u32, _: Ref<IShellItem>, _: Ref<IShellItem>, _: &PCWSTR) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn PostCopyItem(
+        &self,
+        _: u32,
+        _: Ref<IShellItem>,
+        _: Ref<IShellItem>,
+        _: &PCWSTR,
+        _: HRESULT,
+        _: Ref<IShellItem>,
+    ) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn PreDeleteItem(&self, _: u32, _: Ref<IShellItem>) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn PostDeleteItem(&self, _: u32, _: Ref<IShellItem>, _: HRESULT, _: Ref<IShellItem>) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn PreNewItem(&self, _: u32, _: Ref<IShellItem>, _: &PCWSTR) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn PostNewItem(
+        &self,
+        _: u32,
+        _: Ref<IShellItem>,
+        _: &PCWSTR,
+        _: &PCWSTR,
+        _: u32,
+        _: HRESULT,
+        _: Ref<IShellItem>,
+    ) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn UpdateProgress(&self, _: u32, _: u32) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn ResetTimer(&self) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn PauseTimer(&self) -> windows::core::Result<()> {
+        Ok(())
+    }
+    fn ResumeTimer(&self) -> windows::core::Result<()> {
+        Ok(())
+    }
+}
+
+/// Moves `paths` into `target_dir`. Returns each one's new path, in order; `None` where it did
+/// not move (skipped or cancelled in Windows' conflict dialog, a system item).
+pub fn move_into_folder(paths: Vec<String>, target_dir: String) -> Result<Vec<Option<String>>, String> {
     util::run_sta(move || unsafe {
         let op = file_op()?;
         op.SetOperationFlags(FOF_ALLOWUNDO | FOF_NOCONFIRMMKDIR).map_err(|e| e.message())?;
+        let sink = ComObject::new(MoveSink::default());
+        op.Advise(&sink.to_interface::<IFileOperationProgressSink>()).map_err(|e| e.message())?;
         let dest = shell_item(&target_dir)?;
         let target_norm = util::norm_path(&target_dir);
         let mut any = false;
@@ -538,10 +635,20 @@ pub fn move_into_folder(paths: Vec<String>, target_dir: String) -> Result<(), St
             op.MoveItem(&item, &dest, PCWSTR::null(), None).map_err(|e| e.message())?;
             any = true;
         }
-        if any {
-            perform(&op)
-        } else {
-            Ok(())
+        if !any {
+            return Ok(vec![None; paths.len()]);
+        }
+        // a cancel part-way still reports the items that moved before it
+        let done = op.PerformOperations();
+        let landed = sink.0.borrow();
+        // a source still there did not move (skipped, or a folder merged only in part)
+        let moved: Vec<Option<String>> = paths
+            .iter()
+            .map(|p| landed.get(&util::norm_path(p)).filter(|_| !Path::new(p).exists()).cloned())
+            .collect();
+        match done {
+            Err(e) if moved.iter().all(Option::is_none) => Err(e.message()),
+            _ => Ok(moved),
         }
     })?
 }
@@ -1304,5 +1411,23 @@ mod tests {
     #[test]
     fn exact_name_is_not_extended_again() {
         assert_eq!(renamed_file_name("Chrome.lnk", "Browser.lnk", "Browser", false, true), "Chrome.lnk");
+    }
+
+    #[test]
+    fn move_reports_where_items_landed() {
+        let dir = std::env::temp_dir().join(format!("fe-move-test-{}", std::process::id()));
+        let dest = dir.join("Hedef ğ");
+        std::fs::create_dir_all(&dest).unwrap();
+        std::fs::write(dir.join("Şeker.txt"), "x").unwrap();
+        let moved = move_into_folder(
+            vec![dir.join("Şeker.txt").to_string_lossy().into(), "::{645ff040-5081-101b-9f08-00aa002f954e}".into()],
+            dest.to_string_lossy().into(),
+        )
+        .unwrap();
+        let want = util::norm_path(&dest.join("Şeker.txt").to_string_lossy());
+        assert_eq!(moved.len(), 2);
+        assert_eq!(moved[0].as_deref().map(util::norm_path), Some(want));
+        assert_eq!(moved[1], None);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

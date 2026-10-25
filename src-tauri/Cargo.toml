@@ -24,6 +24,8 @@ png = "0.17"
 webview2-com = "0.39"
 # the async types of the windows crate (Windows Hello for locked groups)
 windows-future = "0.3"
+# `#[implement]` (the progress sink of moves) names this crate directly
+windows-core = "0.62"
 
 [profile.dev]
 opt-level = 1

@@ -224,12 +224,18 @@ export function recordFileOpOnly(fileOp: FileOp) {
   syncHistoryFlags();
 }
 
+/** A file skipped (or cancelled) in Windows' conflict dialog fails the undo / redo. */
+async function moveOne(path: string, dir: string) {
+  const [to] = await api.moveIntoFolder([path], dir);
+  if (!to) throw new Error(`not moved: ${path}`);
+}
+
 // renames replay recorded file names exactly: a typed name would get a hidden .lnk appended again
 async function revert(op: FileOp) {
   if (op.kind === "recycle") await api.restoreFromRecycle(op.paths);
   else if (op.kind === "rename") await api.renameItem(op.to, baseName(op.from, true), true);
   else if (op.kind === "move") {
-    for (const mv of op.moves) await api.moveIntoFolder([mv.to], dirName(mv.from));
+    for (const mv of op.moves) await moveOne(mv.to, dirName(mv.from));
   }
 }
 
@@ -237,7 +243,7 @@ async function reapply(op: FileOp) {
   if (op.kind === "recycle") await api.recycle(op.paths);
   else if (op.kind === "rename") await api.renameItem(op.from, baseName(op.to, true), true);
   else if (op.kind === "move") {
-    for (const mv of op.moves) await api.moveIntoFolder([mv.from], dirName(mv.to));
+    for (const mv of op.moves) await moveOne(mv.from, dirName(mv.to));
   }
 }
 
