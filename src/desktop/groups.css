@@ -94,7 +94,7 @@
   padding: 0 14px;
   overflow-x: auto;
   scrollbar-width: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(var(--panel-fg-rgb), 0.14);
 }
 
 .group-tab {
@@ -105,7 +105,7 @@
   border-bottom: none;
   border-radius: 10px 10px 0 0;
   background: transparent;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(var(--panel-fg-rgb), 0.72);
   font-size: 12.5px;
   white-space: nowrap;
   overflow: hidden;
@@ -115,21 +115,21 @@
 }
 
 .group-tab:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: rgba(var(--panel-fg-rgb), 0.08);
+  color: rgb(var(--panel-fg-rgb));
 }
 
 .group-tab[data-active="true"] {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  background: rgba(var(--panel-fg-rgb), 0.16);
+  border-color: rgba(var(--panel-fg-rgb), 0.16);
+  color: rgb(var(--panel-fg-rgb));
   font-weight: 600;
 }
 
 .group-tab[data-drop="true"] {
   background: var(--accent-soft);
   border-color: var(--accent);
-  color: #fff;
+  color: rgb(var(--panel-fg-rgb));
 }
 
 .group-tab input {
@@ -137,7 +137,7 @@
   border: none;
   outline: none;
   background: transparent;
-  color: #fff;
+  color: rgb(var(--panel-fg-rgb));
   font: inherit;
   font-weight: 600;
 }
@@ -152,13 +152,13 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(var(--panel-fg-rgb), 0.75);
   cursor: pointer;
 }
 
 .group-tab-add:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: rgba(var(--panel-fg-rgb), 0.12);
+  color: rgb(var(--panel-fg-rgb));
 }
 
 .group-note {
@@ -167,8 +167,8 @@
   gap: 10px;
   padding: 0 14px 0 18px;
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.85);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(var(--panel-fg-rgb), 0.85);
+  border-bottom: 1px solid rgba(var(--panel-fg-rgb), 0.1);
 }
 
 .group-note span {
@@ -187,15 +187,15 @@
   border: none;
   border-radius: 8px;
   padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  background: rgba(var(--panel-fg-rgb), 0.16);
+  color: rgb(var(--panel-fg-rgb));
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .group-note button:hover {
-  background: rgba(255, 255, 255, 0.26);
+  background: rgba(var(--panel-fg-rgb), 0.26);
 }
 
 .group-note .path {
@@ -205,12 +205,12 @@
   color: inherit;
   font-weight: 400;
   text-align: left;
-  text-decoration: underline dotted rgba(255, 255, 255, 0.5);
+  text-decoration: underline dotted rgba(var(--panel-fg-rgb), 0.5);
 }
 
 .group-note .path:hover {
   background: transparent;
-  color: #fff;
+  color: rgb(var(--panel-fg-rgb));
 }
 
 .panel-locked {
@@ -220,7 +220,7 @@
   place-items: center;
   align-content: center;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(var(--panel-fg-rgb), 0.8);
 }
 
 /* ------------------------------------------------------------ customize: kind / display / lock */
