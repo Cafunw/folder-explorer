@@ -192,11 +192,9 @@ pub fn run() {
             // Explorer restarts (crash, "Restart" in Task Manager). Start again once Explorer is back.
             if let WindowEvent::Destroyed = event {
                 if window.label() == "desktop" && !desktop_window::is_quitting() {
-                    desktop_window::restore_icons();
-                    desktop_window::restart_after_explorer();
                     // A hidden search or settings window would keep this process alive without a desktop,
                     // and single-instance would hand the fresh copy's launch to it: leave now.
-                    window.app_handle().exit(0);
+                    desktop_window::restart_and_exit(window.app_handle());
                 }
             }
         })
