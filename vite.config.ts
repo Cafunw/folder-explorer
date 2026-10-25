@@ -29,4 +29,5 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
   },
+  test: { include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.mjs"] },
 });

@@ -301,25 +301,25 @@ pub unsafe fn bitmap_rgba(hbmp: HBITMAP) -> Result<(u32, u32, Vec<u8>), String> 
     if lines == 0 {
         return Err("GetDIBits başarısız".into());
     }
-    let has_alpha = bm.bmBitsPixel == 32 && buf.chunks_exact(4).any(|p| p[3] != 0);
+    let has_alpha = bm.bmBitsPixel == 32 && buf.as_chunks::<4>().0.iter().any(|p| p[3] != 0);
     if !has_alpha {
-        for p in buf.chunks_exact_mut(4) {
+        for p in buf.as_chunks_mut::<4>().0 {
             p[3] = 255;
         }
     } else {
-        let premultiplied = !buf.chunks_exact(4).any(|p| p[0] > p[3] || p[1] > p[3] || p[2] > p[3]);
+        let premultiplied = !buf.as_chunks::<4>().0.iter().any(|p| p[0] > p[3] || p[1] > p[3] || p[2] > p[3]);
         if premultiplied {
-            for p in buf.chunks_exact_mut(4) {
+            for p in buf.as_chunks_mut::<4>().0 {
                 let a = p[3] as u32;
                 if a > 0 && a < 255 {
-                    for c in 0..3 {
-                        p[c] = ((p[c] as u32 * 255 + a / 2) / a).min(255) as u8;
+                    for c in &mut p[..3] {
+                        *c = ((*c as u32 * 255 + a / 2) / a).min(255) as u8;
                     }
                 }
             }
         }
     }
-    for p in buf.chunks_exact_mut(4) {
+    for p in buf.as_chunks_mut::<4>().0 {
         p.swap(0, 2); // BGRA -> RGBA
     }
     Ok((w as u32, h as u32, buf))

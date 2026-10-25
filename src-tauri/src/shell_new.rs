@@ -43,7 +43,7 @@ unsafe fn get_str(key: PCWSTR, name: PCWSTR) -> Option<String> {
     if RegGetValueW(HKEY_CURRENT_USER, key, name, RRF_RT_REG_SZ, None, None, Some(&mut size)) != ERROR_SUCCESS || size < 2 {
         return None;
     }
-    let mut buf = vec![0u16; (size as usize + 1) / 2];
+    let mut buf = vec![0u16; (size as usize).div_ceil(2)];
     let rc = RegGetValueW(HKEY_CURRENT_USER, key, name, RRF_RT_REG_SZ, None, Some(buf.as_mut_ptr() as *mut _), Some(&mut size));
     (rc == ERROR_SUCCESS).then(|| String::from_utf16_lossy(&buf).trim_end_matches('\0').to_string())
 }

@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "react"],
+  "categories": { "correctness": "error" },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    // warn only: adding deps would change when effects run
+    "react/exhaustive-deps": "warn",
+    // the folder panel keeps its last state in a ref during render so the closing animation has content
+    "react/refs": "off",
+    // effects clear fetched state when their key changes; the extra render is intended
+    "react/set-state-in-effect": "off",
+    // hooks take ref objects ({ current }) as plain arguments and set them in effects
+    "react/immutability": "off"
+  },
+  "ignorePatterns": ["dist/", "src-tauri/", "node_modules/"]
+}

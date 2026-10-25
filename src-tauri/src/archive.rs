@@ -163,7 +163,7 @@ pub fn compress(paths: Vec<String>, format: String) -> Result<String, String> {
         let r = match ext {
             "zip" => {
                 let r = (l.format_zip)(a);
-                (l.options)(a, b"hdrcharset=UTF-8\0".as_ptr());
+                (l.options)(a, c"hdrcharset=UTF-8".as_ptr().cast());
                 r
             }
             "7z" => (l.format_7zip)(a),
