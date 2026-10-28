@@ -12,7 +12,9 @@ use windows::Win32::System::Registry::{
 use windows::Win32::UI::Shell::{SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_IDLIST};
 
 /// The entry in Explorer's native New submenu, including the desktop background menu.
-pub const MENU_TEXT: &str = "Yeni grup oluştur";
+pub fn menu_text() -> &'static str {
+    crate::lang::t("New group", "Yeni grup oluştur")
+}
 const PROGID: &str = "FolderExplorer.Group";
 
 const EXT_KEY: PCWSTR = w!("Software\\Classes\\.fegroup");
@@ -65,17 +67,17 @@ pub fn sync(enabled: bool) {
         let ext = get_str(EXT_KEY, PCWSTR::null());
         if enabled {
             let current = get_str(SHELLNEW_KEY, w!("Command")).as_deref() == Some(command.as_str())
-                && get_str(SHELLNEW_KEY, w!("MenuText")).as_deref() == Some(MENU_TEXT)
-                && get_str(PROGID_KEY, PCWSTR::null()).as_deref() == Some(MENU_TEXT)
+                && get_str(SHELLNEW_KEY, w!("MenuText")).as_deref() == Some(menu_text())
+                && get_str(PROGID_KEY, PCWSTR::null()).as_deref() == Some(menu_text())
                 && ext.as_deref() == Some(PROGID);
             if current {
                 return;
             }
             let written = set_str(EXT_KEY, PCWSTR::null(), PROGID)
                 .and(set_str(SHELLNEW_KEY, w!("Command"), &command))
-                .and(set_str(SHELLNEW_KEY, w!("MenuText"), MENU_TEXT))
+                .and(set_str(SHELLNEW_KEY, w!("MenuText"), menu_text()))
                 .and(set_str(SHELLNEW_KEY, w!("IconPath"), &icon))
-                .and(set_str(PROGID_KEY, PCWSTR::null(), MENU_TEXT))
+                .and(set_str(PROGID_KEY, PCWSTR::null(), menu_text()))
                 .and(set_str(ICON_KEY, PCWSTR::null(), &icon));
             match written {
                 Ok(()) => notify(),

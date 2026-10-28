@@ -78,10 +78,10 @@ unsafe fn stage_view(lv: HWND, at: POINT, item: POINT, spacing: POINT) -> Result
     GetWindowRect(lv, &mut rect).map_err(|e| e.message())?;
     let parent = GetParent(lv).map_err(|e| e.message())?;
     let mut parent_origin = POINT::default();
-    if !ClientToScreen(parent, &mut parent_origin).as_bool() { return Err("masaüstü koordinatları okunamadı".into()); }
+    if !ClientToScreen(parent, &mut parent_origin).as_bool() { return Err("couldn't read the desktop coordinates".into()); }
     let (x, y) = (rect.left - parent_origin.x, rect.top - parent_origin.y);
     let mut origin = POINT::default();
-    if !ClientToScreen(lv, &mut origin).as_bool() { return Err("simge koordinatları okunamadı".into()); }
+    if !ClientToScreen(lv, &mut origin).as_bool() { return Err("couldn't read the icon coordinates".into()); }
     let mut alpha = 255u8;
     let mut color = COLORREF(0);
     let mut flags = LWA_ALPHA;
@@ -281,16 +281,16 @@ pub fn mirror_selection(paths: Vec<String>) -> Result<(), String> {
 
 /// Paths are parsing names of real desktop items, with the clicked item first.
 pub fn show_items(paths: Vec<String>, at: Option<POINT>) -> Result<&'static str, String> {
-    if paths.is_empty() { return Err("menü için simge seçilmedi".into()); }
+    if paths.is_empty() { return Err(crate::lang::t("no icons selected for the menu", "menü için simge seçilmedi").into()); }
     let token = cancel_observer();
     util::run_sta(move || unsafe {
         let _lock = OPEN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let dv = desktop_window::find_defview().ok_or("Windows masaüstü görünümü bulunamadı")?;
-        let lv = desktop_window::find_listview().ok_or("Windows simge görünümü bulunamadı")?;
+        let dv = desktop_window::find_defview().ok_or("Windows desktop view not found")?;
+        let lv = desktop_window::find_listview().ok_or("Windows icon view not found")?;
         let (view, fv) = desktop_view()?;
         let (missing, position) = select_paths(&view, &fv, &paths, Some(&paths[0]))?;
-        if !missing.is_empty() { return Err("seçilen simgeler Windows masaüstünde bulunamadı".into()); }
-        let position = position.ok_or("tıklanan simgenin konumu bulunamadı")?;
+        if !missing.is_empty() { return Err(crate::lang::t("the selected icons weren't found on the Windows desktop", "seçilen simgeler Windows masaüstünde bulunamadı").into()); }
+        let position = position.ok_or("the clicked icon's position was not found")?;
         let mut spacing = POINT::default();
         let _ = fv.GetSpacing(&mut spacing);
         let mut point = at.unwrap_or_default();
@@ -317,6 +317,6 @@ pub fn show_items(paths: Vec<String>, at: Option<POINT>) -> Result<&'static str,
             }
             std::thread::sleep(Duration::from_millis(20));
         }
-        Err("Windows simge menüsü açılamadı".into())
+        Err(crate::lang::t("couldn't open the Windows icon menu", "Windows simge menüsü açılamadı").into())
     })?
 }

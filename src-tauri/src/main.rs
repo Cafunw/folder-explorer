@@ -27,9 +27,10 @@ fn main() {
     if args.iter().any(|a| a == "--new-group") && (folder_explorer_lib::new_group() || cfg!(debug_assertions)) {
         return;
     }
-    // Installer, after copying the files (the app is not running then): its "start with Windows" choice.
+    // Installer, after copying the files (the app is not running then): its "start with Windows" and language choices.
     if let Some(i) = args.iter().position(|a| a == "--start-with-windows") {
-        folder_explorer_lib::set_start_with_windows(args.get(i + 1).map(String::as_str) == Some("on"));
+        let language = args.iter().position(|a| a == "--language").and_then(|j| args.get(j + 1)).map(String::as_str);
+        folder_explorer_lib::set_start_with_windows(args.get(i + 1).map(String::as_str) == Some("on"), language);
         return;
     }
     if args.iter().any(|a| a == "--clean-legacy") {

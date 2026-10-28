@@ -72,7 +72,7 @@ fn lib() -> Result<&'static Lib, String> {
         })
     })
     .as_ref()
-    .ok_or_else(|| "sıkıştırma kitaplığı (archiveint.dll) bulunamadı".to_string())
+    .ok_or_else(|| crate::lang::t("the compression library (archiveint.dll) was not found", "sıkıştırma kitaplığı (archiveint.dll) bulunamadı").to_string())
 }
 
 fn wide(s: &str) -> Vec<u16> {
@@ -142,14 +142,14 @@ unsafe fn add(l: &Lib, a: Ar, src: &Path, name: &str) -> Result<(), String> {
 /// Returns the archive's path.
 pub fn compress(paths: Vec<String>, format: String) -> Result<String, String> {
     let paths: Vec<String> = paths.into_iter().filter(|p| !p.starts_with("::")).collect();
-    let first = Path::new(paths.first().ok_or("sıkıştırılacak öğe yok")?);
-    let dir = first.parent().ok_or("klasör bulunamadı")?;
+    let first = Path::new(paths.first().ok_or(crate::lang::t("nothing to compress", "sıkıştırılacak öğe yok"))?);
+    let dir = first.parent().ok_or(crate::lang::t("folder not found", "klasör bulunamadı"))?;
     let base = if first.is_dir() { first.file_name() } else { first.file_stem() }
         .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| "Arşiv".into());
+        .unwrap_or_else(|| crate::lang::t("Archive", "Arşiv").into());
     let ext = match format.as_str() {
         "zip" | "7z" | "tar" => format.as_str(),
-        _ => return Err(format!("bilinmeyen biçim: {format}")),
+        _ => return Err(format!("{}: {format}", crate::lang::t("unknown format", "bilinmeyen biçim"))),
     };
     let mut out = dir.join(format!("{base}.{ext}"));
     let mut n = 2;
@@ -170,9 +170,9 @@ pub fn compress(paths: Vec<String>, format: String) -> Result<String, String> {
             _ => (l.format_tar)(a),
         };
         let res = if r < 0 {
-            Err(fail(l, a, "biçim"))
+            Err(fail(l, a, crate::lang::t("format", "biçim")))
         } else if (l.open_w)(a, wide(&out.to_string_lossy()).as_ptr()) < 0 {
-            Err(fail(l, a, "arşiv oluşturulamadı"))
+            Err(fail(l, a, crate::lang::t("couldn't create the archive", "arşiv oluşturulamadı")))
         } else {
             let mut res = Ok(());
             for p in &paths {
@@ -184,7 +184,7 @@ pub fn compress(paths: Vec<String>, format: String) -> Result<String, String> {
                 }
             }
             if (l.close)(a) < 0 && res.is_ok() {
-                res = Err(fail(l, a, "arşiv yazılamadı"));
+                res = Err(fail(l, a, crate::lang::t("couldn't write the archive", "arşiv yazılamadı")));
             }
             res
         };

@@ -133,8 +133,8 @@ pub fn find_listview() -> Option<HWND> {
 pub fn show_context_menu(at: POINT) -> Result<(), String> {
     let token = crate::explorer_menu::cancel_observer();
     util::run_sta(move || unsafe {
-        let dv = find_defview().ok_or("Windows masaüstü görünümü bulunamadı")?;
-        let lv = find_listview().ok_or("Windows masaüstü simge görünümü bulunamadı")?;
+        let dv = find_defview().ok_or("Windows desktop view not found")?;
+        let lv = find_listview().ok_or("Windows desktop icon view not found")?;
         let sw: IShellWindows = CoCreateInstance(&ShellWindows, None, CLSCTX_ALL).map_err(|e| e.message())?;
         let mut loc = VARIANT::default();
         (*loc.Anonymous.Anonymous).vt = VT_I4;

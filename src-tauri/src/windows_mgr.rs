@@ -28,6 +28,50 @@ static LAUNCH_NEW_GROUP: AtomicBool = AtomicBool::new(false);
 pub struct TrayState {
     pub lock: CheckMenuItem<Wry>,
     pub win_icons: CheckMenuItem<Wry>,
+    /// the other entries, retitled when the language changes
+    items: Vec<MenuItem<Wry>>,
+    new_menu: Submenu<Wry>,
+}
+
+/// Tray and window texts by menu id / window label, in the UI language.
+fn text(id: &str) -> &'static str {
+    use crate::lang::t;
+    match id {
+        "settings" => t("Settings", "Ayarlar"),
+        "lock" => t("Lock layout", "Düzeni kilitle"),
+        "winicons" => t("Show Windows icons", "Windows simgelerine dön"),
+        "quit" => t("Quit", "Çıkış"),
+        "addapp" => t("Add app…", "Uygulama ekle…"),
+        "new" => t("New", "Yeni"),
+        "newgroup" => t("Group", "Grup"),
+        "newsmart" => t("Smart group", "Akıllı grup"),
+        "newlive" => t("Live folder", "Canlı klasör"),
+        "newfrequent" => t("Most used", "En çok kullanılanlar"),
+        "newfence" => t("Fence", "Kutu"),
+        "newheading" => t("Heading", "Başlık"),
+        "newdivider" => t("Divider", "Ayraç"),
+        "editicons" => t("Edit icons", "Simgeleri düzenle"),
+        "search-window" => t("Folder Explorer Search", "Folder Explorer Arama"),
+        "settings-window" => t("Folder Explorer — Settings", "Folder Explorer — Ayarlar"),
+        _ => "",
+    }
+}
+
+/// After a language change: the tray menu and the open windows' titles.
+fn retitle(app: &AppHandle) {
+    if let Some(st) = app.try_state::<TrayState>() {
+        for i in &st.items {
+            let _ = i.set_text(text(i.id().as_ref()));
+        }
+        let _ = st.lock.set_text(text("lock"));
+        let _ = st.win_icons.set_text(text("winicons"));
+        let _ = st.new_menu.set_text(text("new"));
+    }
+    for label in ["search", "settings"] {
+        if let Some(w) = app.get_webview_window(label) {
+            let _ = w.set_title(text(&format!("{label}-window")));
+        }
+    }
 }
 
 #[derive(Serialize, Clone)]
@@ -203,7 +247,7 @@ pub fn show_search(app: &AppHandle, initial: String) -> Result<(), String> {
         Some(w) => w,
         None => {
             let w = WebviewWindowBuilder::new(app, "search", WebviewUrl::App("index.html?view=search".into()))
-                .title("Folder Explorer Arama")
+                .title(text("search-window"))
                 .decorations(false)
                 .transparent(true)
                 .always_on_top(true)
@@ -308,7 +352,7 @@ pub fn open_settings(app: &AppHandle) -> Result<(), String> {
         return Ok(());
     }
     let w = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html?view=settings".into()))
-        .title("Folder Explorer — Ayarlar")
+        .title(text("settings-window"))
         .inner_size(1000.0, 700.0)
         .min_inner_size(820.0, 560.0)
         .center()
@@ -329,35 +373,36 @@ pub fn quit(app: &AppHandle) {
 }
 
 pub fn setup_tray(app: &AppHandle) -> Result<(), String> {
-    let settings_item = MenuItem::with_id(app, "settings", "Ayarlar", true, None::<&str>).map_err(|e| e.to_string())?;
-    let locked = store::settings()
-        .pointer("/behavior/lockLayout")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let lock = CheckMenuItem::with_id(app, "lock", "Düzeni kilitle", true, locked, None::<&str>).map_err(|e| e.to_string())?;
-    let win_icons = CheckMenuItem::with_id(app, "winicons", "Windows simgelerine dön", true, false, None::<&str>)
+    let settings = store::settings();
+    crate::lang::set_from(&settings);
+    let item = |id: &str| MenuItem::with_id(app, id, text(id), true, None::<&str>).map_err(|e| e.to_string());
+    let settings_item = item("settings")?;
+    let locked = settings.pointer("/behavior/lockLayout").and_then(|v| v.as_bool()).unwrap_or(false);
+    let lock = CheckMenuItem::with_id(app, "lock", text("lock"), true, locked, None::<&str>).map_err(|e| e.to_string())?;
+    let win_icons = CheckMenuItem::with_id(app, "winicons", text("winicons"), true, false, None::<&str>)
         .map_err(|e| e.to_string())?;
     let sep = PredefinedMenuItem::separator(app).map_err(|e| e.to_string())?;
-    let quit_item = MenuItem::with_id(app, "quit", "Çıkış", true, None::<&str>).map_err(|e| e.to_string())?;
-    let add_app = MenuItem::with_id(app, "addapp", "Uygulama ekle…", true, None::<&str>).map_err(|e| e.to_string())?;
+    let quit_item = item("quit")?;
+    let add_app = item("addapp")?;
     // ids = the desktop's menu actions (runMenuAction); "newgroup" keeps its own path (new_group)
-    let item = |id: &str, text: &str| MenuItem::with_id(app, id, text, true, None::<&str>).map_err(|e| e.to_string());
     let new_items = [
-        item("newgroup", "Grup")?,
-        item("newsmart", "Akıllı grup")?,
-        item("newlive", "Canlı klasör")?,
-        item("newfrequent", "En çok kullanılanlar")?,
-        item("newfence", "Kutu")?,
-        item("newheading", "Başlık")?,
-        item("newdivider", "Ayraç")?,
+        item("newgroup")?,
+        item("newsmart")?,
+        item("newlive")?,
+        item("newfrequent")?,
+        item("newfence")?,
+        item("newheading")?,
+        item("newdivider")?,
     ];
     let new_refs: Vec<&dyn IsMenuItem<Wry>> = new_items.iter().map(|i| i as _).collect();
-    let new_menu = Submenu::with_items(app, "Yeni", true, &new_refs).map_err(|e| e.to_string())?;
-    let edit_icons = item("editicons", "Simgeleri düzenle")?;
+    let new_menu = Submenu::with_id_and_items(app, "new", text("new"), true, &new_refs).map_err(|e| e.to_string())?;
+    let edit_icons = item("editicons")?;
     let menu = Menu::with_items(app, &[&new_menu, &edit_icons, &add_app, &settings_item, &lock, &win_icons, &sep, &quit_item])
         .map_err(|e| e.to_string())?;
 
-    app.manage(TrayState { lock: lock.clone(), win_icons: win_icons.clone() });
+    let mut items = new_items.to_vec();
+    items.extend([edit_icons, add_app, settings_item, quit_item]);
+    app.manage(TrayState { lock: lock.clone(), win_icons: win_icons.clone(), items, new_menu });
 
     let mut builder = TrayIconBuilder::with_id("main")
         .tooltip("Folder Explorer")
@@ -406,6 +451,9 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), String> {
 
 /// Applies settings that live on the Rust side (startup shortcut, tray check state, New menu).
 pub fn apply_settings(app: &AppHandle, settings: &serde_json::Value) {
+    if crate::lang::set_from(settings) {
+        retitle(app);
+    }
     // "Windows ile başlat" = a shortcut in the Startup folder (opt-in; never for dev builds)
     if !cfg!(debug_assertions) {
         let autostart = settings.pointer("/behavior/startWithWindows").and_then(|v| v.as_bool()).unwrap_or(false);

@@ -237,7 +237,7 @@ pub fn paste(shortcuts: bool) -> Result<Vec<String>, String> {
             .iter()
             .filter_map(|p| {
                 let name = Path::new(p).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-                create_shortcut_in(desktop.clone(), p.clone(), format!("{name} - Kısayol")).ok()
+                create_shortcut_in(desktop.clone(), p.clone(), format!("{name} - {}", crate::lang::t("Shortcut", "Kısayol"))).ok()
             })
             .collect());
     }
@@ -257,7 +257,7 @@ pub fn clipboard_files(paths: Vec<String>, cut: bool) -> Result<(), String> {
             .filter_map(|p| parse_pidl(p).ok().map(|pidl| (p.clone(), pidl)))
             .collect();
         let Some((first_path, first)) = pidls.first() else {
-            return Err("öğe bulunamadı".to_string());
+            return Err(crate::lang::t("item not found", "öğe bulunamadı").to_string());
         };
         let mut last: *mut ITEMIDLIST = std::ptr::null_mut();
         let folder: IShellFolder = SHBindToParent(first.0, Some(&mut last)).map_err(|e| e.message())?;
@@ -321,7 +321,7 @@ pub fn show_properties(path: String) -> Result<(), String> {
         if ok.as_bool() {
             Ok(())
         } else {
-            Err("özellikler açılamadı".into())
+            Err(crate::lang::t("couldn't open Properties", "özellikler açılamadı").into())
         }
     }
 }
@@ -361,7 +361,7 @@ fn perform(op: &IFileOperation) -> Result<(), String> {
     unsafe {
         op.PerformOperations().map_err(|e| e.message())?;
         if op.GetAnyOperationsAborted().map(|b| b.as_bool()).unwrap_or(false) {
-            return Err("işlem iptal edildi".into());
+            return Err(crate::lang::t("the operation was cancelled", "işlem iptal edildi").into());
         }
     }
     Ok(())
@@ -514,10 +514,10 @@ pub fn rename_item(path: String, new_name: String, exact: bool) -> Result<String
     let path = fs_norm(&path);
     let new_name = new_name.trim().trim_end_matches(['.', ' ']).to_string();
     if invalid_name(&new_name) {
-        return Err("Dosya adı şu karakterleri içeremez: \\ / : * ? \" < > |".into());
+        return Err(crate::lang::t("A file name can't contain any of these characters: \\ / : * ? \" < > |", "Dosya adı şu karakterleri içeremez: \\ / : * ? \" < > |").into());
     }
     if path.starts_with("::") {
-        return Err("sistem öğeleri yeniden adlandırılamaz".into());
+        return Err(crate::lang::t("system items can't be renamed", "sistem öğeleri yeniden adlandırılamaz").into());
     }
     util::run_sta(move || unsafe {
         let p = Path::new(&path);
@@ -837,7 +837,7 @@ fn effect_name(effect: DROPEFFECT) -> String {
 unsafe fn files_data_object(paths: &[String]) -> Result<IDataObject, String> {
     let pidls: Vec<Pidl> = paths.iter().filter_map(|p| parse_pidl(p).ok()).collect();
     if pidls.is_empty() {
-        return Err("öğe bulunamadı".into());
+        return Err(crate::lang::t("item not found", "öğe bulunamadı").into());
     }
     let ptrs: Vec<*const ITEMIDLIST> = pidls.iter().map(|p| p.0 as *const _).collect();
     let array = SHCreateShellItemArrayFromIDLists(&ptrs).map_err(|e| e.message())?;
@@ -871,7 +871,7 @@ pub fn drop_on_item(target: String, paths: Vec<String>) -> Result<String, String
             }
         })
         .map_err(|e| e.to_string())?;
-    rx.recv().map_err(|_| "bırakma iş parçacığı yanıt vermedi".to_string())?
+    rx.recv().map_err(|_| "the drop thread didn't respond".to_string())?
 }
 
 unsafe fn drop_sta(target: &str, paths: &[String], owner: HWND) -> Result<String, String> {
@@ -1028,7 +1028,7 @@ pub fn create_shortcut_in(dir: String, parsing_name: String, name: String) -> Re
         let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).map_err(|e| e.message())?;
         link.SetIDList(pidl.0).map_err(|e| e.message())?;
         let pf: IPersistFile = link.cast().map_err(|e| e.message())?;
-        let path = unique_path(&dir, &sanitize_name(&name, "Kısayol"), ".lnk");
+        let path = unique_path(&dir, &sanitize_name(&name, crate::lang::t("Shortcut", "Kısayol")), ".lnk");
         pf.Save(&HSTRING::from(path.as_str()), true).map_err(|e| e.message())?;
         Ok(path)
     })?
@@ -1041,7 +1041,7 @@ pub fn create_url_shortcut(url: String, name: String) -> Result<String, String> 
 pub fn create_url_shortcut_in(dir: &str, url: String, name: String) -> Result<String, String> {
     let url = url.trim().to_string();
     if url.is_empty() {
-        return Err("adres boş".into());
+        return Err(crate::lang::t("the address is empty", "adres boş").into());
     }
     let url = if url.contains("://") { url } else { format!("https://{url}") };
     let fallback = url
@@ -1206,7 +1206,7 @@ fn remote_path(path: &str) -> bool {
 /// folders and network paths are left out.
 pub fn list_recent(limit: usize) -> Result<Vec<RecentFile>, String> {
     use windows::Win32::UI::Shell::FOLDERID_Recent;
-    let dir = util::known_folder(&FOLDERID_Recent).ok_or("Son kullanılanlar klasörü bulunamadı")?;
+    let dir = util::known_folder(&FOLDERID_Recent).ok_or(crate::lang::t("the Recent folder was not found", "Son kullanılanlar klasörü bulunamadı"))?;
     let mut links: Vec<(u64, std::path::PathBuf)> = std::fs::read_dir(&dir)
         .map_err(|e| e.to_string())?
         .flatten()

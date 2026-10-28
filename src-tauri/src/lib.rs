@@ -10,6 +10,7 @@ mod explorer_menu;
 mod hello;
 mod icons;
 mod items;
+mod lang;
 mod legacy;
 mod live;
 mod quiet;
@@ -44,9 +45,10 @@ pub fn show_icons() {
     std::thread::sleep(std::time::Duration::from_millis(300));
 }
 
-/// `folder-explorer.exe --start-with-windows on|off` (installer): stores `behavior.startWithWindows`
-/// like Ayarlar ▸ Davranış does and makes the Startup shortcut match.
-pub fn set_start_with_windows(on: bool) {
+/// `folder-explorer.exe --start-with-windows on|off [--language en|tr]` (installer): stores
+/// `behavior.startWithWindows` like Settings ▸ Behavior does, makes the Startup shortcut match, and
+/// takes the installer's language as the UI language.
+pub fn set_start_with_windows(on: bool, language: Option<&str>) {
     let mut s = store::settings();
     if !s.is_object() {
         s = serde_json::json!({});
@@ -55,6 +57,9 @@ pub fn set_start_with_windows(on: bool) {
         s["behavior"] = serde_json::json!({});
     }
     s["behavior"]["startWithWindows"] = serde_json::Value::Bool(on);
+    if let Some(l @ ("en" | "tr")) = language {
+        s["language"] = l.into();
+    }
     let _ = store::save_settings(s);
     let _ = startup::set(on);
 }
@@ -219,7 +224,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("Folder Explorer başlatılamadı");
+        .expect("Folder Explorer failed to start");
 
     app.run(|app, event| match event {
         RunEvent::ExitRequested { api, code, .. } => {
