@@ -12,6 +12,7 @@ const DEFAULT_WALLPAPER: WallpaperSpec = {
 
 export const DEFAULT_SETTINGS: Settings = {
   version: 1,
+  language: "en",
   theme: "system",
   accent: "#3b82f6",
   wallpaper: {
@@ -167,6 +168,7 @@ export function normalizeSettings(raw: unknown): Settings {
   }
   return {
     version: 1,
+    language: oneOf(r.language, ["en", "tr"] as const, d.language),
     theme: oneOf(r.theme, ["system", "light", "dark"] as const, d.theme),
     accent: str(r.accent, d.accent),
     wallpaper: {
