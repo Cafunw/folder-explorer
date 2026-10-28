@@ -57,9 +57,8 @@ This is the foundation of the architecture; everything else follows from it.
   tray, and by a watchdog process, and an Explorer restart or reboot always brings the icons back.
   Reading the original icon positions (`IFolderView::GetItemPosition`) is read-only.
 
-Earlier menu implementations are archived in
-`docs/archive/before-core-rule-explorer-forwarding.zip`. The current native desktop forwarding
-replaces the later app-drawn menu implementation at the user's request.
+Earlier, app-drawn menu implementations are in the git history. The current native desktop
+forwarding replaced them at the user's request.
 
 ### Input
 The transparent desktop window covers the whole screen and takes all input (`enforce_exstyle` keeps
