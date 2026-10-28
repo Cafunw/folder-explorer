@@ -120,7 +120,7 @@ The last command writes the installer to `src-tauri/target/release/bundle/nsis/`
 
 ## Contributing
 
-Bug reports and pull requests are welcome. Interface text lives in `src/i18n.en.ts` (English) and `src/i18n.ts` (Turkish), with the same keys in both. Please report security issues privately through the repository's *Security* tab.
+Bug reports, ideas, translations and pull requests are welcome; [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build, test and where things live. Issues marked [good first issue](https://github.com/Cafunw/folder-explorer/labels/good%20first%20issue) are a nice place to start, and [Discussions](https://github.com/Cafunw/folder-explorer/discussions) is open for questions. Please report security issues privately, as described in [SECURITY.md](SECURITY.md).
 
 ## License
 

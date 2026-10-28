@@ -1,0 +1,39 @@
+name: Bug report
+description: Something doesn't work as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time! If Windows' own desktop icons are missing or shown twice, right-click the tray icon and choose **Show Windows icons** first; quitting Folder Explorer from the tray also brings them back.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Drag an icon onto…
+        2. …
+  - type: input
+    id: version
+    attributes:
+      label: Folder Explorer version
+      description: Settings ▸ About shows it, for example "0.3.0 · 1a2b3c4".
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version and displays
+      placeholder: Windows 11 24H2, two monitors at 100 % and 150 % scaling
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or anything else
+      description: Please leave out personal file names you don't want to share.
