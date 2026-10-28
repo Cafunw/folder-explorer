@@ -132,14 +132,6 @@ fn focus_window(hwnd: HWND) {
     }
 }
 
-pub fn dismiss() {
-    let Some(dv) = desktop_window::find_defview() else { return };
-    unsafe {
-        let _ = SendMessageTimeoutW(dv, WM_CANCELMODE, WPARAM(0), LPARAM(0), SMTO_ABORTIFHUNG, 200, None);
-        focus_window(GetAncestor(dv, GA_ROOT));
-    }
-}
-
 /// The native view is hidden again after opening. If Explorer starts inline rename there,
 /// hand it to the desktop's visible editor instead of leaving an invisible input focused.
 /// Watches the Explorer menu of `token` until it is gone, then `linger` longer. If Explorer starts

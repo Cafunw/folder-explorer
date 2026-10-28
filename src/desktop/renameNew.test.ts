@@ -26,7 +26,6 @@ const env: Environment = {
   windowsIconSize: 48,
   desktopDir: "C:\\Users\\u\\Desktop",
   publicDesktopDir: "C:\\Users\\Public\\Desktop",
-  isDev: true,
 } as Environment;
 
 const item = (name: string): DesktopItem => ({

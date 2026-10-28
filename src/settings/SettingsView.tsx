@@ -1160,7 +1160,7 @@ function BackupSec({ update }: { update: Update }) {
 
 function About() {
   const b = parseBuild(__APP_VERSION__, __APP_DESCRIBE__);
-  // `import.meta.env.DEV` is true only under the Vite dev server (calistir.bat), never in an installed build
+  // `import.meta.env.DEV` is true only under the Vite dev server (`npm run tauri dev`), never in an installed build
   const build = [`${t.version} ${versionText(b)}`, b.commit, import.meta.env.DEV ? t.devBuild : !b.released && t.unreleasedBuild];
   return (
     <>

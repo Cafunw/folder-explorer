@@ -35,7 +35,6 @@ const env: Environment = {
   windowsIconSize: 48,
   desktopDir: "C:\\Users\\u\\Desktop",
   publicDesktopDir: "C:\\Users\\Public\\Desktop",
-  isDev: true,
 };
 const grids = computeGrids(env, DEFAULT_SETTINGS);
 const DAY = 24 * 3600 * 1000;

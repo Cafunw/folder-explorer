@@ -46,8 +46,7 @@ This is the foundation of the architecture; everything else follows from it.
   game mode move/size ends, minimize start/end and location changes of the foreground window's
   process) that keep our window directly above the desktop and detect fullscreen apps, a shell
   change notification (`SHChangeNotifyRegister`) for the Recycle Bin and a power-setting
-  notification (battery saver) — subscriptions of our windows that end with the process. A Run
-  value that *earlier versions* wrote is removed at startup (`legacy.rs`) and by the uninstaller.
+  notification (battery saver) — subscriptions of our windows that end with the process.
 * **Menus are built on demand.** No system-menu hooks or Explorer injection. The native New
   submenu contains the optional per-user ShellNew entry described below.
 * **When the app is closed or disabled the Windows desktop is completely normal.** The one thing
@@ -238,8 +237,8 @@ events sent to the page:
   `TrySuspend` (`memory_target`), Normal again on resume: a successful TrySuspend sets Low itself,
   but a suspended webview ignores the setter, so this keeps memory low when it fails or is skipped.
 * Debug builds never `TrySuspend` (hidden + low memory only): a suspended page loses Vite's HMR
-  websocket, and Vite's client reloads the whole page on resume (`calistir.bat` users would see the
-  desktop restart after every game). Release builds suspend as described.
+  websocket, and Vite's client reloads the whole page on resume (`npm run tauri dev` would show the
+  desktop restarting after every game). Release builds suspend as described.
 
 ### Background threads and idle cost
 | thread | wakes |
@@ -266,8 +265,8 @@ the heavy JS monitors (rAF gap, 50 ms tile check) only with `localStorage["fe.di
   `spring({ animation }, …)` / `tween(…)`), `useReducedMotion()` (setting ∨ quiet ∨ Windows'
   "Animation effects" off), `nameIn(state, id)` for name selectors. A tile reads its own drop
   feedback (`dropOn(target, id)` → kind string) and `MonitorSurface` renders memoized `DeskTile`s,
-  so a drag target change re-renders only the old and the new target tile. Measured in the browser
-  mock (15 icons, React commit walk): a drag across 10 tiles 1489 → 204 component renders, an
+  so a drag target change re-renders only the old and the new target tile. Measured with 15 icons
+  (React commit walk): a drag across 10 tiles 1489 → 204 component renders, an
   unrelated settings change 144 → 12, drag start / end 44 / 127 → 19 / 26.
 * **Compositor layers only while something moves.** No permanent `will-change`: `Positioned` sets
   it while it springs, a page while it is between positions, the wallpaper while it drifts
@@ -446,7 +445,7 @@ Built apps run under the CSP in `tauri.conf.json` › `app.security.csp`: script
 IPC over `http://ipc.localhost`, `blob:` / `data:` images, inline styles allowed because `motion`
 injects `<style>` tags (`dangerousDisableAssetCspModification: ["style-src"]` keeps Tauri from adding a
 hash there, which would switch `'unsafe-inline'` off), `object-src 'none'`. On desktop Tauri never
-applies a CSP to the `devUrl` page, so `npm run tauri dev` (calistir.bat) runs without one: a resource
+applies a CSP to the `devUrl` page, so `npm run tauri dev` runs without one: a resource
 the policy misses only shows up in an installed build.
 
 ## Custom protocol `fe`
@@ -807,15 +806,12 @@ Group kinds / displays in the UI (`src/desktop/`):
 |---|---|
 | `--quit` | posts a private message to a running instance's desktop window, which quits gracefully (restoring the Windows icons); waits for the process to exit. Used by the installer hooks. |
 | `--new-group` | run by Windows' New ▸ New group: posts a private message to the running desktop window (after `AllowSetForegroundWindow` for it), which comes to the front with a new empty group being named (same as the tray's "Yeni grup"). Not running: the app starts and does the same once the desktop is ready (`take_launch_new_group`). |
-| `--clean-legacy` | removes what earlier versions wrote into Windows (a Run value that points to our exe), prints what it found. Also runs in the background at every start. |
 | `--delayed-start <s>` | internal: sleep `<s>` seconds before starting (the app restarts itself this way after an Explorer restart). |
 | `--show-icons` | makes the Windows desktop icons visible again and exits (safety net). |
 | `--watchdog <pid>` | internal: waits for `<pid>` to exit, then shows the Windows icons. |
 | `--watchdog-launch <pid>` | internal: starts `--watchdog <pid>` and exits, so the watchdog is outside the app's process tree. |
 | `--autostart` | passed by the "start with Windows" Startup-folder shortcut; a second instance launched with it stays silent. |
 | `--start-with-windows on\|off [--language en\|tr]` | run by the installer after copying the files: stores `behavior.startWithWindows` and the installer's language as `language` in `state.json` (creating `settings` when there is none) and creates / removes the Startup shortcut, then exits. Settings without `grid` still count as a first run in the UI. |
-| `--selftest [dir]` | diagnostics without UI (monitors, items, Windows icon layout per column, wallpapers, an icon PNG). |
-| `--menutest [paths…]` | prints the classic menu (entries + verbs), New ▸ and Open with ▸ for `paths` (none = the desktop background). |
 
 ## Installer
 `npm run tauri build` → `src-tauri/target/release/bundle/nsis/Folder Explorer_<ver>_x64-setup.exe`
@@ -823,8 +819,7 @@ Group kinds / displays in the UI (`src/desktop/`):
 language is, through an override of MUI's `MUI_LANGDLL_DISPLAY` in the hooks, and keeps a language
 stored by an earlier install). `src-tauri/installer-hooks.nsh` runs `--quit` before installing
 over / uninstalling a running copy and `--show-icons` on uninstall. It writes nothing into Windows'
-shell. On uninstall it removes the Startup shortcut, the Yeni ▸ menu keys and the Run value of older
-versions. "Start with Windows" (`behavior.startWithWindows`, off by default)
+shell. On uninstall it removes the Startup shortcut and the Yeni ▸ menu keys. "Start with Windows" (`behavior.startWithWindows`, off by default)
 is a shortcut `Folder Explorer.lnk` in the user's Startup folder (`startup.rs`), never a registry
 value; dev builds never create it. The installer's welcome page has a "Start Folder Explorer when Windows starts" /
 "Bilgisayar açılınca Folder Explorer'ı da başlat" checkbox (checked when the shortcut exists or the app never ran, i.e. no `state.json`); after
@@ -921,6 +916,5 @@ menu. The command creates a virtual group; it does not create a .fegroup file.
   mode remain in the command palette and existing controls. The native desktop menu's View/Sort
   commands belong to Explorer's icon view; app icon layout remains controlled by app settings,
   Ctrl+wheel, keyboard shortcuts and the command palette.
-* `--item-menu-test <paths...>` verifies modern/classic menu identity and that both the view window and icon positions are restored, then dismisses the test menu.
 * Shift+F10 / menu key invokes the same native path as right-click. Existing keyboard actions
   (Alt+Enter, Ctrl+C/X/V, F2, Delete, F5) remain available.

@@ -11,7 +11,7 @@ npm install
 npm run tauri dev
 ```
 
-`npm run tauri dev` starts the app from source; interface changes reload instantly and Rust changes rebuild it. `npm run dev` previews the interface in a browser with sample data, without Windows integration. Dev builds share their settings folder (`%APPDATA%\Folder Explorer`) with an installed copy.
+`npm run tauri dev` starts the app from source; interface changes reload instantly and Rust changes rebuild it. Quit a running Folder Explorer first (tray ▸ Quit): a second copy hands its launch to the running one. Dev builds share their settings folder (`%APPDATA%\Folder Explorer`) with an installed copy.
 
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) describes how the app is put together, every command between the interface and Rust, and the file formats.
 

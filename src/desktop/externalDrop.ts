@@ -1,7 +1,7 @@
 // Files dragged in from Explorer (or any app) and dropped on the desktop / a folder.
 
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { api, isTauri } from "../api";
+import { api } from "../api";
 import { t } from "../i18n";
 import { cellAt, cellKey, gridAt, iconBox } from "../layout/grid";
 import { isFence } from "../layout/blocks";
@@ -192,7 +192,6 @@ async function handleDrop(paths: string[], target: DropTarget, keys: Keys) {
 }
 
 export async function setupExternalDrop(): Promise<() => void> {
-  if (!isTauri) return () => {};
   return getCurrentWebview().onDragDropEvent((event) => {
     const p = event.payload;
     if (p.type === "leave") {

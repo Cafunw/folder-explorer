@@ -209,15 +209,6 @@ impl Render {
     }
 }
 
-/// Returns PNG bytes for a shell item at `size` physical px (cached by version). Waits for the render.
-pub fn icon_png(parsing: &str, size: u32, version: &str) -> Result<Png, String> {
-    let (tx, rx) = channel();
-    Render::icon(parsing, size, version).start(move |res| {
-        let _ = tx.send(res);
-    });
-    rx.recv().map_err(|e| e.to_string())?
-}
-
 /// Gets an HBITMAP for a shell item. Caller owns it. Needs STA.
 pub fn shell_bitmap(parsing: &str, size: u32) -> Result<HBITMAP, String> {
     unsafe {

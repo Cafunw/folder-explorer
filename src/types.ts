@@ -16,7 +16,6 @@ export type Environment = {
   scaleFactor: number;
   desktopDir: string;
   publicDesktopDir: string;
-  isDev: boolean;
   windowsIconSize: number; // Windows' own desktop icon size, logical px (View ▸ Small 32 / Medium 48 / Large 96)
 };
 

@@ -13,10 +13,10 @@ const VIEWS: Record<string, string> = {
   settings: "./settings/SettingsView.tsx",
 };
 
-/** `api.<name>` → the command it invokes, read from `realApi` in api.ts. */
+/** `api.<name>` → the command it invokes, read from `api` in api.ts. */
 function apiCommands(): Map<string, string> {
   const text = sources["./api.ts"];
-  const start = text.indexOf("const realApi = {");
+  const start = text.indexOf("export const api = {");
   const body = text.slice(start, text.indexOf("\n};", start));
   const map = new Map<string, string>();
   for (const chunk of body.split(/\n {2}(?=\w+:)/).slice(1)) {

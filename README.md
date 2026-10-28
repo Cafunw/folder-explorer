@@ -116,7 +116,7 @@ npm run tauri dev
 npm run tauri build
 ```
 
-The last command writes the installer to `src-tauri/target/release/bundle/nsis/`. `npm run dev` previews the interface in a browser with sample data. Checks: `npm test`, `npm run typecheck`, `npm run lint`, and `cargo test --lib` and `cargo clippy` in `src-tauri/`; CI runs all of them on every push.
+The last command writes the installer to `src-tauri/target/release/bundle/nsis/`. Checks: `npm test`, `npm run typecheck`, `npm run lint`, and `cargo test --lib` and `cargo clippy` in `src-tauri/`; CI runs all of them on every push.
 
 ## Contributing
 

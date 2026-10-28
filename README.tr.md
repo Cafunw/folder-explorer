@@ -151,12 +151,10 @@ Düzen `%APPDATA%\Folder Explorer\state.json` dosyasına anında kaydedilir; son
 
 Gerekenler: Node.js, Rust (MSVC), WebView2 (Windows 11'de hazır gelir). İlk kez: `npm install`.
 
-**Canlı çalıştırma (kurulum gerekmez):** proje klasöründeki `calistir.bat` dosyasına çift tıkla.
-Çalışan Folder Explorer varsa düzgünce kapatır, sonra uygulamayı kaynak koddan başlatır. Arayüz
-kodunu (`src/`) değiştirince uygulama anında yenilenir; Rust kodunu (`src-tauri/`) değiştirince
-kendiliğinden yeniden derlenip açılır (yaklaşık 20 sn). Gerçek ayarların ve grupların kullanılır;
-oyundan dönünce sayfa baştan yüklenmez. 1420 portunu başka bir program tutuyorsa adını söyleyip durur.
-Kapatmak için pencerede Ctrl+C.
+**Canlı çalıştırma (kurulum gerekmez):** `npm run tauri dev`. Önce çalışan Folder Explorer'ı kapat
+(tepsi ▸ Çıkış); yoksa ikinci kopya açılışı ona devreder. Arayüz kodunu (`src/`) değiştirince uygulama
+anında yenilenir; Rust kodunu (`src-tauri/`) değiştirince kendiliğinden yeniden derlenip açılır
+(yaklaşık 20 sn). Gerçek ayarların ve grupların kullanılır. Kapatmak için terminalde Ctrl+C.
 
 Diğer komutlar:
 
@@ -179,7 +177,7 @@ Son komut kurulum dosyasını üretir (`src-tauri/target/release/bundle/nsis/`);
 `npm version patch -m "Release %s"` (ya da `minor` / `0.4.0`). Rust tarafını ve CHANGELOG'u günceller,
 "Release X.Y.Z" commit'ini ve `vX.Y.Z` etiketini atar; `git push --follow-tags` sonrası GitHub kurulumu
 etiketten derleyip sürümü notlarıyla yayınlar. Ayarlar ▸ Hakkında, yayınlanmış sürümle birebir aynı
-olmayan derlemelerde "0.3.0+5 · commit · yayınlanmamış derleme" yazar; `calistir.bat` ile açılan
+olmayan derlemelerde "0.3.0+5 · commit · yayınlanmamış derleme" yazar; `npm run tauri dev` ile açılan
 sürümde "geliştirme sürümü" yazar.
 
 **Otomatik kontrol:** GitHub'a her push'ta testler, tip denetimi, oxlint, derleme, Rust testleri ve clippy
@@ -188,9 +186,6 @@ sürümde "geliştirme sürümü" yazar.
 * `src/` — React + Motion arayüzü, yerleşim mantığı (`src/layout/model.ts`, birim testli).
 * `src-tauri/` — Rust: masaüstü katmanı, Windows simgeleri, kabuk menüleri, dosya işlemleri, kayıt.
 * Ayrıntılar: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-Tarayıcıda sahte verilerle önizleme: `npm run dev` ve `http://localhost:1420` (Windows
-entegrasyonu olmadan, yalnızca arayüz).
 
 ## Lisans
 

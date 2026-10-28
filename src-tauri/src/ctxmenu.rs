@@ -5,31 +5,30 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::sync::{mpsc, Mutex, OnceLock};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use windows::core::{w, Interface, HSTRING, PCWSTR, PWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
-use windows::Win32::Graphics::Gdi::{DeleteObject, HBITMAP, HGDIOBJ};
-use windows::Win32::System::Com::{CoCreateInstance, CoTaskMemFree, IDataObject, CLSCTX_INPROC_SERVER};
+use windows::Win32::System::Com::{CoCreateInstance, IDataObject, CLSCTX_INPROC_SERVER};
 use windows::Win32::System::Ole::OleInitialize;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_SHIFT};
 use windows::Win32::UI::Shell::Common::ITEMIDLIST;
 use windows::Win32::UI::Shell::{
     IAssocHandler, IContextMenu, IContextMenu2, IContextMenu3, IShellExtInit, IShellFolder, ILFindLastID,
-    SHAssocEnumHandlers, SHBindToParent, SHDefExtractIconW, SHGetDesktopFolder, SHLoadIndirectString,
-    SHOpenWithDialog, ASSOC_FILTER_RECOMMENDED, CLSID_NewMenu, CMF_CANRENAME, CMF_EXTENDEDVERBS, CMF_NORMAL,
+    SHAssocEnumHandlers, SHBindToParent, SHGetDesktopFolder, SHOpenWithDialog, ASSOC_FILTER_RECOMMENDED,
+    CLSID_NewMenu, CMF_CANRENAME, CMF_EXTENDEDVERBS, CMF_NORMAL,
     GCS_VERBW, OAIF_ALLOW_REGISTRATION, OAIF_EXEC, OAIF_REGISTER_EXT, OPENASINFO,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DispatchMessageW,
-    GetCursorPos, GetIconInfo, GetMenuItemCount, GetMenuItemInfoW, GetMessageW, GetSubMenu, InsertMenuItemW,
-    PostMessageW, RegisterClassW, SetForegroundWindow, TrackPopupMenuEx, TranslateMessage, HICON, HMENU,
-    ICONINFO, MENUITEMINFOW, MENU_ITEM_STATE, MFS_CHECKED, MFS_DISABLED, MFT_OWNERDRAW, MFT_RADIOCHECK,
-    MFT_SEPARATOR, MFT_STRING, MIIM_BITMAP, MIIM_FTYPE, MIIM_ID, MIIM_STATE, MIIM_STRING,
+    CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DispatchMessageW, GetCursorPos,
+    GetMenuItemCount, GetMenuItemInfoW, GetMessageW, GetSubMenu, InsertMenuItemW, PostMessageW,
+    RegisterClassW, SetForegroundWindow, TrackPopupMenuEx, TranslateMessage, HMENU, MENUITEMINFOW,
+    MENU_ITEM_STATE, MFS_CHECKED, MFS_DISABLED, MFT_RADIOCHECK, MFT_SEPARATOR, MFT_STRING, MIIM_FTYPE,
+    MIIM_ID, MIIM_STATE, MIIM_STRING,
     MIIM_SUBMENU, MSG, TPM_RETURNCMD, TPM_RIGHTBUTTON, WINDOW_EX_STYLE, WM_APP, WM_DRAWITEM, WM_INITMENUPOPUP,
     WM_MEASUREITEM, WM_MENUCHAR, WM_NULL, WNDCLASSW, WS_EX_TOOLWINDOW, WS_POPUP,
 };
 
-use crate::{icons, shell, util};
+use crate::{shell, util};
 
 const WM_JOB: u32 = WM_APP + 7;
 /// Command id ranges inside one tracked menu: the shell's, Windows' New menu, ours.
@@ -38,35 +37,6 @@ const SHELL_LAST: u32 = 0x6FFF;
 const NEW_FIRST: u32 = 0x7000;
 const NEW_LAST: u32 = 0x7FFF;
 const OWN_FIRST: u32 = 0x8000;
-
-/// Shell menu diagnostics used by --menutest.
-#[derive(Serialize, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct MenuExtra {
-    pub key: String,
-    /// canonical verbs the classic menu offers ("pintohome", "Windows.ModernShare"…)
-    pub verbs: Option<Vec<String>>,
-    /// Windows' New ▸ list (desktop only); id 0 = separator
-    pub new_items: Option<Vec<NewItem>>,
-    /// Open with ▸ (one file only)
-    pub open_with: Option<Vec<Handler>>,
-}
-
-#[derive(Serialize, Clone)]
-pub struct NewItem {
-    pub id: u32,
-    pub text: String,
-    /// data: URL of the icon Windows shows for it
-    pub icon: Option<String>,
-}
-
-#[derive(Serialize, Clone)]
-pub struct Handler {
-    pub index: usize,
-    pub name: String,
-    /// data: URL, or a file whose shell icon is the app's icon
-    pub icon: Option<String>,
-}
 
 /// Entries of an OS-rendered menu for app objects, such as virtual headings.
 #[derive(Deserialize, Clone, Default)]
@@ -102,11 +72,10 @@ impl Drop for Classic {
     }
 }
 
-/// Windows' New-menu handler for the desktop folder, its menu and the submenu holding the entries.
+/// Windows' New-menu handler for the desktop folder and its menu.
 struct NewMenu {
     cm: IContextMenu,
     menu: HMENU,
-    sub: HMENU,
 }
 
 impl Drop for NewMenu {
@@ -324,17 +293,14 @@ unsafe fn build_new_menu() -> Result<NewMenu, String> {
     } else if let Ok(cm2) = cm.cast::<IContextMenu2>() {
         let _ = cm2.HandleMenuMsg(WM_INITMENUPOPUP, WPARAM(sub.0 as usize), LPARAM(0));
     }
-    Ok(NewMenu { cm, menu, sub })
+    Ok(NewMenu { cm, menu })
 }
 
 // ---------------------------------------------------------------- reading menus
 
 struct Entry {
     id: u32,
-    text: String,
-    ftype: u32,
     sub: HMENU,
-    bitmap: HBITMAP,
     disabled: bool,
 }
 
@@ -344,29 +310,13 @@ unsafe fn entries(menu: HMENU) -> Vec<Entry> {
     for i in 0..n {
         let mut mi = MENUITEMINFOW {
             cbSize: std::mem::size_of::<MENUITEMINFOW>() as u32,
-            fMask: MIIM_ID | MIIM_FTYPE | MIIM_STRING | MIIM_SUBMENU | MIIM_BITMAP | MIIM_STATE,
+            fMask: MIIM_ID | MIIM_SUBMENU | MIIM_STATE,
             ..Default::default()
         };
         if GetMenuItemInfoW(menu, i, true, &mut mi).is_err() {
             continue;
         }
-        let mut text = String::new();
-        if mi.cch > 0 && (mi.fType.0 & MFT_OWNERDRAW.0) == 0 {
-            let mut buf = vec![0u16; mi.cch as usize + 1];
-            mi.dwTypeData = PWSTR(buf.as_mut_ptr());
-            mi.cch += 1;
-            if GetMenuItemInfoW(menu, i, true, &mut mi).is_ok() {
-                text = util::wide_to_string(&buf);
-            }
-        }
-        out.push(Entry {
-            id: mi.wID,
-            text,
-            ftype: mi.fType.0,
-            sub: mi.hSubMenu,
-            bitmap: mi.hbmpItem,
-            disabled: (mi.fState.0 & MFS_DISABLED.0) != 0,
-        });
+        out.push(Entry { id: mi.wID, sub: mi.hSubMenu, disabled: (mi.fState.0 & MFS_DISABLED.0) != 0 });
     }
     out
 }
@@ -380,120 +330,12 @@ unsafe fn all_entries(menu: HMENU, depth: u32, out: &mut Vec<Entry>) {
     }
 }
 
-/// Menu text without the "&" access-key marker and the "\t" accelerator part.
-fn clean(text: &str) -> String {
-    let t = text.split('\t').next().unwrap_or("");
-    let mut out = String::with_capacity(t.len());
-    let mut chars = t.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '&' {
-            if chars.peek() == Some(&'&') {
-                out.push('&');
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out.trim().to_string()
-}
-
 unsafe fn command_verb(cm: &IContextMenu, offset: usize) -> Option<String> {
     let mut buf = [0u16; 260];
     cm.GetCommandString(offset, GCS_VERBW, None, windows::core::PSTR(buf.as_mut_ptr() as *mut u8), buf.len() as u32)
         .ok()?;
     let s = util::wide_to_string(&buf);
     (!s.is_empty()).then_some(s)
-}
-
-unsafe fn verbs_of(c: &Classic) -> Vec<String> {
-    let mut all = Vec::new();
-    all_entries(c.menu, 0, &mut all);
-    let mut out: Vec<String> = Vec::new();
-    for e in all {
-        if !e.sub.is_invalid() || e.ftype & MFT_SEPARATOR.0 != 0 || e.disabled || !(SHELL_FIRST..=SHELL_LAST).contains(&e.id) {
-            continue;
-        }
-        if let Some(v) = command_verb(&c.cm, (e.id - SHELL_FIRST) as usize) {
-            if !out.iter().any(|x| x.eq_ignore_ascii_case(&v)) {
-                out.push(v);
-            }
-        }
-    }
-    out
-}
-
-unsafe fn new_entries(sub: HMENU) -> Vec<NewItem> {
-    let mut out: Vec<NewItem> = Vec::new();
-    for e in entries(sub) {
-        if e.ftype & MFT_SEPARATOR.0 != 0 {
-            if out.last().is_some_and(|l| l.id != 0) {
-                out.push(NewItem { id: 0, text: String::new(), icon: None });
-            }
-            continue;
-        }
-        let text = clean(&e.text);
-        if text.is_empty() || !(NEW_FIRST..=NEW_LAST).contains(&e.id) {
-            continue;
-        }
-        // HBMMENU_* constants are small integers, not real bitmaps
-        let b = e.bitmap.0 as isize;
-        let icon = if !(-1..=16).contains(&b) { bitmap_url(e.bitmap) } else { None };
-        out.push(NewItem { id: e.id, text, icon });
-    }
-    if out.last().is_some_and(|l| l.id == 0) {
-        out.pop();
-    }
-    out
-}
-
-unsafe fn bitmap_url(b: HBITMAP) -> Option<String> {
-    let (w, h, rgba) = icons::bitmap_rgba(b).ok()?;
-    let png = icons::encode_png(w, h, &rgba).ok()?;
-    Some(format!("data:image/png;base64,{}", util::base64(&png)))
-}
-
-unsafe fn icon_url(hicon: HICON) -> Option<String> {
-    let mut info = ICONINFO::default();
-    GetIconInfo(hicon, &mut info).ok()?;
-    let url = if !info.hbmColor.is_invalid() { bitmap_url(info.hbmColor) } else { None };
-    let _ = DeleteObject(HGDIOBJ(info.hbmColor.0));
-    let _ = DeleteObject(HGDIOBJ(info.hbmMask.0));
-    url
-}
-
-unsafe fn take_pwstr(p: PWSTR) -> Option<String> {
-    if p.is_null() {
-        return None;
-    }
-    let s = p.to_string().ok();
-    CoTaskMemFree(Some(p.0 as *const _));
-    s.filter(|s| !s.is_empty())
-}
-
-/// The icon of an Open-with app: "@{package…}" resources resolve to an image file, anything else is
-/// an icon resource of an exe/dll.
-unsafe fn handler_icon(h: &IAssocHandler) -> Option<String> {
-    let mut loc = PWSTR::null();
-    let mut index = 0;
-    h.GetIconLocation(&mut loc, &mut index).ok()?;
-    let loc = take_pwstr(loc)?;
-    if loc.starts_with('@') {
-        let mut buf = [0u16; 1024];
-        SHLoadIndirectString(&HSTRING::from(loc.as_str()), &mut buf, None).ok()?;
-        let file = util::wide_to_string(&buf);
-        let bytes = std::fs::read(&file).ok()?;
-        return Some(format!("data:{};base64,{}", icons::sniff_mime(&bytes, &file), util::base64(&bytes)));
-    }
-    let mut large = HICON::default();
-    if SHDefExtractIconW(&HSTRING::from(loc.as_str()), index, 0, Some(&mut large), None, 32).is_ok() && !large.is_invalid() {
-        let url = icon_url(large);
-        let _ = DestroyIcon(large);
-        if url.is_some() {
-            return url;
-        }
-    }
-    std::path::Path::new(&loc).is_file().then_some(loc)
 }
 
 fn assoc_handlers(path: &str) -> Vec<IAssocHandler> {
@@ -532,44 +374,6 @@ unsafe fn invoke_offset(cm: &IContextMenu, offset: usize, hwnd: HWND, pt: Option
 }
 
 // ---------------------------------------------------------------- API (any thread)
-
-/// Enumerate Open with apps (one file) or Windows' New
-/// list (desktop).
-pub fn prepare_quick(paths: Vec<String>) -> Result<MenuExtra, String> {
-    run(move |hwnd| unsafe {
-        let key = key_of(&paths);
-        if paths.is_empty() {
-            NEW_MENU.with(|n| *n.borrow_mut() = None);
-            let built = build_new_menu();
-            let items = match &built {
-                Ok(n) => new_entries(n.sub),
-                Err(e) => {
-                    crate::dlog!("new menu: {e}");
-                    vec![]
-                }
-            };
-            NEW_MENU.with(|n| *n.borrow_mut() = built.ok());
-            return Ok(MenuExtra { key, new_items: Some(items), ..Default::default() });
-        }
-        session(&paths, |s| {
-            ensure_open_with(s, hwnd);
-            let list = s
-                .open_with
-                .as_ref()
-                .map(|hs| {
-                    hs.iter()
-                        .enumerate()
-                        .filter_map(|(index, h)| {
-                            let name = take_pwstr(h.GetUIName().ok()?)?;
-                            Some(Handler { index, name, icon: handler_icon(h) })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            Ok(MenuExtra { key: key.clone(), open_with: Some(list), ..Default::default() })
-        })
-    })?
-}
 
 /// Windows' classic menu at `at` (physical px). Rename/delete stay with the desktop's undo flow;
 /// other commands are executed by their original Shell handler.
@@ -745,53 +549,4 @@ pub fn open_with(paths: Vec<String>, index: Option<usize>) -> Result<(), String>
             }
         })
     })?
-}
-
-/// `--menutest [paths…]`: the classic menu (entries + verbs), New ▸ and Open with ▸ for `paths`.
-pub fn describe(paths: Vec<String>) -> Result<String, String> {
-    let t = std::time::Instant::now();
-    let quick = prepare_quick(paths.clone())?;
-    let quick_ms = t.elapsed().as_millis();
-    run(move |hwnd| {
-        session(&paths, |s| unsafe {
-            let t = std::time::Instant::now();
-            ensure_classic(s, hwnd)?;
-            let mut out = format!("quick part {quick_ms} ms, classic menu {} ms\n", t.elapsed().as_millis());
-            let c = s.classic.as_ref().unwrap();
-            dump(&c.cm, c.menu, 0, &mut out);
-            out.push_str(&format!("verbs: {:?}\n", verbs_of(c)));
-            if let Some(n) = &quick.new_items {
-                let names: Vec<String> =
-                    n.iter().map(|i| format!("{}#{}{}", i.text, i.id, if i.icon.is_some() { "+icon" } else { "" })).collect();
-                out.push_str(&format!("new: {names:?}\n"));
-            }
-            if let Some(o) = &quick.open_with {
-                let names: Vec<String> =
-                    o.iter().map(|h| format!("{}{}", h.name, if h.icon.is_some() { "+icon" } else { "" })).collect();
-                out.push_str(&format!("open with: {names:?}\n"));
-            }
-            Ok(out)
-        })
-    })?
-}
-
-unsafe fn dump(cm: &IContextMenu, menu: HMENU, depth: usize, out: &mut String) {
-    for e in entries(menu) {
-        let pad = "  ".repeat(depth);
-        if e.ftype & MFT_SEPARATOR.0 != 0 {
-            out.push_str(&format!("{pad}----\n"));
-            continue;
-        }
-        let verb = if e.sub.is_invalid() && (SHELL_FIRST..=SHELL_LAST).contains(&e.id) {
-            command_verb(cm, (e.id - SHELL_FIRST) as usize).unwrap_or_default()
-        } else {
-            String::new()
-        };
-        let od = if e.ftype & MFT_OWNERDRAW.0 != 0 { " (ownerdraw)" } else { "" };
-        let dis = if e.disabled { " (disabled)" } else { "" };
-        out.push_str(&format!("{pad}{} [{verb}]{od}{dis}\n", clean(&e.text)));
-        if !e.sub.is_invalid() && depth < 2 {
-            dump(cm, e.sub, depth + 1, out);
-        }
-    }
 }

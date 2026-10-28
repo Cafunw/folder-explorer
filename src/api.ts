@@ -14,11 +14,8 @@ import type {
   WallpaperInfo,
   WindowsLayout,
 } from "./types";
-import * as mock from "./mock";
 
-export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
-const realApi = {
+export const api = {
   getEnvironment: () => invoke<Environment>("get_environment"),
   listDesktopItems: () => invoke<DesktopItem[]>("list_desktop_items"),
   getWindowsLayout: () => invoke<WindowsLayout>("get_windows_layout"),
@@ -98,65 +95,17 @@ const realApi = {
   quitApp: () => invoke<void>("quit_app"),
 };
 
-// Browser preview (outside Tauri): fake data so the UI can be developed in a normal browser.
-const noop = async () => {};
-const mockApi: typeof realApi = {
-  ...(Object.fromEntries(Object.keys(realApi).map((k) => [k, noop])) as unknown as typeof realApi),
-  getEnvironment: async () => mock.mockEnv(),
-  listDesktopItems: async () => mock.mockItems,
-  getWindowsLayout: async () => ({ spacing: null, items: [] }),
-  loadState: async () => mock.mockLoad(),
-  saveLayout: async (l: unknown) => mock.mockSave("layout", l),
-  saveSettings: async (s: unknown) => mock.mockSave("settings", s),
-  getWallpapers: async () => mock.mockWallpapers(),
-  getQuiet: async () => ({ game: false, battery: false, covered: [] }),
-  listStartApps: async () => mock.mockApps,
-  listDirPreview: async () => ({ entries: [], total: 0 }),
-  listFolder: async (dir: string) => mock.mockFolder(dir),
-  knownFolders: async () => ({
-    downloads: "C:\\Users\\demo\\Downloads",
-    documents: "C:\\Users\\demo\\Documents",
-    pictures: "C:\\Users\\demo\\Pictures",
-  }),
-  helloAvailable: async () => false,
-  helloVerify: async () => false,
-  // the preview's ".lnk" apps point at an exe (drop-on-app works in the browser too)
-  shortcutTarget: async (p: string) =>
-    /\.lnk$/i.test(p)
-      ? { target: `C:\\Program Files\\${p.replace(/^.*\\|\.lnk$/gi, "")}\\app.exe`, args: "", workDir: "", description: "", isDir: false }
-      : null,
-  keyState: async () => ({ ctrl: false, shift: false, alt: false }),
-  dropOnItem: async () => "copy",
-  listRecent: async () => [],
-  searchFiles: async () => [],
-  listBackups: async () => [],
-  cursorOverForeignWindow: async () => false,
-  classicMenu: async () => null,
-  nativeMenu: async () => null,
-  shellVerb: async () => false,
-  pasteFiles: async () => [],
-  compress: async (p: string[]) => p[0] + ".zip",
-  restoreFromRecycle: async () => [],
-  importDropped: async (p: string[]) => p,
-  renameItem: async (p: string, n: string) => p.replace(/[^\\]+$/, n),
-};
-
-export const api = isTauri ? realApi : mockApi;
-
 export function on<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> {
-  if (!isTauri) return Promise.resolve(() => {});
   return listen<T>(event, (e) => handler(e.payload));
 }
 
 export function emitToWindow(label: string, event: string, payload: unknown) {
-  if (!isTauri) return Promise.resolve();
   return emitTo(label, event, payload);
 }
 
-const feBase = (route: string) => (isTauri ? convertFileSrc(route, "fe") : `/__fe/${route}`);
+const feBase = (route: string) => convertFileSrc(route, "fe");
 
 export function iconUrl(parsingName: string, sizePx: number, version: string) {
-  if (!isTauri) return mock.mockIcon(parsingName);
   const s = Math.max(16, Math.min(256, Math.round(sizePx)));
   // r: bumped when the backend renders icons differently, so the webview cache drops old PNGs
   return `${feBase("icon")}?p=${encodeURIComponent(parsingName)}&s=${s}&v=${encodeURIComponent(version)}&r=2`;

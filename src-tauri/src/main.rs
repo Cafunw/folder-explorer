@@ -33,16 +33,8 @@ fn main() {
         folder_explorer_lib::set_start_with_windows(args.get(i + 1).map(String::as_str) == Some("on"), language);
         return;
     }
-    if args.iter().any(|a| a == "--clean-legacy") {
-        folder_explorer_lib::clean_legacy();
-        return;
-    }
     if args.iter().any(|a| a == "--show-icons") {
         folder_explorer_lib::show_icons();
-        return;
-    }
-    if args.iter().any(|a| a == "--selftest" || a == "--fileops-test" || a == "--ztest" || a == "--restore" || a == "--store-test" || a == "--menutest" || a == "--item-menu-test") {
-        folder_explorer_lib::selftest(&args);
         return;
     }
     folder_explorer_lib::run()

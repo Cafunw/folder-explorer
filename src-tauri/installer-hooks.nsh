@@ -87,9 +87,7 @@ FunctionEnd
     ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --show-icons'
   ; "Start with Windows" shortcut made by the app (Startup folder).
   Delete "$SMSTARTUP\Folder Explorer.lnk"
-  ; Run value of older versions and the Yeni ▸ menu entry: remove exactly what was added.
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "${PRODUCTNAME}"
+  ; The New ▸ menu entry: remove exactly what was added.
   DeleteRegKey HKCU "Software\Classes\.fegroup"
   DeleteRegKey HKCU "Software\Classes\FolderExplorer.Group"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'

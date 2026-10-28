@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import { api, isTauri, on } from "./api";
+import { api, on } from "./api";
 import { language, setLanguage } from "./i18n";
 import type { Language } from "./types";
 
@@ -10,8 +10,6 @@ const view =
   (window as unknown as { __FE_VIEW__?: string }).__FE_VIEW__ ??
   "desktop";
 document.documentElement.dataset.view = view;
-// Browser preview only: the real desktop window is transparent over the Windows wallpaper.
-if (!isTauri && view === "desktop") document.body.style.background = "linear-gradient(135deg, #1e293b, #4c1d95)";
 
 // The webview's own context menu / text selection never fits a desktop shell.
 window.addEventListener("contextmenu", (e) => {

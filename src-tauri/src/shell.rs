@@ -467,31 +467,6 @@ pub fn restore_from_recycle(paths: Vec<String>) -> Result<Vec<String>, String> {
     })?
 }
 
-/// Debug helper: the most recently deleted recycle-bin entries.
-pub fn dump_recycle(limit: usize) -> Vec<String> {
-    unsafe {
-        let mut rows: Vec<(u64, String)> = Vec::new();
-        let Ok(bin) = SHGetKnownFolderItem::<IShellItem>(&FOLDERID_RecycleBinFolder, KF_FLAG_DEFAULT, None) else { return vec![] };
-        let Ok(en) = bin.BindToHandler::<_, IEnumShellItems>(None, &BHID_EnumItems) else { return vec![] };
-        loop {
-            let mut arr: [Option<IShellItem>; 1] = [None];
-            let mut fetched = 0u32;
-            if en.Next(&mut arr, Some(&mut fetched)).is_err() || fetched == 0 {
-                break;
-            }
-            let Some(item) = arr[0].take() else { break };
-            let Ok(i2) = item.cast::<IShellItem2>() else { continue };
-            let from = i2.GetString(&PKEY_DELETED_FROM).map(|p| util::take_pwstr(p)).map_err(|e| e.message());
-            let disp = item.GetDisplayName(SIGDN_NORMALDISPLAY).map(|p| util::take_pwstr(p)).unwrap_or_default();
-            let edit = item.GetDisplayName(SIGDN_PARENTRELATIVEEDITING).map(|p| util::take_pwstr(p)).unwrap_or_default();
-            let when = i2.GetFileTime(&PKEY_DATE_DELETED).map(|ft| ((ft.dwHighDateTime as u64) << 32) | ft.dwLowDateTime as u64);
-            rows.push((when.clone().unwrap_or(0), format!("from={from:?} disp={disp:?} edit={edit:?} when={when:?}")));
-        }
-        rows.sort_by_key(|r| std::cmp::Reverse(r.0));
-        rows.into_iter().take(limit).map(|r| r.1).collect()
-    }
-}
-
 fn invalid_name(name: &str) -> bool {
     name.is_empty()
         || name == "."

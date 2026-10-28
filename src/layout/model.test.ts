@@ -60,7 +60,6 @@ const env: Environment = {
   windowsIconSize: 40,
   desktopDir: "C:\\Users\\u\\Desktop",
   publicDesktopDir: "C:\\Users\\Public\\Desktop",
-  isDev: true,
 };
 const grids = computeGrids(env, DEFAULT_SETTINGS);
 const g = grids.M1;

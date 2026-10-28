@@ -11,10 +11,8 @@ mod hello;
 mod icons;
 mod items;
 mod lang;
-mod legacy;
 mod live;
 mod quiet;
-mod selftest;
 mod shell;
 mod shell_new;
 mod startup;
@@ -64,18 +62,6 @@ pub fn set_start_with_windows(on: bool, language: Option<&str>) {
     let _ = startup::set(on);
 }
 
-/// `folder-explorer.exe --clean-legacy`: remove what earlier versions wrote into Windows, print what was found.
-pub fn clean_legacy() {
-    let removed = legacy::run();
-    if removed.is_empty() {
-        println!("nothing of Folder Explorer found in the registry");
-    }
-    for r in removed {
-        println!("removed: {r}");
-    }
-    std::thread::sleep(std::time::Duration::from_millis(300));
-}
-
 /// `folder-explorer.exe --quit`: ask a running instance to close gracefully (it restores the
 /// Windows icons on the way out), wait for it, then make sure the icons are visible.
 pub fn quit_running() {
@@ -86,11 +72,6 @@ pub fn quit_running() {
 /// running desktop. False when it is not running (then the app starts and makes the group itself).
 pub fn new_group() -> bool {
     desktop_window::post_new_group()
-}
-
-/// `folder-explorer.exe --selftest [outdir]` / `--fileops-test <dir>`: diagnostics without Tauri.
-pub fn selftest(args: &[String]) {
-    selftest::run(args);
 }
 
 /// A panic on the main thread (Tauri's event loop) ends the app; one on a worker thread is caught
@@ -207,8 +188,6 @@ pub fn run() {
             let handle = app.handle().clone();
             util::set_app(handle.clone());
             store::init();
-            // Remove what earlier versions wrote into Windows (Run value).
-            legacy::clean_up();
             if std::env::args().any(|a| a == "--new-group") {
                 windows_mgr::set_launch_new_group();
             }

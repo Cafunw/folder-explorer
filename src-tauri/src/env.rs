@@ -56,7 +56,6 @@ pub struct Environment {
     pub scale_factor: f64,
     pub desktop_dir: String,
     pub public_desktop_dir: String,
-    pub is_dev: bool,
     /// Windows' own desktop icon size in logical px (View ▸ Small 32 / Medium 48 / Large 96, or Ctrl+wheel)
     pub windows_icon_size: u32,
 }
@@ -114,7 +113,6 @@ pub fn environment(window_origin: Point, scale_factor: f64) -> Environment {
         scale_factor,
         desktop_dir: util::user_desktop_dir(),
         public_desktop_dir: util::public_desktop_dir(),
-        is_dev: cfg!(debug_assertions),
         windows_icon_size: windows_icon_size(),
     }
 }
