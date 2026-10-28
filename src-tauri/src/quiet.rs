@@ -28,7 +28,7 @@ use windows::Win32::UI::Shell::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     GetDesktopWindow, GetForegroundWindow, GetShellWindow, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId,
-    IsIconic, IsWindow, IsWindowVisible, GWL_EXSTYLE, WS_EX_TOOLWINDOW,
+    IsIconic, IsWindow, IsWindowVisible, GWL_EXSTYLE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
 
 use crate::{desktop_window, env, util, wallpaper, windows_mgr};
@@ -188,11 +188,17 @@ fn classify(h: HWND) -> Front {
             return Front::Ignore;
         }
         let ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as u32;
-        if ex & WS_EX_TOOLWINDOW.0 != 0 || !IsWindowVisible(h).as_bool() || IsIconic(h).as_bool() || cloaked(h) {
+        if overlay_style(ex) || !IsWindowVisible(h).as_bool() || IsIconic(h).as_bool() || cloaked(h) {
             return Front::Ignore;
         }
         Front::App
     }
+}
+
+/// Tool windows, and click-through windows (WS_EX_TRANSPARENT): screen overlays such as recording
+/// frames, GPU / chat overlays or a remote-control border cover the monitor but are never a game.
+fn overlay_style(ex: u32) -> bool {
+    ex & (WS_EX_TOOLWINDOW.0 | WS_EX_TRANSPARENT.0) != 0
 }
 
 fn monitor_of(h: HWND) -> Option<(String, RECT)> {
@@ -363,6 +369,16 @@ mod tests {
 
     fn state(game_mode: bool, battery_mode: BatteryMode, on_battery: bool, presentation: bool) -> State {
         State { game_mode, battery_mode, on_battery, presentation, covered: BTreeMap::new(), published: None }
+    }
+
+    #[test]
+    fn click_through_overlays_are_not_games() {
+        // a remote-control border seen on a real PC: topmost | transparent | layered | no-redirection | no-activate
+        assert!(overlay_style(0x0828_0028));
+        assert!(overlay_style(WS_EX_TOOLWINDOW.0));
+        // an ordinary fullscreen game: topmost + app window
+        assert!(!overlay_style(0x0004_0008));
+        assert!(!overlay_style(0));
     }
 
     #[test]
