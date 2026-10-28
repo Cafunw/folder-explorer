@@ -4,6 +4,8 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-28
+
 ### Added
 
 - Updates from inside the app. Once a day Folder Explorer looks for a newer release on GitHub and offers it on the desktop; *Settings ▸ About* checks on demand. Nothing is installed until you click *Install*, the installer is signature-checked, and the app restarts by itself. Turn the daily check off in *Settings ▸ Behavior*.
@@ -62,6 +64,7 @@ The first tracked version. Every earlier build said "0.1.0" whatever it containe
 - No console window flashes from *New ▸* or at start.
 - Slow network shortcuts don't hold up the wallpaper and previews; desktop refreshes that change nothing aren't redrawn or saved; hidden windows use less memory.
 
-[Unreleased]: https://github.com/Cafunw/folder-explorer/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Cafunw/folder-explorer/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Cafunw/folder-explorer/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Cafunw/folder-explorer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Cafunw/folder-explorer/releases/tag/v0.2.0
