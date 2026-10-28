@@ -841,7 +841,9 @@ uninstall clears its data too.
 The version lives only in `package.json`: `tauri.conf.json` points at it (`"version": "../package.json"`)
 and npm's `version` hook (`scripts/sync-version.mjs`) copies it into `src-tauri/Cargo.toml` and
 `Cargo.lock`. Release: `npm version X.Y.Z --no-git-tag-version`, plus an entry in `CHANGELOG.md`
-(Turkish, user-facing). Vite inlines the version and the short git commit at build time
+(Turkish, user-facing); a release also gets a winget manifest in
+`packaging/winget/Cafunw.FolderExplorer/<version>/` (new `InstallerUrl`, `InstallerSha256`, `ReleaseDate`;
+check with `winget validate --manifest <folder>`), submitted to microsoft/winget-pkgs. Vite inlines the version and the short git commit at build time
 (`__APP_VERSION__`, `__APP_COMMIT__`); Ayarlar ▸ Hakkında shows them and adds "geliştirme sürümü"
 under the Vite dev server. There is no auto-update and the installer is unsigned.
 
