@@ -3,6 +3,8 @@ name = "folder-explorer"
 version = "0.2.0"
 description = "Telefon tarzı klasörlerle masaüstü"
 authors = ["Folder Explorer"]
+license = "MIT"
+repository = "https://github.com/Cafunw/folder-explorer"
 edition = "2021"
 
 [lib]
