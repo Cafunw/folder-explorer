@@ -2,6 +2,8 @@
 
 [English](README.md) · **Türkçe**
 
+<p align="center"><img src="docs/media/promo.gif" width="800" alt="Tanıtım animasyonu: simgeler birbirinin üstüne bırakılıp Games grubu oluşuyor, grup telefon klasörü gibi açılıyor, ardından özellikler ve logo görünüyor"></p>
+
 Windows masaüstünü telefon ana ekranı gibi kullanmanı sağlar: bir simgeyi başka bir simgenin
 üstüne bırakınca grup oluşur, gruplar iç içe olabilir, her şey animasyonlu ve özelleştirilebilir.
 
