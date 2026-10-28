@@ -15,6 +15,8 @@ Drop one icon on another to make a group, the way you would on a phone. Your fil
 [![CI](https://github.com/Cafunw/folder-explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/Cafunw/folder-explorer/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
+<img src="docs/media/promo.gif" width="800" alt="Animated overview: icons are dropped onto each other to form a Games group, the group opens like a phone folder, then the main features and the logo appear">
+
 </div>
 
 Folder Explorer draws its own desktop on top of your wallpaper and hides Explorer's icons while it runs. Groups, fences and headings live only in Folder Explorer's layout file, so nothing is moved on disk and Windows' own desktop comes back as soon as you quit.
@@ -37,6 +39,24 @@ Requires Windows 11 (x64). WebView2 is already part of Windows 11.
 - **Make it yours.** Theme presets, light and dark modes, icon plates and icon packs, a wallpaper per page or for day and night, an accent color taken from the wallpaper, and open and page animations.
 - **Locked groups.** Hide a group's content behind Windows Hello or a PIN.
 - **Light on your PC.** No CPU use when idle, game mode for full-screen apps, a battery mode, pages on every monitor, and icon sizes that follow Windows' own setting.
+
+## Screenshots
+
+<p align="center"><img src="docs/media/demo.gif" width="800" alt="The real app: an app icon is dragged into the Games group, then the group opens over a blurred desktop"></p>
+<p align="center"><sub>The real app: an icon goes into the Games group, then the group opens.</sub></p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/media/group-open.png" alt="The Games group open on the desktop"></td>
+    <td width="50%"><img src="docs/media/settings.png" alt="Settings window, Appearance page with the language switch"></td>
+  </tr>
+  <tr>
+    <td align="center">An open group; the desktop behind it is blurred</td>
+    <td align="center">Settings, with English and Turkish</td>
+  </tr>
+</table>
+
+The screenshots use Folder Explorer's own gradient wallpaper.
 
 ## How it works
 
