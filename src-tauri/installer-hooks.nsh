@@ -12,12 +12,13 @@
 ; but English is the default here, whatever Windows speaks; a language stored by an earlier install
 ; is kept. Same steps as MUI's macro otherwise. This file is included after MUI2.nsh and before
 ; .onInit, where the template inserts the macro.
+Var FeStoredLanguage
 !macroundef MUI_LANGDLL_DISPLAY
 !macro MUI_LANGDLL_DISPLAY
   StrCpy $LANGUAGE 1033
-  ReadRegStr $MUI_TEMP1 HKCU "${MANUPRODUCTKEY}" "Installer Language"
-  StrCmp $MUI_TEMP1 "" +2
-    StrCpy $LANGUAGE $MUI_TEMP1
+  ReadRegStr $FeStoredLanguage HKCU "${MANUPRODUCTKEY}" "Installer Language"
+  StrCmp $FeStoredLanguage "" +2
+    StrCpy $LANGUAGE $FeStoredLanguage
   IfSilent fe_langdll_done
   LangDLL::LangDialog "Installer Language" "Please select a language." AC ${MUI_LANGDLL_LANGUAGES_CP} ""
   Pop $LANGUAGE

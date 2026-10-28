@@ -10,8 +10,16 @@ icons can be merged into phone-style (iOS/Android) folders.
   (grid placement, folders, undo/redo, reconciliation with the item list).
   The backend stores the layout and settings as opaque JSON.
 
-UI language: Turkish. All UI strings live in `src/i18n.ts`. One term per concept: **grup** is always
-a virtual group, **klasör** only a real folder on disk (live groups show one, so "Canlı klasör" keeps
+UI language: English by default, Turkish as an option (`settings.language`, "en" | "tr"). Strings
+live in `src/i18n.en.ts` (English) and `src/i18n.ts` (Turkish, plus `t`, `setLanguage`, `language`,
+`locale`), with the same keys (`Dict`); `t` is the active dictionary. `main.tsx` reads the saved
+language before a view module loads and reloads a window when another window changes it; Intl and
+toLocale* calls use `locale()`. On the Rust side `lang.rs` (`lang::t(en, tr)`, set from settings in
+`apply_settings`) covers the tray menu (retitled in place), the New ▸ entry, window titles and the
+errors the UI shows; internal diagnostics are English only. The hidden desktop window keeps its title
+"Folder Explorer Masaüstü": `--quit` finds a running copy, also an older one, by it.
+English terms: group (virtual), folder (only a real one), fence, background. Turkish, one term per
+concept: **grup** is always a virtual group, **klasör** only a real folder on disk (live groups show one, so "Canlı klasör" keeps
 it), **kutu** only a fence; a group's tile background is "arka plan", never "kutu". Modal surfaces
 (desktop dialogs, Quick Look, the search / command palette window) use `useDialogFocus`
 (`src/ui/dialog.ts`): focus moves in on open, Tab stays inside, focus returns to the opener on close;
@@ -30,7 +38,7 @@ This is the foundation of the architecture; everything else follows from it.
 * **No registry changes, no Explorer process changes, no hooks on system menus.** The app writes no
   registry values (the "start with Windows" option is a shortcut in the Startup folder), registers no
   shell extensions, never injects into or patches Explorer and never hooks its menus. **One
-  exception, chosen by the user:** "Yeni grup oluştur" in Windows' Yeni ▸ menu
+  exception, chosen by the user:** "New group" ("Yeni grup oluştur") in Windows' New ▸ menu
   (`behavior.newMenuEntry`, Ayarlar ▸ Davranış, on by default; see *Yeni ▸ menu entry*) — the
   standard per-user ShellNew keys, removed when the setting is turned off and on uninstall. The only
   listeners are passive, out-of-context `WinEventHook`s (observe-only, callbacks run in our own
@@ -799,28 +807,31 @@ Group kinds / displays in the UI (`src/desktop/`):
 | flag | what it does |
 |---|---|
 | `--quit` | posts a private message to a running instance's desktop window, which quits gracefully (restoring the Windows icons); waits for the process to exit. Used by the installer hooks. |
-| `--new-group` | run by Windows' Yeni ▸ Yeni grup oluştur: posts a private message to the running desktop window (after `AllowSetForegroundWindow` for it), which comes to the front with a new empty group being named (same as the tray's "Yeni grup"). Not running: the app starts and does the same once the desktop is ready (`take_launch_new_group`). |
+| `--new-group` | run by Windows' New ▸ New group: posts a private message to the running desktop window (after `AllowSetForegroundWindow` for it), which comes to the front with a new empty group being named (same as the tray's "Yeni grup"). Not running: the app starts and does the same once the desktop is ready (`take_launch_new_group`). |
 | `--clean-legacy` | removes what earlier versions wrote into Windows (a Run value that points to our exe), prints what it found. Also runs in the background at every start. |
 | `--delayed-start <s>` | internal: sleep `<s>` seconds before starting (the app restarts itself this way after an Explorer restart). |
 | `--show-icons` | makes the Windows desktop icons visible again and exits (safety net). |
 | `--watchdog <pid>` | internal: waits for `<pid>` to exit, then shows the Windows icons. |
 | `--watchdog-launch <pid>` | internal: starts `--watchdog <pid>` and exits, so the watchdog is outside the app's process tree. |
 | `--autostart` | passed by the "start with Windows" Startup-folder shortcut; a second instance launched with it stays silent. |
-| `--start-with-windows on\|off` | run by the installer after copying the files: stores `behavior.startWithWindows` in `state.json` (creating `settings` when there is none) and creates / removes the Startup shortcut, then exits. Settings without `grid` still count as a first run in the UI. |
+| `--start-with-windows on\|off [--language en\|tr]` | run by the installer after copying the files: stores `behavior.startWithWindows` and the installer's language as `language` in `state.json` (creating `settings` when there is none) and creates / removes the Startup shortcut, then exits. Settings without `grid` still count as a first run in the UI. |
 | `--selftest [dir]` | diagnostics without UI (monitors, items, Windows icon layout per column, wallpapers, an icon PNG). |
 | `--menutest [paths…]` | prints the classic menu (entries + verbs), New ▸ and Open with ▸ for `paths` (none = the desktop background). |
 
 ## Installer
 `npm run tauri build` → `src-tauri/target/release/bundle/nsis/Folder Explorer_<ver>_x64-setup.exe`
-(per-user install, Turkish UI). `src-tauri/installer-hooks.nsh` runs `--quit` before installing
+(per-user install, English and Turkish: the language dialog preselects English whatever Windows'
+language is, through an override of MUI's `MUI_LANGDLL_DISPLAY` in the hooks, and keeps a language
+stored by an earlier install). `src-tauri/installer-hooks.nsh` runs `--quit` before installing
 over / uninstalling a running copy and `--show-icons` on uninstall. It writes nothing into Windows'
 shell. On uninstall it removes the Startup shortcut, the Yeni ▸ menu keys and the Run value of older
 versions. "Start with Windows" (`behavior.startWithWindows`, off by default)
 is a shortcut `Folder Explorer.lnk` in the user's Startup folder (`startup.rs`), never a registry
-value; dev builds never create it. The installer's welcome page has a "Bilgisayar açılınca Folder Explorer'ı da
-başlat" checkbox (checked when the shortcut exists or the app never ran, i.e. no `state.json`); after
-installing it runs `--start-with-windows on|off`. Silent / passive installs skip the page and change nothing.
-Uninstalling with "Uygulama verilerini sil" ticked also removes `%APPDATA%\Folder Explorer` (state,
+value; dev builds never create it. The installer's welcome page has a "Start Folder Explorer when Windows starts" /
+"Bilgisayar açılınca Folder Explorer'ı da başlat" checkbox (checked when the shortcut exists or the app never ran, i.e. no `state.json`); after
+installing it runs `--start-with-windows on|off --language en|tr`, so the app starts in the installer's
+language. Silent / passive installs skip the page and change nothing.
+Uninstalling with "Delete the application data" ("Uygulama verilerini sil") ticked also removes `%APPDATA%\Folder Explorer` (state,
 backups, media; `NSIS_HOOK_POSTUNINSTALL`), next to Tauri's own removal of the WebView2 data in
 `%LOCALAPPDATA%\com.folderexplorer.desktop`. Both are skipped on updates (`$UpdateMode`) and in silent
 or passive runs, where the checkbox never shows. The dev build shares this folder, so a ticked
@@ -847,9 +858,9 @@ rules-of-hooks, only warns on exhaustive-deps; rules turned off are listed with 
 every `apply_settings` (start and each settings save; dev builds too: their entry points at
 `target\debug`, and `main.rs` lets a dev build's `--new-group` only hand over to the running app,
 never start one, since its UI needs the dev server). On: `HKCU\Software\Classes\.fegroup` (default `FolderExplorer.Group`)
-with `ShellNew` `Command` = `"<exe>" --new-group`, `MenuText` = "Yeni grup oluştur", `IconPath` = `<exe>,0`, and
-`HKCU\Software\Classes\FolderExplorer.Group` (default = "Yeni grup oluştur" — the text Windows
-shows — plus `DefaultIcon`). Off: both trees are deleted. It writes only when something differs
+with `ShellNew` `Command` = `"<exe>" --new-group`, `MenuText` = "New group" or "Yeni grup oluştur" by the UI language (`menu_text`), `IconPath` = `<exe>,0`, and
+`HKCU\Software\Classes\FolderExplorer.Group` (default = the same text — what Windows
+shows — plus `DefaultIcon`); a language change rewrites both. Off: both trees are deleted. It writes only when something differs
 (e.g. the exe moved) and then sends `SHChangeNotify(SHCNE_ASSOCCHANGED)`. A newly started
 Explorer (sign-in) shows the entry; an Explorer that was already running can keep its New-menu list
 until it restarts. The entry appears in Explorer's and Windows 11's Yeni ▸ menu and in Windows' classic
