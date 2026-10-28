@@ -102,3 +102,23 @@ describe("calculate", () => {
     }
   });
 });
+
+describe("thousands separators", () => {
+  it("reads 1,000 as one thousand in English", () => {
+    setLanguage("en");
+    expect(tokenize("1,000")?.[0]).toEqual({ t: "num", v: 1000 });
+    expect(evaluate("1,000 + 5")).toBe(1005);
+    expect(evaluate("12,500,000")).toBe(12500000);
+    expect(calculate("1,000 + 5")?.text).toBe("1005");
+  });
+  it("keeps the comma as the decimal mark in Turkish", () => {
+    setLanguage("tr");
+    try {
+      expect(tokenize("1,000")?.[0]).toEqual({ t: "num", v: 1 });
+      expect(calculate("1,5 + 1")?.value).toBe(2.5);
+      expect(calculate("1,5 + 1")?.text).toBe("2,5");
+    } finally {
+      setLanguage("en");
+    }
+  });
+});

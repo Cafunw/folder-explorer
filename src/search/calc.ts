@@ -22,6 +22,7 @@ const OP_ALIAS: Record<string, string> = { "×": "*", "·": "*", "÷": "/", "−
 
 export function tokenize(src: string): Tok[] | null {
   const out: Tok[] = [];
+  const lang = language();
   let i = 0;
   while (i < src.length) {
     const ch = src[i];
@@ -29,10 +30,18 @@ export function tokenize(src: string): Tok[] | null {
       i++;
       continue;
     }
-    const num = /^(?:\d+(?:[.,]\d+)?|[.,]\d+)/.exec(src.slice(i));
+    // English reads a comma followed by exactly three digits as a thousands separator
+    // ("1,000" = 1000, "12,500,000"); a comma in any other position still falls back to the
+    // decimal mark so decimals keep working. Turkish keeps the comma as its decimal mark.
+    const num = (lang === "en"
+      ? /^(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+,\d+|\d+(?:\.\d+)?|\.\d+)/
+      : /^(?:\d+(?:[.,]\d+)?|[.,]\d+)/
+    ).exec(src.slice(i));
     if (num) {
-      out.push({ t: "num", v: Number(num[0].replace(",", ".")) });
-      i += num[0].length;
+      const raw = num[0];
+      const grouped = lang === "en" && /^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(raw);
+      out.push({ t: "num", v: Number(grouped ? raw.replace(/,/g, "") : raw.replace(",", ".")) });
+      i += raw.length;
       continue;
     }
     if ("+-*/^%".includes(ch) || OP_ALIAS[ch]) {
