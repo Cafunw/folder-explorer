@@ -40,7 +40,7 @@ fn existing_dir(dir: &str) -> Result<String, String> {
     if Path::new(&dir).is_dir() {
         Ok(dir)
     } else {
-        Err("Klasör bulunamadı".into())
+        Err(crate::lang::t("Folder not found", "Klasör bulunamadı").into())
     }
 }
 

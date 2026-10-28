@@ -255,10 +255,10 @@ fn replace_state(layout: Value, settings: Value) -> Result<PersistedState, Strin
 
 pub fn restore_backup(name: &str) -> Result<PersistedState, String> {
     if name.contains('/') || name.contains('\\') || name.contains("..") {
-        return Err("geçersiz yedek adı".into());
+        return Err(crate::lang::t("invalid backup name", "geçersiz yedek adı").into());
     }
     let path = backups_dir().join(name);
-    let (layout, settings) = read_nonempty(&path).ok_or("yedek okunamadı ya da boş")?;
+    let (layout, settings) = read_nonempty(&path).ok_or(crate::lang::t("the backup couldn't be read or is empty", "yedek okunamadı ya da boş"))?;
     // keep the current state as a backup before overwriting it
     let _ = make_backup();
     replace_state(layout, settings)
@@ -273,9 +273,9 @@ pub fn export_state(path: &str) -> Result<(), String> {
 }
 
 pub fn import_state(path: &str) -> Result<PersistedState, String> {
-    let (layout, settings) = read_state_file(Path::new(path)).ok_or("dosya geçerli bir Folder Explorer yedeği değil")?;
+    let (layout, settings) = read_state_file(Path::new(path)).ok_or(crate::lang::t("the file isn't a valid Folder Explorer backup", "dosya geçerli bir Folder Explorer yedeği değil"))?;
     if layout.is_null() && settings.is_null() {
-        return Err("dosyada düzen ya da ayar yok".into());
+        return Err(crate::lang::t("the file has no layout or settings", "dosyada düzen ya da ayar yok").into());
     }
     let _ = make_backup();
     replace_state(layout, settings)
@@ -284,7 +284,7 @@ pub fn import_state(path: &str) -> Result<PersistedState, String> {
 pub fn import_media(path: &str, kind: &str) -> Result<String, String> {
     let src = Path::new(path);
     if !src.is_file() {
-        return Err("dosya bulunamadı".into());
+        return Err(crate::lang::t("file not found", "dosya bulunamadı").into());
     }
     let kind = if kind == "wallpaper" { "wallpaper" } else { "icon" };
     let ext = src
@@ -325,7 +325,7 @@ fn safe_dir_name(name: &str) -> String {
 pub fn import_icon_pack(dir: &str) -> Result<IconPack, String> {
     let src = Path::new(dir);
     if !src.is_dir() {
-        return Err("klasör bulunamadı".into());
+        return Err(crate::lang::t("folder not found", "klasör bulunamadı").into());
     }
     let name = src
         .file_name()
@@ -369,7 +369,7 @@ pub fn import_icon_pack(dir: &str) -> Result<IconPack, String> {
         }
     }
     if found.is_empty() {
-        return Err("klasörde PNG, ICO ya da SVG dosyası yok".into());
+        return Err(crate::lang::t("the folder has no PNG, ICO or SVG files", "klasörde PNG, ICO ya da SVG dosyası yok").into());
     }
 
     // copy into a staging folder first: the source may be the pack folder itself
@@ -386,7 +386,7 @@ pub fn import_icon_pack(dir: &str) -> Result<IconPack, String> {
     }
     if files.is_empty() {
         let _ = fs::remove_dir_all(&staging);
-        return Err("simgeler kopyalanamadı".into());
+        return Err(crate::lang::t("couldn't copy the icons", "simgeler kopyalanamadı").into());
     }
     if dest.exists() {
         fs::remove_dir_all(&dest).map_err(|e| {
@@ -411,13 +411,13 @@ pub fn export_theme(path: &str, theme: &Value) -> Result<(), String> {
 pub fn import_theme(path: &str) -> Result<Value, String> {
     let len = fs::metadata(path).map_err(|e| e.to_string())?.len();
     if len > 4 * 1024 * 1024 {
-        return Err("dosya bir tema için fazla büyük".into());
+        return Err(crate::lang::t("the file is too big for a theme", "dosya bir tema için fazla büyük").into());
     }
     let bytes = fs::read(path).map_err(|e| e.to_string())?;
     serde_json::from_slice::<Value>(&bytes)
         .ok()
         .filter(Value::is_object)
-        .ok_or_else(|| "dosya geçerli bir tema değil".into())
+        .ok_or_else(|| crate::lang::t("the file isn't a valid theme", "dosya geçerli bir tema değil").into())
 }
 
 #[cfg(test)]

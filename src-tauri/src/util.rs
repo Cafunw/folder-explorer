@@ -67,7 +67,7 @@ where
         })
         .map_err(|e| e.to_string())?
         .join()
-        .map_err(|_| "STA iş parçacığı çöktü".to_string())
+        .map_err(|_| "the STA thread crashed".to_string())
 }
 
 /// Runs `f` on the Tauri main (UI) thread and waits for the result.
@@ -77,7 +77,7 @@ where
     T: Send + 'static,
     F: FnOnce() -> T + Send + 'static,
 {
-    let app = app().ok_or("uygulama hazır değil")?;
+    let app = app().ok_or("the app isn't ready")?;
     let (tx, rx) = std::sync::mpsc::channel();
     app.run_on_main_thread(move || {
         let _ = tx.send(f());

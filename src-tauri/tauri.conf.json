@@ -42,15 +42,16 @@
     "publisher": "Folder Explorer",
     "copyright": "© 2026 Folder Explorer",
     "category": "Utility",
-    "shortDescription": "Telefon tarzı gruplarla Windows masaüstü",
-    "longDescription": "Masaüstü simgelerini telefondaki gibi birleştirip gruplamanı sağlar. Gruplar sanaldır; dosyalar yerinden oynamaz.",
+    "shortDescription": "Phone-style groups for the Windows desktop",
+    "longDescription": "Group your Windows desktop icons into phone-style folders. Groups are virtual: your files stay where they are.",
     "windows": {
       "nsis": {
         "installMode": "currentUser",
         "languages": [
+          "English",
           "Turkish"
         ],
-        "displayLanguageSelector": false,
+        "displayLanguageSelector": true,
         "installerIcon": "icons/icon.ico",
         "installerHooks": "./installer-hooks.nsh"
       }

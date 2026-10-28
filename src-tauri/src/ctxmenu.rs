@@ -151,7 +151,7 @@ fn worker() -> Result<HWND, String> {
             let hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE(WS_EX_TOOLWINDOW.0),
                 class,
-                w!("Folder Explorer menü"),
+                w!("Folder Explorer menu"),
                 WS_POPUP,
                 0,
                 0,
@@ -178,7 +178,7 @@ fn worker() -> Result<HWND, String> {
         }
         rx.recv().ok().flatten()
     });
-    v.map(util::hwnd_from).ok_or_else(|| "menü iş parçacığı başlatılamadı".to_string())
+    v.map(util::hwnd_from).ok_or_else(|| "the menu thread didn't start".to_string())
 }
 
 /// Runs `f` on the menu thread and waits for its result.
@@ -189,7 +189,7 @@ fn run<T: Send + 'static>(f: impl FnOnce(HWND) -> T + Send + 'static) -> Result<
         let _ = tx.send(f(h));
     }));
     unsafe { PostMessageW(Some(hwnd), WM_JOB, WPARAM(0), LPARAM(0)) }.map_err(|e| e.message())?;
-    rx.recv().map_err(|_| "menü iş parçacığı yanıt vermedi".to_string())
+    rx.recv().map_err(|_| "the menu thread didn't respond".to_string())
 }
 
 fn run_jobs(hwnd: HWND) {
@@ -251,7 +251,7 @@ unsafe fn ui_object<T: Interface>(paths: &[String], hwnd: HWND) -> Result<T, Str
     let pidls: Vec<(String, shell::Pidl)> =
         paths.iter().filter_map(|p| shell::parse_pidl(p).ok().map(|pidl| (p.clone(), pidl))).collect();
     let Some((first_path, first)) = pidls.first() else {
-        return Err("öğe bulunamadı".into());
+        return Err(crate::lang::t("item not found", "öğe bulunamadı").into());
     };
     let mut last: *mut ITEMIDLIST = std::ptr::null_mut();
     let folder: IShellFolder = SHBindToParent(first.0, Some(&mut last)).map_err(|e| e.message())?;
@@ -315,7 +315,7 @@ unsafe fn build_new_menu() -> Result<NewMenu, String> {
     let sub = GetSubMenu(menu, 0);
     if sub.is_invalid() {
         let _ = DestroyMenu(menu);
-        return Err("Yeni menüsü boş".into());
+        return Err(crate::lang::t("the New menu is empty", "Yeni menüsü boş").into());
     }
     // the handler fills its submenu only when it is about to open
     if let Ok(cm3) = cm.cast::<IContextMenu3>() {
@@ -713,9 +713,9 @@ pub fn invoke_new(id: u32) -> Result<(), String> {
         }
         NEW_MENU.with(|n| {
             let n = n.borrow();
-            let m = n.as_ref().ok_or("Yeni menüsü yok")?;
+            let m = n.as_ref().ok_or(crate::lang::t("there is no New menu", "Yeni menüsü yok"))?;
             if !(NEW_FIRST..=NEW_LAST).contains(&id) {
-                return Err("geçersiz öğe".to_string());
+                return Err(crate::lang::t("invalid item", "geçersiz öğe").to_string());
             }
             invoke_offset(&m.cm, (id - NEW_FIRST) as usize, hwnd, None)
         })
@@ -729,12 +729,12 @@ pub fn open_with(paths: Vec<String>, index: Option<usize>) -> Result<(), String>
             match index {
                 Some(i) => {
                     ensure_open_with(s, hwnd);
-                    let h = s.open_with.as_ref().and_then(|l| l.get(i)).ok_or("uygulama bulunamadı")?;
-                    let data = s.data.as_ref().ok_or("öğe bulunamadı")?;
+                    let h = s.open_with.as_ref().and_then(|l| l.get(i)).ok_or(crate::lang::t("app not found", "uygulama bulunamadı"))?;
+                    let data = s.data.as_ref().ok_or(crate::lang::t("item not found", "öğe bulunamadı"))?;
                     h.Invoke(data).map_err(|e| e.message())
                 }
                 None => {
-                    let file = HSTRING::from(s.paths.first().ok_or("öğe yok")?.as_str());
+                    let file = HSTRING::from(s.paths.first().ok_or(crate::lang::t("no item", "öğe yok"))?.as_str());
                     let info = OPENASINFO {
                         pcszFile: PCWSTR(file.as_ptr()),
                         pcszClass: PCWSTR::null(),

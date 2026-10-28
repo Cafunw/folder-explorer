@@ -278,7 +278,7 @@ fn strip_icon_frame(w: usize, h: usize, rgba: &mut [u8]) {
 pub unsafe fn bitmap_rgba(hbmp: HBITMAP) -> Result<(u32, u32, Vec<u8>), String> {
     let mut bm = BITMAP::default();
     if GetObjectW(HGDIOBJ(hbmp.0), std::mem::size_of::<BITMAP>() as i32, Some(&mut bm as *mut _ as *mut c_void)) == 0 {
-        return Err("GetObject başarısız".into());
+        return Err("GetObject failed".into());
     }
     let w = bm.bmWidth.max(1);
     let h = bm.bmHeight.abs().max(1);
@@ -299,7 +299,7 @@ pub unsafe fn bitmap_rgba(hbmp: HBITMAP) -> Result<(u32, u32, Vec<u8>), String> 
     let lines = GetDIBits(hdc, hbmp, 0, h as u32, Some(buf.as_mut_ptr() as *mut c_void), &mut bi, DIB_RGB_COLORS);
     ReleaseDC(None, hdc);
     if lines == 0 {
-        return Err("GetDIBits başarısız".into());
+        return Err("GetDIBits failed".into());
     }
     let has_alpha = bm.bmBitsPixel == 32 && buf.as_chunks::<4>().0.iter().any(|p| p[3] != 0);
     if !has_alpha {
