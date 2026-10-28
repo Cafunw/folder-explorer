@@ -13,6 +13,7 @@ Kullanıcının fark edeceği değişiklikler. Kurulu sürümün numarası ve de
 ### Düzeltmeler
 
 - Klasöre taşıma, kısa (8.3) yol adıyla verilen dosyaların nereye gittiğini de bulur; bu taşımalar da Ctrl+Z ile geri alınır.
+- Oyun modu, tıklamaları geçiren ekran katmanlarını (kayıt çerçevesi, ekran paylaşımı / uzaktan kontrol kenarlığı, GPU ya da sohbet katmanı) tam ekran oyun sanıp masaüstünü gizlemez.
 
 ## 0.2.0 — 2026-10-25
 
