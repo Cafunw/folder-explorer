@@ -175,3 +175,7 @@ sürümü ve derlendiği commit'i gösterir; `calistir.bat` ile açılan sürüm
 
 Tarayıcıda sahte verilerle önizleme: `npm run dev` ve `http://localhost:1420` (Windows
 entegrasyonu olmadan, yalnızca arayüz).
+
+## Lisans
+
+[MIT](LICENSE). Hata bildirimi ve önerilere açık: GitHub'da bir issue aç.
