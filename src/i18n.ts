@@ -147,6 +147,7 @@ const tr = {
   displayNameHint: "Boş bırakırsan dosyanın kendi adı kullanılır",
   customIcon: "Özel simge",
   chooseImage: "Resim seç…",
+  imageFiles: "Resim",
   folderName: "Grup adı",
   color: "Renk",
 
@@ -366,6 +367,7 @@ const tr = {
   secBackup: "Yedekleme",
   secAbout: "Hakkında",
 
+  language: "Dil",
   theme: "Tema",
   themeSystem: "Sistem",
   themeLight: "Açık",
@@ -624,6 +626,7 @@ const tr = {
   themeInvalid: "Dosya geçerli bir tema değil",
   exportThemeTitle: "Temayı dışa aktar",
   importThemeTitle: "Tema içe aktar",
+  themeFileName: "folder-explorer-tema.json",
   perPageAdd: "Ekran ve sayfa",
   tryIt: "Dene",
   sampleNames: ["Projeler", "Oynatıcı", "Rapor.docx"],
@@ -631,6 +634,7 @@ const tr = {
   backupsDesc: "Düzen her değişiklikte kaydedilir. Son 10 sürüm otomatik yedeklenir.",
   exportLayout: "Dışa aktar…",
   importLayout: "İçe aktar…",
+  layoutFileName: "folder-explorer-duzen.json",
   restoreBackup: "Geri yükle",
   noBackups: "Henüz yedek yok",
   backupRestored: "Yedek geri yüklendi",

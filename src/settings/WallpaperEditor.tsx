@@ -12,7 +12,7 @@ const COLORS = ["#0f172a", "#1f2937", "#111827", "#3f3f46", "#1e3a8a", "#14532d"
 export function WallpaperEditor({ spec, onChange }: { spec: WallpaperSpec; onChange: (patch: Partial<WallpaperSpec>) => void }) {
   const [error, setError] = useState("");
   const pick = async () => {
-    const file = await openDialog({ multiple: false, filters: [{ name: "Resim", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif"] }] });
+    const file = await openDialog({ multiple: false, filters: [{ name: t.imageFiles, extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif"] }] });
     if (typeof file !== "string") return;
     try {
       onChange({ image: await api.importMedia(file, "wallpaper"), source: "image" });

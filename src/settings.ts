@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { t } from "./i18n";
 import type { FolderLook, IconShape, Settings, WallpaperSpec } from "./types";
 
 const DEFAULT_WALLPAPER: WallpaperSpec = {
@@ -187,7 +188,7 @@ export function normalizeSettings(raw: unknown): Settings {
       plateColor: color(ic.plateColor),
       plateOpacity: clamp(ic.plateOpacity, 0, 1, d.icons.plateOpacity),
       inset: clamp(ic.inset, 0, 0.35, d.icons.inset),
-      pack: Object.keys(packMap).length ? { name: str(ic.pack.name, "Simge paketi"), map: packMap } : null,
+      pack: Object.keys(packMap).length ? { name: str(ic.pack.name, t.hIconPack), map: packMap } : null,
     },
     labels: {
       font: typeof lb.font === "string" ? lb.font : d.labels.font,

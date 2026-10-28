@@ -602,7 +602,7 @@ describe("normalizing the new layout fields", () => {
     expect(l.folders["v:g"]).toEqual({ id: "v:g", name: "G", color: null, children: [] });
     expect(l.folders["v:h"].lock).toEqual({ method: "hello", hash: null, salt: null });
     expect(l.folders["v:h"].activeTab).toBe("v:x");
-    expect(l.folders["v:x"]).toEqual({ id: "v:x", name: "Grup", color: null, children: [] });
+    expect(l.folders["v:x"]).toEqual({ id: "v:x", name: "Group", color: null, children: [] });
     expect(l.folders.nope).toBeUndefined();
   });
 

@@ -53,9 +53,12 @@ export const GAME_KEYWORDS = [
   "dayz", "arma 3", "escape from tarkov", "war thunder", "world of tanks", "world of warships",
 ];
 
-/** Case- and accent-insensitive form (Turkish aware: I / İ / ı / i, ş → s, ğ → g …). */
-const fold = (s: string) =>
-  s.toLocaleLowerCase("tr").normalize("NFD").replace(/\p{M}/gu, "").replace(/ı/g, "i");
+/**
+ * Case- and accent-insensitive form (Turkish aware: I / İ / ı / i, ş → s, ğ → g …). Locale-free on
+ * purpose: file names keep their Turkish letters whatever the UI language is.
+ */
+export const fold = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/ı/g, "i");
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const GAME_RE = new RegExp(
   `(?:^|[^\\p{L}\\p{N}])(?:${[...GAME_KEYWORDS]

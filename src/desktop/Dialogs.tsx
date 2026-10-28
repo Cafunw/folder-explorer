@@ -2,9 +2,10 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { api, iconUrl, mediaUrl } from "../api";
-import { t } from "../i18n";
+import { locale, t } from "../i18n";
 import { primaryGrid } from "../layout/grid";
 import { isFolderId, renameFolder, setCustom, setFolderColor, setFolderLook, updateFolder } from "../layout/model";
+import { fold } from "../layout/smart";
 import { FOLDER_COLORS, spring } from "../settings";
 import type { FolderLook, OpenStyle, StartApp } from "../types";
 import { DIALOG_BODY, DIALOG_TITLE, useDialogFocus } from "../ui/dialog";
@@ -187,7 +188,7 @@ function AddApp({ placement, onClose }: { placement: import("../types").Placemen
     api
       .listStartApps()
       .then((a) => {
-        const coll = new Intl.Collator("tr", { sensitivity: "base", numeric: true });
+        const coll = new Intl.Collator(locale(), { sensitivity: "base", numeric: true });
         appsCache = a.sort((x, y) => coll.compare(x.name, y.name));
         setApps(appsCache);
       })
@@ -196,8 +197,8 @@ function AddApp({ placement, onClose }: { placement: import("../types").Placemen
 
   const filtered = useMemo(() => {
     if (!apps) return [];
-    const n = q.trim().toLocaleLowerCase("tr");
-    return n ? apps.filter((a) => a.name.toLocaleLowerCase("tr").includes(n)) : apps;
+    const n = fold(q.trim());
+    return n ? apps.filter((a) => fold(a.name).includes(n)) : apps;
   }, [apps, q]);
 
   const created = async (path: string) => {
@@ -353,7 +354,7 @@ function FolderCustomize({ id, focus, guard, onClose }: { id: string; focus?: "r
   const pickIcon = async () => {
     const file = await openDialog({
       multiple: false,
-      filters: [{ name: "Resim", extensions: ["png", "jpg", "jpeg", "webp", "gif", "ico", "svg", "bmp"] }],
+      filters: [{ name: t.imageFiles, extensions: ["png", "jpg", "jpeg", "webp", "gif", "ico", "svg", "bmp"] }],
     });
     if (typeof file !== "string") return;
     try {
@@ -378,7 +379,7 @@ function FolderCustomize({ id, focus, guard, onClose }: { id: string; focus?: "r
   const { asking, step } = useUnsaved(guard, folder ? { name: name.trim(), color, look, kinds } : null, save, onClose);
   if (!folder || !kinds) return null;
 
-  const pct = (v: number) => `%${Math.round(v * 100)}`;
+  const pct = (v: number) => new Intl.NumberFormat(locale(), { style: "percent" }).format(v);
   const fence = folder.display === "fence";
   return (
     <>
@@ -561,7 +562,7 @@ function ItemCustomize({ id, guard, onClose }: { id: string; guard: Guard; onClo
   const pickIcon = async () => {
     const file = await openDialog({
       multiple: false,
-      filters: [{ name: "Resim", extensions: ["png", "jpg", "jpeg", "webp", "gif", "ico", "svg", "bmp"] }],
+      filters: [{ name: t.imageFiles, extensions: ["png", "jpg", "jpeg", "webp", "gif", "ico", "svg", "bmp"] }],
     });
     if (typeof file !== "string") return;
     try {

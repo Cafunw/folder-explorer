@@ -1,10 +1,11 @@
 // Browser-only preview data (used when the page runs outside Tauri, e.g. `npm run dev` in a browser).
+// Fake file-system names, not UI text: on a real PC they come from Windows in its own language.
 
 import type { DesktopItem, Environment, PersistedState, StartApp, WallpaperInfo } from "./types";
 
 const names = [
-  "Bu Bilgisayar",
-  "Geri Dönüşüm Kutusu",
+  "This PC",
+  "Recycle Bin",
   "Google Chrome",
   "Visual Studio Code",
   "Spotify",
@@ -15,10 +16,10 @@ const names = [
   "Telegram",
   "OBS Studio",
   "Blender",
-  "Projeler",
-  "Fotoğraflar",
-  "rapor.docx",
-  "bütçe.xlsx",
+  "Projects",
+  "Photos",
+  "report.docx",
+  "budget.xlsx",
   "WhatsApp",
   "Slack",
   "Zoom",
@@ -29,7 +30,7 @@ const hues = names.map((_, i) => (i * 47) % 360);
 
 export const mockItems: DesktopItem[] = names.map((name, i) => {
   const system = i < 2;
-  const folder = name === "Projeler" || name === "Fotoğraflar";
+  const folder = name === "Projects" || name === "Photos";
   const path = system ? `::{mock-${i}}` : `C:\\Users\\demo\\Desktop\\${name}${folder || name.includes(".") ? "" : ".lnk"}`;
   return {
     id: path.toLowerCase(),
@@ -48,8 +49,8 @@ export const mockItems: DesktopItem[] = names.map((name, i) => {
 
 /** A live group's folder in the browser preview: a few entries named after the folder. */
 export function mockFolder(dir: string): DesktopItem[] {
-  const base = dir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "Klasör";
-  const files = ["kurulum.exe", "fatura.pdf", "tatil.jpg", "notlar.txt", "sunum.pptx", "arşiv.zip", "şarkı.mp3", "video.mp4", "tablo.xlsx", "rapor.docx", "logo.png", "yedek"];
+  const base = dir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "Folder";
+  const files = ["setup.exe", "invoice.pdf", "holiday.jpg", "notes.txt", "slides.pptx", "archive.zip", "song.mp3", "video.mp4", "sheet.xlsx", "report.docx", "logo.png", "backup"];
   return files.map((f, i) => {
     const path = `${dir.replace(/[\\/]+$/, "")}\\${f}`;
     const dot = f.lastIndexOf(".");
