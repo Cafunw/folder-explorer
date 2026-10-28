@@ -1,7 +1,9 @@
 import type { ComponentType } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import { isTauri } from "./api";
+import { api, isTauri, on } from "./api";
+import { language, setLanguage } from "./i18n";
+import type { Language } from "./types";
 
 const view =
   new URLSearchParams(window.location.search).get("view") ??
@@ -25,4 +27,19 @@ const load: () => Promise<ComponentType> =
       ? () => import("./settings/SettingsView").then((m) => m.SettingsView)
       : () => import("./desktop/DesktopView").then((m) => m.DesktopView);
 
-load().then((View) => createRoot(document.getElementById("root")!).render(<View />));
+// same rule as normalizeSettings: anything but "tr" is English
+const langOf = (s: unknown): Language => ((s as { language?: unknown } | null)?.language === "tr" ? "tr" : "en");
+
+// the language is set before a view module loads (some read strings at load); a change reloads every window
+api
+  .loadState()
+  .then((st) => setLanguage(langOf(st.settings)))
+  .catch(() => {})
+  .then(() => {
+    document.documentElement.lang = language();
+    on<{ settings: unknown }>("settings-changed", (p) => {
+      if (langOf(p.settings) !== language()) location.reload();
+    });
+    return load();
+  })
+  .then((View) => createRoot(document.getElementById("root")!).render(<View />));

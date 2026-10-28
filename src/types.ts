@@ -182,8 +182,11 @@ export type WallpaperSpec = {
   dim: number; // 0..0.8
 };
 
+export type Language = "en" | "tr";
+
 export type Settings = {
   version: 1;
+  language: Language; // UI language (English by default)
   theme: ThemeMode;
   accent: string;
   wallpaper: WallpaperSpec & {

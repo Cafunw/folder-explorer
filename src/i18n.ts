@@ -1,6 +1,9 @@
-// All UI strings (Turkish). Keep every user-visible text here.
+// All UI strings. Keep every user-visible text here: Turkish below, English in i18n.en.ts (same keys).
 
-export const t = {
+import { en } from "./i18n.en";
+import type { Language } from "./types";
+
+const tr = {
   appName: "Folder Explorer",
   newFolderName: "Yeni grup",
   home: "Ana ekran",
@@ -640,3 +643,18 @@ export const t = {
   quit: "Folder Explorer'dan çık",
   version: "Sürüm",
 };
+
+export type Dict = typeof tr;
+
+let current: Language = "en";
+/** The active language's strings. main.tsx picks it before a view renders; a change reloads the windows. */
+export let t: Dict = en;
+
+export function setLanguage(lang: Language) {
+  current = lang;
+  t = lang === "tr" ? tr : en;
+}
+
+export const language = () => current;
+/** BCP 47 tag for Intl and toLocale* calls. */
+export const locale = () => (current === "tr" ? "tr-TR" : "en-US");
