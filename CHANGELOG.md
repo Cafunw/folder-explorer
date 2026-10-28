@@ -2,7 +2,7 @@
 
 Kullanıcının fark edeceği değişiklikler. Kurulu sürümün numarası ve derlendiği commit Ayarlar ▸ Hakkında'da görünür.
 
-## Yayınlanmadı
+## 0.3.0 — 2026-10-28
 
 ### Yeni
 
