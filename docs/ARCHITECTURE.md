@@ -850,9 +850,7 @@ the installer from the tag, signs it for the updater (`createUpdaterArtifacts`, 
 `TAURI_SIGNING_PRIVATE_KEY`; only in this workflow, so local builds need no key) and publishes the
 GitHub release with that version's changelog entries, the installer's SHA-256 (`changelog.mjs notes`)
 and `latest.json` (`changelog.mjs update`: version, notes, the installer's URL and signature). Tags are never moved. `scripts/changelog.test.mjs`
-checks that package.json, Cargo.toml, Cargo.lock and the changelog agree. A release also gets a winget
-manifest in `packaging/winget/Cafunw.FolderExplorer/<version>/` (new `InstallerUrl`, `InstallerSha256`,
-`ReleaseDate`; `winget validate --manifest <folder>`), submitted to microsoft/winget-pkgs.
+checks that package.json, Cargo.toml, Cargo.lock and the changelog agree.
 
 Vite inlines the version and `git describe --tags --long --dirty --always` at build time
 (`__APP_VERSION__`, `__APP_DESCRIBE__`); `src/version.ts` turns them into what *Settings ▸ About*
