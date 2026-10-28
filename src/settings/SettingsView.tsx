@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, emitToWindow, mediaUrl, on } from "../api";
 import { locale, t } from "../i18n";
 import { cellMetrics } from "../layout/grid";
+import { parseBuild, versionText } from "../version";
 import { ACCENTS, applyTheme, DEFAULT_SETTINGS, FOLDER_COLORS, normalizeSettings, spring } from "../settings";
 import { applyPreset, choosePreset, customLookSettings, readThemeFile, applyThemePatch, THEME_PRESETS, themeFile, visualSettings } from "../themes";
 import type { BackupInfo, IconShape, MonitorInfo, PersistedState, Settings, WallpaperSpec } from "../types";
@@ -1158,8 +1159,9 @@ function BackupSec({ update }: { update: Update }) {
 }
 
 function About() {
+  const b = parseBuild(__APP_VERSION__, __APP_DESCRIBE__);
   // `import.meta.env.DEV` is true only under the Vite dev server (calistir.bat), never in an installed build
-  const build = [`${t.version} ${__APP_VERSION__}`, __APP_COMMIT__, import.meta.env.DEV && t.devBuild];
+  const build = [`${t.version} ${versionText(b)}`, b.commit, import.meta.env.DEV ? t.devBuild : !b.released && t.unreleasedBuild];
   return (
     <>
       <div className="card">

@@ -642,6 +642,7 @@ const tr = {
   exportDone: "Düzen dışa aktarıldı",
 
   devBuild: "geliştirme sürümü",
+  unreleasedBuild: "yayınlanmamış derleme",
   aboutText:
     "Folder Explorer, Windows masaüstündeki simgeleri telefondaki gibi birleştirip gruplamanı sağlar. Gruplar sanaldır: dosyaların diskte yerinden oynamaz.",
   quit: "Folder Explorer'dan çık",

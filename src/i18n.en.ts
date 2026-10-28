@@ -648,6 +648,7 @@ export const en: Dict = {
   exportDone: "Layout exported",
 
   devBuild: "development build",
+  unreleasedBuild: "unreleased build",
   aboutText:
     "Folder Explorer lets you combine and group the icons on your Windows desktop like on a phone. Groups are virtual: your files stay where they are on disk.",
   quit: "Quit Folder Explorer",
