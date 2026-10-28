@@ -820,7 +820,7 @@ Group kinds / displays in the UI (`src/desktop/`):
 `npm run tauri build` → `src-tauri/target/release/bundle/nsis/Folder Explorer_<ver>_x64-setup.exe`
 (per-user install, English and Turkish: the language dialog preselects English whatever Windows'
 language is, through an override of MUI's `MUI_LANGDLL_DISPLAY` in the hooks, and keeps a language
-stored by an earlier install). `src-tauri/installer-hooks.nsh` runs `--quit` before installing
+stored by an earlier install; silent and passive runs, such as the updater's, skip the dialog). `src-tauri/installer-hooks.nsh` runs `--quit` before installing
 over / uninstalling a running copy and `--show-icons` on uninstall. It writes nothing into Windows'
 shell. On uninstall (not on an update) it removes the Startup shortcut and the Yeni ▸ menu keys. "Start with Windows" (`behavior.startWithWindows`, off by default)
 is a shortcut `Folder Explorer.lnk` in the user's Startup folder (`startup.rs`), never a registry

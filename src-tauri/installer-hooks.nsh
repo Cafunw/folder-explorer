@@ -20,6 +20,11 @@ Var FeStoredLanguage
   StrCmp $FeStoredLanguage "" +2
     StrCpy $LANGUAGE $FeStoredLanguage
   IfSilent fe_langdll_done
+  ; a passive run (the app's updater: /P /UPDATE) shows only a progress bar; .onInit has read both flags
+  ${If} $PassiveMode = 1
+  ${OrIf} $UpdateMode = 1
+    Goto fe_langdll_done
+  ${EndIf}
   LangDLL::LangDialog "Installer Language" "Please select a language." AC ${MUI_LANGDLL_LANGUAGES_CP} ""
   Pop $LANGUAGE
   StrCmp $LANGUAGE "cancel" 0 +2
