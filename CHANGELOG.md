@@ -1,52 +1,62 @@
-# Değişiklik günlüğü
+# Changelog
 
-Kullanıcının fark edeceği değişiklikler. Kurulu sürümün numarası ve derlendiği commit Ayarlar ▸ Hakkında'da görünür.
+Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/): while the version is 0.x, a minor release may change behaviour. *Settings ▸ About* shows which version and commit a build was made from.
 
-## 0.3.0 — 2026-10-28
+## [Unreleased]
 
-### Yeni
+### Fixed
 
-- İngilizce arayüz, artık varsayılan dil. Türkçe Ayarlar ▸ Görünüm ▸ Dil'den seçilir; tepsi menüsü, Windows'un Yeni ▸ girişi ve hata mesajları da dili izler.
-- Kurulum İngilizce ve Türkçe; açılışta dil sorulur (İngilizce seçili gelir) ve uygulama kurulumda seçilen dille açılır.
-- Proje MIT lisansıyla açık kaynak.
+- The *Start with Windows* shortcut is only written when it is missing or points to another copy of the app. Rewriting it on every settings change looked like malware persistence, and Microsoft Defender quarantined the running app as `Trojan:Win32/Bearfoos.A!ml`, which left the desktop without icons.
 
-### Düzeltmeler
+## [0.3.0] - 2026-10-28
 
-- Klasöre taşıma, kısa (8.3) yol adıyla verilen dosyaların nereye gittiğini de bulur; bu taşımalar da Ctrl+Z ile geri alınır.
-- Oyun modu, tıklamaları geçiren ekran katmanlarını (kayıt çerçevesi, ekran paylaşımı / uzaktan kontrol kenarlığı, GPU ya da sohbet katmanı) tam ekran oyun sanıp masaüstünü gizlemez.
+### Added
 
-## 0.2.0 — 2026-10-25
+- English interface, now the default. Turkish is in *Settings ▸ Appearance ▸ Language*; the tray menu, Windows' *New ▸* entry and error messages follow the language too.
+- The installer speaks English and Turkish (English preselected), and the app starts in the language you install it in.
+- The project is open source under the MIT license.
 
-İzlenen ilk sürüm. Daha önceki bütün derlemeler içerikleri farklı olsa da "0.1.0" diyordu; bu yüzden o derlemeler birbirinden ayırt edilemez.
+### Fixed
 
-### Yeni
+- Moving files into a folder finds where they landed even when they were given as a short (8.3) path, so those moves can be undone too.
+- Game mode no longer takes click-through screen overlays (recording frames, screen-sharing or remote-control borders, GPU or chat overlays) for a full-screen game and hides the desktop.
 
-- Akıllı grup, canlı klasör, en çok kullanılanlar ve geçici masa; panel, yığın, sekmeli ve masaüstünde hep açık kutu görünümleri.
-- Windows Hello veya PIN ile kilitlenen gruplar; masaüstünde başlık ve ayraçlar.
-- Simge plakaları ve simge paketleri, sayfa başına ya da gündüz/gece duvar kâğıdı, duvar kâğıdından vurgu rengi, içe/dışa aktarılabilen hazır temalar. Hazır tema seçince önceki özel görünümüne geri dönebilirsin.
-- Aramada hesap makinesi, son dosyalar, Windows ayar sayfaları, dizinlenmiş dosyalar ve web araması; komut paleti (Ctrl+Shift+P) ve Hızlı Bakış (Boşluk).
-- Sağ tık Explorer'ın kendi menülerini açar. Windows'un Yeni ▸ menüsüne "Yeni grup oluştur" eklenebilir.
-- Tepsi menüsünde Yeni ▸ (grup türleri, kutu, başlık, ayraç) ve Simgeleri düzenle; gruplarda ve kutularda sağ tık menüsü.
-- Kurulumda "Bilgisayar açılınca başlat" seçeneği.
-- Oyun modu ve pil modu.
+## [0.2.0] - 2026-10-25
 
-### Değişenler
+The first tracked version. Every earlier build said "0.1.0" whatever it contained, so those builds can't be told apart.
 
-- Ctrl+Space kısayolu kaldırıldı, başka uygulamaların tuşlarını alıyordu. Masaüstünde yazmaya başlamak aramayı açar.
-- Düzenleme modundaki ×, gerçek bir dosyayı Geri Dönüşüm Kutusu'na taşımadan önce sorar. Basılı tutunca düzenleme modu Ayarlar ▸ Davranış'tan kapatılabilir.
-- Özelleştirme pencereleri kaydedilmemiş değişiklikleri atmadan önce sorar.
-- Izgara ekranın sağ kenarına kadar uzanır; bazı simgelerin (çoğu Steam oyunu) çevresindeki soluk çerçeve kalktı.
-- Açık grup panelindeki yazılar açık temaya uyar.
-- Otomatik simge boyutu artık Windows masaüstündeki boyutla aynı (Görünüm ▸ Küçük / Orta / Büyük); simgeler Windows'takinden küçük ve bulanık görünmez.
+### Added
 
-### Düzeltmeler
+- Smart groups, live folders, most used and temporary groups; panel, stack, tabbed and always-open fence views.
+- Groups locked with Windows Hello or a PIN; headings and dividers on the desktop.
+- Icon plates and icon packs, a wallpaper per page or for day and night, an accent color from the wallpaper, and theme presets you can export and import. Picking a preset lets you go back to your own look.
+- Search with a calculator, recent files, Windows Settings pages, indexed files and web search; a command palette (Ctrl+Shift+P) and Quick Look (Space).
+- Right-click opens Explorer's own menus. Windows' *New ▸* menu can get a *New group* entry.
+- *New ▸* (group kinds, fence, heading, divider) and *Edit icons* in the tray menu; a right-click menu on groups and fences.
+- A *Start with Windows* option in the installer.
+- Game mode and battery mode.
 
-- Explorer ya da WebView2 çökünce uygulama kendini toparlar ve Windows simgelerini geri getirir; Windows'ta simgeler gizliyse gizli kalır.
-- Düzen dosyası bozulmaya ve boş kayıtlara karşı korunur: bozuk dosya kenara alınır, en yeni sağlam yedek yüklenir, kayıt başarısız olursa haber verilir.
-- Geri al/yinele, yeniden adlandırmaları ve klasöre taşımaları doğru dosyaya uygular (Windows'un "Atla" ve "İkisini de tut" seçenekleri dahil); yavaş bir işlem sürerken yapılan değişiklikler kaybolmaz.
-- Yavaş bir silme sürerken taşınan simge geri zıplamaz; son öğesi çıkan grup kaldırılır.
-- Yeni ▸ ile oluşturulan öğenin adı hemen sorulur.
-- Masaüstündeki seçimi okuyan başka araçlar artık doğru seçimi görür.
-- "Terminalde aç", adında özel karakter olan klasörlerde de güvenle çalışır.
-- Yeni ▸ menüsünden ya da açılışta konsol penceresi yanıp sönmez.
-- Ağdaki yavaş kısayollar duvar kâğıdını ve önizlemeleri bekletmez; değişmeyen masaüstü yenilemeleri yeniden çizilmez ve kaydedilmez; gizli pencereler daha az bellek kullanır.
+### Changed
+
+- The Ctrl+Space shortcut is gone; it took keys from other apps. Typing on the desktop opens search.
+- In edit mode, × asks before it moves a real file to the Recycle Bin, and long-press to edit can be turned off in *Settings ▸ Behavior*.
+- Customize dialogs ask before throwing away unsaved changes.
+- The grid reaches the right edge of the screen, and the faint frame around some icons (most Steam games) is gone.
+- Text in an open group follows the light theme.
+- The automatic icon size is the one Windows' desktop uses (*View ▸ Small / Medium / Large*), so icons are no longer smaller or blurrier than in Windows.
+
+### Fixed
+
+- When Explorer or WebView2 crashes, the app recovers and brings Windows' icons back; icons you hid in Windows stay hidden.
+- The layout file is protected against corruption and empty saves: a broken file is set aside, the newest good backup is loaded, and a failed save is reported.
+- Undo and redo apply renames and moves into folders to the right file (including Windows' *Skip* and *Keep both*), and changes made while a slow operation runs aren't lost.
+- An icon moved while a slow delete runs doesn't jump back, and a group whose last item leaves is removed.
+- Items made with *New ▸* ask for their name right away.
+- Other tools that read the desktop selection see the right selection.
+- *Open in Terminal* works safely in folders with special characters in their names.
+- No console window flashes from *New ▸* or at start.
+- Slow network shortcuts don't hold up the wallpaper and previews; desktop refreshes that change nothing aren't redrawn or saved; hidden windows use less memory.
+
+[Unreleased]: https://github.com/Cafunw/folder-explorer/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Cafunw/folder-explorer/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/Cafunw/folder-explorer/releases/tag/v0.2.0

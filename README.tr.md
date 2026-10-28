@@ -174,9 +174,13 @@ npm run tauri build
 
 Son komut kurulum dosyasını üretir (`src-tauri/target/release/bundle/nsis/`); canlı çalıştırma için gerekmez.
 
-**Sürüm:** numara yalnızca `package.json`'da tutulur. Yeni sürüm için `npm version 0.3.0 --no-git-tag-version`
-çalıştır (Rust tarafını da günceller) ve [CHANGELOG.md](CHANGELOG.md)'ye bir bölüm ekle. Ayarlar ▸ Hakkında
-sürümü ve derlendiği commit'i gösterir; `calistir.bat` ile açılan sürümde "geliştirme sürümü" yazar.
+**Sürüm:** numara yalnızca `package.json`'da tutulur; son sürümden beri değişenler
+[CHANGELOG.md](CHANGELOG.md)'de `[Unreleased]` altına yazılır. Yeni sürüm tek komut:
+`npm version patch -m "Release %s"` (ya da `minor` / `0.4.0`). Rust tarafını ve CHANGELOG'u günceller,
+"Release X.Y.Z" commit'ini ve `vX.Y.Z` etiketini atar; `git push --follow-tags` sonrası GitHub kurulumu
+etiketten derleyip sürümü notlarıyla yayınlar. Ayarlar ▸ Hakkında, yayınlanmış sürümle birebir aynı
+olmayan derlemelerde "0.3.0+5 · commit · yayınlanmamış derleme" yazar; `calistir.bat` ile açılan
+sürümde "geliştirme sürümü" yazar.
 
 **Otomatik kontrol:** GitHub'a her push'ta testler, tip denetimi, oxlint, derleme, Rust testleri ve clippy
 çalışır (`.github/workflows/ci.yml`).

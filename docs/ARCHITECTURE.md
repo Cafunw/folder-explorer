@@ -837,14 +837,28 @@ or passive runs, where the checkbox never shows. The dev build shares this folde
 uninstall clears its data too.
 
 ## Versions, CI and dependencies
-The version lives only in `package.json`: `tauri.conf.json` points at it (`"version": "../package.json"`)
-and npm's `version` hook (`scripts/sync-version.mjs`) copies it into `src-tauri/Cargo.toml` and
-`Cargo.lock`. Release: `npm version X.Y.Z --no-git-tag-version`, plus an entry in `CHANGELOG.md`
-(Turkish, user-facing); a release also gets a winget manifest in
-`packaging/winget/Cafunw.FolderExplorer/<version>/` (new `InstallerUrl`, `InstallerSha256`, `ReleaseDate`;
-check with `winget validate --manifest <folder>`), submitted to microsoft/winget-pkgs. Vite inlines the version and the short git commit at build time
-(`__APP_VERSION__`, `__APP_COMMIT__`); Ayarlar ▸ Hakkında shows them and adds "geliştirme sürümü"
-under the Vite dev server. There is no auto-update and the installer is unsigned.
+Versions follow semver (0.x: a minor release may change behaviour) and live only in `package.json`:
+`tauri.conf.json` points at it (`"version": "../package.json"`). `package.json` always holds the last
+released version; what changed since goes under `## [Unreleased]` in `CHANGELOG.md` (English,
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), compare links at the bottom).
+
+Releasing is one command on a clean `main`: `npm version <patch|minor|X.Y.Z> -m "Release %s"`. npm's
+`version` hook (`scripts/sync-version.mjs`) copies the version into `src-tauri/Cargo.toml` and
+`Cargo.lock`, turns `[Unreleased]` into `## [X.Y.Z] - <date>` and updates the compare links
+(`scripts/changelog.mjs`, refusing an empty `[Unreleased]`), and stages them; npm then commits
+"Release X.Y.Z" and makes the annotated tag `vX.Y.Z`. `git push --follow-tags` starts
+`.github/workflows/release.yml`: it checks that the tag matches `package.json`, runs the tests, builds
+the installer from the tag and publishes the GitHub release with that version's changelog entries and
+the installer's SHA-256 (`changelog.mjs notes`). Tags are never moved. `scripts/changelog.test.mjs`
+checks that package.json, Cargo.toml, Cargo.lock and the changelog agree. A release also gets a winget
+manifest in `packaging/winget/Cafunw.FolderExplorer/<version>/` (new `InstallerUrl`, `InstallerSha256`,
+`ReleaseDate`; `winget validate --manifest <folder>`), submitted to microsoft/winget-pkgs.
+
+Vite inlines the version and `git describe --tags --long --dirty --always` at build time
+(`__APP_VERSION__`, `__APP_DESCRIBE__`); `src/version.ts` turns them into what *Settings ▸ About*
+shows: "0.3.0 · cb2321b" for a build made exactly from the clean tag, "0.3.0+5 · 7c22a4f · unreleased
+build" for five commits after it (a dirty tree adds "-dirty"), and "development build" under the Vite
+dev server. There is no auto-update and the installer is unsigned.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs one Windows job on pushes to `main`, pull requests and
 on demand: typecheck, oxlint, vitest, the Vite build (which writes the `dist/` the crate embeds),
