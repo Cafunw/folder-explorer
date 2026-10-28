@@ -42,9 +42,6 @@ Requires Windows 11 (x64). WebView2 is already part of Windows 11.
 
 ## Screenshots
 
-<p align="center"><img src="docs/media/demo.gif" width="800" alt="The real app: an app icon is dragged into the Games group, then the group opens over a blurred desktop"></p>
-<p align="center"><sub>The real app: an icon goes into the Games group, then the group opens.</sub></p>
-
 <table>
   <tr>
     <td width="50%"><img src="docs/media/group-open.png" alt="The Games group open on the desktop"></td>
