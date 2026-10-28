@@ -639,16 +639,18 @@ pub fn move_into_folder(paths: Vec<String>, target_dir: String) -> Result<Vec<Op
         op.Advise(&sink.to_interface::<IFileOperationProgressSink>()).map_err(|e| e.message())?;
         let dest = shell_item(&target_dir)?;
         let target_norm = util::norm_path(&target_dir);
-        let mut any = false;
-        for p in &paths {
+        // the sink names sources the way the shell spells them (8.3 short names written out), so look them up that way
+        let mut keys: Vec<Option<String>> = vec![None; paths.len()];
+        for (p, key) in paths.iter().zip(keys.iter_mut()) {
             if p.starts_with("::") || util::norm_path(p) == target_norm {
                 continue;
             }
             let item = shell_item(p)?;
+            use windows::Win32::UI::Shell::SIGDN_FILESYSPATH;
+            *key = Some(item.GetDisplayName(SIGDN_FILESYSPATH).map_or_else(|_| util::norm_path(p), |n| util::norm_path(&util::take_pwstr(n))));
             op.MoveItem(&item, &dest, PCWSTR::null(), None).map_err(|e| e.message())?;
-            any = true;
         }
-        if !any {
+        if keys.iter().all(Option::is_none) {
             return Ok(vec![None; paths.len()]);
         }
         // a cancel part-way still reports the items that moved before it
@@ -657,7 +659,8 @@ pub fn move_into_folder(paths: Vec<String>, target_dir: String) -> Result<Vec<Op
         // a source still there did not move (skipped, or a folder merged only in part)
         let moved: Vec<Option<String>> = paths
             .iter()
-            .map(|p| landed.get(&util::norm_path(p)).filter(|_| !Path::new(p).exists()).cloned())
+            .zip(&keys)
+            .map(|(p, key)| key.as_ref().and_then(|k| landed.get(k)).filter(|_| !Path::new(p).exists()).cloned())
             .collect();
         match done {
             Err(e) if moved.iter().all(Option::is_none) => Err(e.message()),
@@ -1453,9 +1456,10 @@ mod tests {
             dest.to_string_lossy().into(),
         )
         .unwrap();
-        let want = util::norm_path(&dest.join("Şeker.txt").to_string_lossy());
         assert_eq!(moved.len(), 2);
-        assert_eq!(moved[0].as_deref().map(util::norm_path), Some(want));
+        // canonicalize: the temp dir may be an 8.3 short path (CI), the shell reports long names
+        let landed = moved[0].as_deref().map(|p| std::fs::canonicalize(p).unwrap());
+        assert_eq!(landed, Some(std::fs::canonicalize(dest.join("Şeker.txt")).unwrap()));
         assert_eq!(moved[1], None);
         std::fs::remove_dir_all(dir).unwrap();
     }
