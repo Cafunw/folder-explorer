@@ -130,6 +130,7 @@ export type VirtualFolder = {
   limit?: number; // frequent: how many items
   tempDays?: number; // temp
   added?: Record<string, number>; // temp: when each child came in (ms)
+  archiveId?: string; // temp: the group stale items move into (remembered by id, survives renames)
   activeTab?: string; // tabs: the open child group
   lock?: GroupLock;
   collapsed?: boolean; // fence: only the title bar is shown (its cells stay reserved)
