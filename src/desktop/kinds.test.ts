@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeGrids } from "../layout/grid";
-import { emptyLayout, locate } from "../layout/model";
+import { emptyLayout, locate, normalizeLayout } from "../layout/model";
 import { DEFAULT_SETTINGS } from "../settings";
 import type { DesktopItem, Environment, Layout, VirtualFolder } from "../types";
 import {
@@ -235,5 +235,26 @@ describe("archiveStale", () => {
     l.placements["v:p"] = { m: "M1", p: 0, c: 0, r: 0 };
     const r = archiveStale(l, grids, "v:t", "Arşiv", null, NOW);
     expect(r.layout.folders["v:p"].children).toEqual(["v:t", r.archiveId]);
+  });
+
+  it("keeps the same archive group after a language switch", () => {
+    const first = archiveStale(setup(), grids, "v:t", "Arşiv", null, NOW);
+    const id = first.archiveId!;
+    expect(first.layout.folders["v:t"].archiveId).toBe(id);
+    // A switch renames the archive name the UI looks for, not the group itself: the
+    // remembered id must win over the name match.
+    const temp = first.layout.folders["v:t"];
+    const again = {
+      ...first.layout,
+      folders: {
+        ...first.layout.folders,
+        "v:t": { ...temp, children: [...temp.children, "stale2"], added: { ...temp.added, stale2: NOW - 5 * DAY } },
+      },
+    };
+    expect(normalizeLayout(JSON.parse(JSON.stringify(again))).folders["v:t"].archiveId).toBe(id);
+    const second = archiveStale(again, grids, "v:t", "Archive", null, NOW);
+    expect(second.archiveId).toBe(id);
+    expect(second.layout.folders[id].name).toBe("Arşiv");
+    expect(second.layout.folders[id].children).toEqual(["old", "stale2"]);
   });
 });

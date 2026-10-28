@@ -204,9 +204,11 @@ export const bubbleCols = (n: number) => Math.min(6, Math.max(3, Math.ceil(Math.
 // ---------------------------------------------------------------- temp
 
 /**
- * Move a temp group's expired children into the group named `archiveName` next to it (same parent
- * folder, or on the desktop near it), creating that group when missing. Same layout back when
- * nothing is stale.
+ * Move a temp group's expired children into its archive group next to it (same parent folder,
+ * or on the desktop near it), creating that group when missing. The archive group is
+ * remembered by id on the temp group, so a renamed group (a language switch, say) is still
+ * the archive; layouts without the id fall back to matching `archiveName`. Same layout back
+ * when nothing is stale.
  */
 export function archiveStale(
   l: Layout,
@@ -222,8 +224,10 @@ export function archiveStale(
   if (!stale.length || !loc) return { layout: l, moved: 0, archiveId: null };
   const parent = parentMap(l).get(folderId) ?? null;
   const siblings = parent ? l.folders[parent]?.children ?? [] : Object.keys(l.placements);
-  let archiveId =
-    siblings.find((id) => isFolderId(id) && id !== folderId && l.folders[id]?.name === archiveName && !l.folders[id]?.kind) ?? null;
+  const usable = (id: string) =>
+    isFolderId(id) && id !== folderId && siblings.includes(id) && !!l.folders[id] && !l.folders[id]?.kind;
+  const remembered = f?.archiveId && usable(f.archiveId) ? f.archiveId : null;
+  let archiveId = remembered ?? siblings.find((id) => usable(id) && l.folders[id]?.name === archiveName) ?? null;
   let next = l;
   if (!archiveId) {
     const where = loc.type === "folder" ? { folderId: loc.folderId, index: loc.index + 1 } : { placement: loc.placement };
@@ -232,5 +236,9 @@ export function archiveStale(
     archiveId = created.folderId;
   }
   next = moveIntoFolder(next, stale, archiveId, undefined, now);
+  const temp = next.folders[folderId];
+  if (temp && temp.archiveId !== archiveId) {
+    next = { ...next, folders: { ...next.folders, [folderId]: { ...temp, archiveId } } };
+  }
   return { layout: next, moved: stale.length, archiveId };
 }
