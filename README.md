@@ -1,181 +1,107 @@
+<div align="center">
+
+<img src="app-icon.svg" width="96" alt="Folder Explorer icon">
+
 # Folder Explorer
 
-Windows masaüstünü telefon ana ekranı gibi kullanmanı sağlar: bir simgeyi başka bir simgenin
-üstüne bırakınca grup oluşur, gruplar iç içe olabilir, her şey animasyonlu ve özelleştirilebilir.
+**Phone-style folders for your Windows 11 desktop.**<br>
+Drop one icon on another to make a group, the way you would on a phone. Your files never move.
 
-Gruplar **sanaldır**: dosyaların diskte yerinden oynamaz, gruplama yalnızca Folder Explorer'ın
-kaydında tutulur. Uygulama kapanınca Windows'un kendi simgeleri geri gelir.
+[**Download**](https://github.com/Cafunw/folder-explorer/releases/latest) · [Features](#features) · [Uninstall](#uninstall-and-getting-your-desktop-back) · [Build from source](#build-from-source) · [Türkçe](README.tr.md)
 
-## Kullanım
+[![Latest release](https://img.shields.io/github/v/release/Cafunw/folder-explorer)](https://github.com/Cafunw/folder-explorer/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Cafunw/folder-explorer/total)](https://github.com/Cafunw/folder-explorer/releases)
+![Windows 11 x64](https://img.shields.io/badge/Windows%2011-x64-0078D4)
+[![CI](https://github.com/Cafunw/folder-explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/Cafunw/folder-explorer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-| İşlem | Nasıl |
+</div>
+
+Folder Explorer draws its own desktop on top of your wallpaper and hides Explorer's icons while it runs. Groups, fences and headings live only in Folder Explorer's layout file, so nothing is moved on disk and Windows' own desktop comes back as soon as you quit.
+
+## Download
+
+1. Get **`Folder.Explorer_<version>_x64-setup.exe`** from the [latest release](https://github.com/Cafunw/folder-explorer/releases/latest) and run it. It installs for your user only, no administrator rights needed. The installer speaks English and Turkish, and the app starts in the language you pick there (change it any time in *Settings ▸ Appearance*).
+2. The installer isn't code-signed yet, so Windows may show *"Windows protected your PC"*. Click **More info → Run anyway**. Every release lists the installer's SHA-256, and you can always [build it yourself](#build-from-source).
+
+Requires Windows 11 (x64). WebView2 is already part of Windows 11.
+
+## Features
+
+- **Groups by drag and drop.** Drop an icon on another to make a group, drop more on it to add, drag out to take one back. Groups can hold groups, and every one has its own name, color, background and preview grid.
+- **Your files stay where they are.** Groups are virtual. Renaming or deleting an icon acts on the real file (to the Recycle Bin), and Ctrl+Z undoes layout changes and file operations alike.
+- **Fences, headings and dividers.** Always-open boxes on the desktop in the style of Fences, plus section headings and dividers to structure a page.
+- **Groups that fill themselves.** A *smart group* collects desktop icons by rule (extension, name, type, age). A *live folder* shows a real folder such as Downloads and follows its changes. *Most used* lists what you open most. A *temporary group* flags items older than N days and archives them for you.
+- **Windows' own menus.** Right-click opens Explorer's real context menus (including *Show more options* and *New ▸*), and Windows' *New ▸* menu gets a *New group* entry (you can turn it off).
+- **Search and command palette.** Start typing on the desktop to find apps, desktop items, files from the Windows index, Settings pages, a calculator and web search. Ctrl+Shift+P opens the command palette, Space opens Quick Look.
+- **Make it yours.** Theme presets, light and dark modes, icon plates and icon packs, a wallpaper per page or for day and night, an accent color taken from the wallpaper, and open and page animations.
+- **Locked groups.** Hide a group's content behind Windows Hello or a PIN.
+- **Light on your PC.** No CPU use when idle, game mode for full-screen apps, a battery mode, pages on every monitor, and icon sizes that follow Windows' own setting.
+
+## How it works
+
+Folder Explorer is a [Tauri 2](https://tauri.app) app: a Rust backend that talks to Windows and a React interface in WebView2. The backend places a transparent window just above the wallpaper, hides Explorer's desktop icon list and shows the same items in its own grid. It reads your desktop folders, icons and wallpaper but changes nothing in Windows, with two exceptions you control: the *New ▸ New group* entry and the *Start with Windows* shortcut.
+
+If Explorer or the interface crashes, Folder Explorer brings Windows' icons back and restarts itself. Your layout is saved to `%APPDATA%\Folder Explorer\state.json` as you go, with the last 10 versions kept as backups.
+
+The details, including every command and file format, are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Mouse and keyboard
+
+| Do this | How |
 |---|---|
-| Grup oluştur | Bir simgeyi başka bir simgenin ortasına sürükle-bırak |
-| Gruba ekle | Simgeyi grubun üstüne bırak (üstünde beklersen grup açılır) |
-| Gruptan çıkar | Açık gruptan simgeyi panelin dışına sürükle |
-| Yer değiştir | Simgeyi dolu bir hücrenin kenarına bırak |
-| Grubu aç | Gruba tek tıkla; Esc bir üst seviyeye döner |
-| Yeniden adlandır | F2 (gerçek dosyanın adı değişir) ya da grup başlığına tıkla |
-| Sil | Delete → Geri Dönüşüm Kutusu (grup silinince içindekiler dışarı çıkar) |
-| Geri al / yinele | Ctrl+Z / Ctrl+Y |
-| Sayfa değiştir | Fare tekerleği, PageUp / PageDown, ok tuşlarıyla sayfa kenarını geç, ya da sürüklerken ekran kenarında bekle |
-| Ok tuşları | En yakın simgeye geçer (sayfanın kenarında bir sonraki sayfaya); **Shift** + ok seçimi genişletir, Home / End ilk / son simge. Hiçbir şey seçili değilse ilk simgeyi seçer. Kutuda ↓ içine girer, ilk satırda ↑ kutuyu seçer; açık grupta grubun ızgarasında gezer |
-| Simgeleri gizle / göster | Boş masaüstüne **çift tık** (Ayarlar'da "Çift tıkla gizle"); gizliyken masaüstünde herhangi bir yere çift tık geri getirir |
-| Simge boyutu | **Ctrl + fare tekerleği** (Ayarlar'da "Ctrl+tekerlek ile boyut") ya da uygulama ayarları |
-| Uygulamayla aç | Dosyaları bir uygulamanın (`.exe` ya da ona giden kısayol) üstüne bırak: "<Uygulama> ile aç" yazar, dosyalar yerinde kalır. **Shift** basılıyken bırakmak eskisi gibi grup yapar. Dosya Gezgini'nden sürüklenen dosyalar için de geçerli |
-| Dışarıdan klasöre bırak | Dosya Gezgini'nden bir klasör simgesine (ya da klasör kısayoluna) bırakmak Windows gibi: aynı sürücüde taşır, başka sürücüde kopyalar; **Ctrl** kopyalar, **Shift** taşır. Taşıma Ctrl+Z ile geri alınır |
-| Ara | Masaüstündeyken yazmaya başla |
-| Hızlı önizleme | Seçili simgede **Boşluk**: resim, GIF, video, ses, PDF, metin / kod, klasör içeriği, grup; ← → önceki / sonraki, Enter açar, Boşluk / Esc kapatır |
-| Komut paleti | Aramada `>` yaz ya da masaüstünde (simge seçili değilken) **Ctrl+Shift+P**: Yenile, Sırala, simge boyutu, Yeni grup, Yeni kutu / başlık / ayraç, Geri al… |
-| Çoklu seçim | Ctrl+tık ya da boş alanda dikdörtgen çiz |
-| Simgeleri düzenle | Sistem tepsisi menüsünde ya da komut paletinde **Simgeleri düzenle** ya da bir simgeye **uzun bas** (~0,6 sn, kıpırdatmadan). Simgeler sallanır, köşelerinde rozet çıkar: **×** dosyayı Geri Dönüşüm Kutusu'na taşır, **−** grubu dağıtır (içindekiler kalır) ya da başlığı kaldırır; hepsi Ctrl+Z / "Geri al" ile döner. Bu modda sürükleme hemen başlar, tıklamak dosya açmaz (gruplar açılır). Çıkmak için **Esc**, boş masaüstüne tık ya da üstteki **Bitti**. Düzen kilitliyken açılmaz; "Hareketi azalt" açıksa simgeler sallanmaz, yalnızca rozetler görünür |
-| Kutu (Fences) | Sistem tepsisi menüsünde Yeni ▸ **Kutu** ya da komut paletinde **Yeni kutu**: masaüstünde hep açık duran bir grup (varsayılan 3×2 hücre). Simgeleri içine sürükle (gövdede yer açılır, başlığa bırakmak sona ekler), dışarı sürükleyince masaüstüne çıkar. Başlıktan sürükle = taşı (hücreye oturur, kesik çizgi nereye gideceğini gösterir), sağ alt köşeden sürükle = boyutlandır, başlığa çift tık / F2 = ad, ⌄ düğmesi = katla / aç (katlanmış kutunun hücreleri ayrılmış kalır), sağ tık = Daralt / Genişlet, Yeniden adlandır, Ayarlar…, Kutuyu dağıt, İçindekilerle birlikte sil; ayar düğmesi = grubun ayarları. Var olan bir grubu ayarlarındaki görünüm seçiminden kutuya çevirebilirsin |
-| Başlık / Ayraç | Sistem tepsisi menüsünde Yeni ▸ **Başlık** (3 hücre) ya da **Ayraç** (sağdaki boş hücreler, en çok 6), ya da komut paletinde Yeni başlık / Yeni ayraç: ilk boş yere eklenir. Tık = seç, sürükle = taşı, sağ kenardaki tutamak = genişlik, çift tık / F2 / Ctrl+E = metni düzenle, Delete = sil (Ctrl+Z geri alır). Sağ tık: Düzenle, Hizala ▸ Sol / Orta, Biçim ▸ Başlık / Ayraç, Altı çizili, Sil |
-| Grup türü | Grubun ayarlarında **Tür**: Normal, **Akıllı** (kurala uyan masaüstü simgelerini kendisi toplar), **Canlı klasör**, **En çok kullanılanlar**, **Geçici masa**. Sistem tepsisi menüsünde Yeni ▸ Akıllı grup / Canlı klasör / En çok kullanılanlar (ya da komut paletindeki aynı komutlar) doğrudan oluşturur. Simgenin köşesindeki küçük rozet türü gösterir |
-| Akıllı grup kuralı | Koşullar: Uzantı (`png, jpg`), Ad içerir / ile başlar, Tür (Resim, Belge, Oyun…), Yaş (N günden yeni / eski); "Tümü" ya da "Herhangi biri". Altta kaç öğenin toplanacağı canlı görünür |
-| Canlı klasör | Gerçek bir klasörün içeriğini gösterir (İndirilenler, Belgeler, Resimler ya da seçtiğin klasör), değişiklikleri anında izler; en yeni 500 öğe. Çift tık açar, Boşluk önizler, sağ tık Windows'un klasik menüsü, F2 / Delete çalışır. Dışarı sürüklemek dosyayı taşır; gruba bırakılan dosyalar o klasöre taşınır. Bu öğeler masaüstü düzenine girmez |
-| En çok kullanılanlar | En sık açtığın simgeleri (4–30 adet) kendisi listeler; içine bırakılamaz, içinden sürüklenemez |
-| Geçici masa | İçine giren öğelerin ne zaman girdiği tutulur; N günden (1–90) eski olanlar için başlıkta uyarı ve **Arşive taşı** düğmesi (yanındaki "Arşiv" grubuna taşır, yoksa oluşturur; Ctrl+Z geri alır). Simgede eski öğe sayısı görünür |
-| Gösterim | **Panel** (varsayılan), **Yığın** (en çok 9 öğe simgeden yelpaze gibi açılır, fazlası simgenin üstünde ızgara balonu; Esc ya da dışarı tık kapatır), **Sekmeli** (alt gruplar sekme olur, gruptaki gevşek öğeler "Genel" sekmesinde; sekme başlığına bırakmak o gruba ekler, "+" yeni sekme, çift tık ad), **Kutu** |
-| Kilit | Grubun ayarlarında **Kilit**: PIN (4–12 hane) belirle; Windows Hello varsa açarken önce o sorulur, PIN yedek kalır. Kilitli grubun simgesinde kilit görünür, içeriği aramada çıkmaz; açıldıktan sonra kapatınca 5 dakika açık kalır, uygulama yeniden başlayınca yine kilitlenir. Kilit yalnızca bu uygulamada içeriği gizler — dosyalar Dosya Gezgini'nde görünür |
+| Make a group | Drag an icon onto the middle of another |
+| Open a group | Click it; Esc goes back up |
+| Rename | F2, or click a group's title |
+| Delete | Delete (to the Recycle Bin; a deleted group leaves its items on the desktop) |
+| Undo / redo | Ctrl+Z / Ctrl+Y |
+| Search | Start typing on the desktop |
+| Command palette | Ctrl+Shift+P, or `>` in search |
+| Quick Look | Space on a selected icon; ← → for the next one |
+| Edit icons (jiggle mode) | Long-press an icon, or *Edit icons* in the tray menu |
+| Icon size | Ctrl + mouse wheel |
+| Open files with an app | Drop them on the app's icon (Shift+drop makes a group instead) |
+| New group | Ctrl+Shift+N, or *New ▸ New group* on the desktop |
 
-**Arama kaynakları** (Ayarlar → Arama'dan tek tek kapatılabilir): masaüstü simgeleri ve gruplar,
-Başlat uygulamaları, hesap makinesi (`2+3*4`, `sqrt 2`, `200+10%`; Enter sonucu kopyalar), Windows
-Ayarlar sayfaları (ör. "bluetooth", "gece ışığı"), son kullanılan dosyalar, Windows Search dizinindeki
-dosyalar (en az 3 harf) ve en altta "Web'de ara" (Google, varsayılan tarayıcıda).
+## Privacy
 
-**Temel kural: Windows'a dokunmuyoruz.** Uygulama kayıt defterini değiştirmez, Explorer'a müdahale
-etmez, sistem menülerine kanca takmaz. Tek müdahale, kendi simgelerimizi gösterirken Windows'un
-simge listesini gizlemektir; uygulama kapanınca (ya da çökünce) Windows'un simgeleri geri gelir.
-Tek istisna senin seçimin: Windows'un Yeni ▸ menüsündeki **Yeni grup oluştur** girişi (yalnızca
-bu kullanıcı için standart bir kayıt; Ayarlar ▸ Davranış'tan kapatınca ya da kaldırınca silinir).
+Folder Explorer has no telemetry and makes no network requests of its own. The web is only reached when you ask: a web search from the search bar opens Google in your browser, and a URL shortcut you create opens its address.
 
-**Sağ tıkta Windows'un kendi menüsü açılır.** Boş masaüstünde menüyü doğrudan Explorer açar;
-Windows 11'in varsayılan menüsü ve Yeni alt menüsü kullanılır. Masaüstü dosya, klasör, kısayol ve sistem simgelerinde de Windows 11'in varsayılan menüsü açılır; klasik menü **Daha fazla seçenek göster** içindedir.
-Uygulama kendi menü pencerelerini oluşturmaz. Yeniden adlandır ve Sil, Ctrl+Z desteği için mevcut
-uygulama işlemlerine bağlıdır. Shift+F10 / menü tuşu da aynı yerel menüleri açar.
-Windows masaüstü menüsündeki Görünüm/Sıralama komutları Explorer simgelerine aittir;
-uygulamanın simge boyutu ve düzeni uygulama ayarları, Ctrl+tekerlek ve komut paletinden yönetilir.
-Akıllı grup, canlı klasör, kutu, başlık ve ayraç oluşturma komutları sistem tepsisi menüsünün Yeni alt menüsünde ve komut paletinde bulunur.
+## Uninstall and getting your desktop back
 
-Gruba ya da kutuya sağ tıklamak küçük bir menü açar: Aç (kutuda Daralt / Genişlet),
-Yeniden adlandır, Ayarlar… (ad, renk, görünüm… penceresi), Grubu dağıt (kutuda Kutuyu dağıt), İçindekilerle birlikte sil.
-Seçili simge için Ctrl+E de ayar penceresini açar (dosyalar için özel ad ve simge).
+- **Quit** from the tray icon: Windows' icons come back right away.
+- **Uninstall** from *Settings ▸ Apps ▸ Installed apps*. Tick *Delete the application data* to remove `%APPDATA%\Folder Explorer` (layout, settings, backups) as well.
+- **Icons missing after a crash?** Right-click the tray icon and choose *Show Windows icons*, or run `folder-explorer.exe --show-icons` from the install folder. If you hid desktop icons in Windows itself (*View ▸ Show desktop icons*), Folder Explorer leaves that setting alone.
 
-Yeni grup için: masaüstü menüsünde Yeni ▸ Yeni grup oluştur, sistem tepsisi menüsünde Yeni ▸ Grup,
-**Ctrl+Shift+N**, bir simgeyi başka bir simgenin üstüne bırakmak, ya da Dosya Gezgini'nde sağ tık ▸
-Yeni ▸ **Yeni grup oluştur** (masaüstü öne gelir, boş grup açılır ve adlandırılır). Yeni ▸ ile oluşturduğun öğe
-sağ tıkladığın yerde belirir ve hemen adlandırılır.
+## Known limitations
 
-Her grup ayrı ayrı düzenlenebilir (sağ tık → Ayarlar… ya da açık grubun başlığındaki
-düğme): ad, renk, arka plan opaklığı (%0 = tamamen saydam), bulanıklık, köşe, 2×2 / 3×3 önizleme,
-özel resim, açılış stili (iOS / Android), açılış animasyonu ve panel opaklığı. Ayarlanmayanlar genel
-ayarları izler.
+- Windows 11 x64 only. Other desktop organizers that also replace the icon layer will conflict.
+- Monitors with different scaling are drawn with the main window's scale factor, so sizes on a secondary monitor can be slightly off.
+- The installer is unsigned for now (see [Download](#download)).
+- Windows' own *View* and *Sort by* commands on the desktop menu act on Explorer's hidden icons; use Folder Explorer's settings, Ctrl+wheel and the command palette instead.
 
-Ayarlar penceresinin bölümleri (çoğunda canlı önizleme var):
+## Build from source
 
-* **Görünüm:** tema, vurgu rengi, seçim rengi / stili (dolgu, çerçeve, ışıma) ve seçim dikdörtgeni
-  köşesi, sayfa göstergesi (nokta, çizgi, sayı, gizli; alt, üst, sol, sağ).
-* **Temalar:** hazır temalar (Varsayılan, Cam, Neon, Minimal, macOS, Gece) ve tema dosyasını dışa /
-  içe aktarma. Tema yalnızca görünümü değiştirir; düzen, kısayollar ve davranış ayarları kalır.
-* **Duvar kağıdı:** Windows / resim / renk / gradyan, bulanıklık, karartma; vurgu rengini duvar
-  kağıdından alma; gece ayrı duvar kağıdı (gündüz ve gece başlangıç saatleri); bir ekranın belirli
-  bir sayfasına özel duvar kağıdı.
-* **Simgeler ve ızgara:** simge plakası (yok, daire, yumuşak kare, kare, damla; renk, opaklık, iç
-  boşluk), simge paketi (PNG / ICO / SVG dosyaları olan bir klasör: dosya adı uygulamanın adıyla
-  eşleşen simgeler değişir, ör. `chrome.png`), simge ölçeği (Ctrl+fare tekerleği ile de), ızgara.
-* **Etiketler:** yazı tipi, boyut, kalınlık, renk, gölge, yalnızca üzerine gelince göster.
-* **Gruplar:** grup stili ve grup çerçevesi (kenarlık, gölge, gradyan, iç ışıma).
-* **Saydamlık**, **Animasyon** (hız, açılış stili, sayfa geçişi, fare üstü efekti, derinlik efekti, yay
-  sertliği / esneklik, sesler ve ses düzeyi), **Davranış** (çift tıkla gizle, Ctrl+tekerlek,
-  Boşluk ile hızlı önizleme, dosyayı uygulamaya bırakınca o uygulamayla aç, Windows'un Yeni
-  menüsünde "Yeni grup oluştur"), **Arama** (yazınca ara;
-  hesap makinesi, son kullanılan dosyalar, dosyalar, Windows ayarları, web'de ara), **Performans**
-  (oyun modu, pil modu), **Yedekleme**.
-
-**Duvar kağıdı ve görünüm ayrıntıları:** Bir sayfanın kendi duvar kağıdı varsa o gösterilir, yoksa
-gece saatlerinde gece duvar kağıdı, yoksa ana duvar kağıdı; sayfa değişince yumuşakça geçer. Gündüz /
-gece geçişi tam o saatte olur (uygulama arada hiçbir şeyi yoklamaz). Derinlik efekti ve bulanıklık yalnızca
-uygulamanın kendi çizdiği duvar kağıtlarında (resim, renk, gradyan) çalışır; "Windows" seçiliyken
-gerçek duvar kağıdı olduğu gibi görünür. "Vurgu rengini duvar kağıdından al" birincil ekranın o anki
-duvar kağıdının baskın rengini kullanır (Windows duvar kağıdı dahil); seçtiğin vurgu rengi silinmez,
-seçenek kapanınca geri gelir. Simge paketinde bir simge önce öğenin adıyla, sonra dosya adıyla, kısayollarda
-da hedef programın adıyla eşleşir (`chrome.png`, `google-chrome.svg`, `Google Chrome.ico` aynı sayılır);
-özel simge her zaman önce gelir. Etiket yazısı büyüdükçe hücreler de büyür; "yalnızca üzerine gelince"
-etiketler seçili simgelerde de görünür. Sayı biçimli sayfa göstergesinde üzerine gelince ‹ › okları çıkar.
-
-**Animasyon ayrıntıları:** Açılış stili grubun nasıl açılıp kapandığıdır: **Yakınlaşma** (simgeden büyür),
-**Yay** (aynısı, daha esnek), **3B çevirme** (simgeden dönerek gelir), **Bulanıktan** (bulanık ve küçükten
-netleşir), **Solma**; bir grubun ayarlarındaki "Açılış animasyonu" genel seçimi o grup için değiştirir,
-yığın yelpazesi de aynı stili kullanır. Sayfa geçişi: **Kaydırma**, **Küp** (iki sayfa bir küpün yüzleri gibi
-döner), **Kart destesi** (eski sayfa geriye çekilip solarken yenisi üstüne kayar), **Solma**; tekerlek, ← →,
-sayfa noktaları ve sürüklerken kenarda beklemek hepsiyle çalışır, her ekranın kendi sayfaları var. Derinlik efekti
-her geçişte sayfayla birlikte hareket eder. Fare üstü efektleri: Kalkma, Büyüme, 3B eğilme (imlece doğru),
-Parlama, Zıplama, Büyüteç (Dock gibi: üstündeki simge ve aynı satırdaki komşuları büyür). Sürüklerken,
-ad değiştirirken ve simgeleri düzenlerken efekt olmaz. Sesler (varsayılan kapalı) uygulamanın kendi
-ürettiği kısa seslerdir (dosya yok): grup açma / kapama, bırakma / birleştirme, silme, sayfa değişimi,
-düzenleme modu, hata; bir süre ses çalınmazsa ses aygıtı bırakılır. "Hareketi azalt" açıkken her şey
-anında olur; Windows'un animasyon ayarı kapalıyken ve oyun / pil modunda geçişler anında ya da yalnızca
-solarak olur, fare üstü efektleri ve (oyun modunda) sesler kapanır.
-
-**Oyun modu ve pil modu (Performans):** Bir uygulama ekranı tamamen kapladığında (tam ekran oyun,
-kenarlıksız tam ekran pencere, F11 ile tam ekran tarayıcı ya da video) o ekran "kapalı" sayılır:
-masaüstü animasyonları ve efektleri kapanır, arka plan işleri bekler. Bütün ekranlar kapalıysa
-masaüstü birkaç saniye sonra tamamen uyur (neredeyse sıfır işlemci); masaüstüne dönünce (Win+D,
-Alt+Tab) uyanır, simgeler bir an sonra görünür. Birden çok ekranda yalnızca oyunun olduğu ekran
-kapalı sayılır. Pil modu "Otomatik"te dizüstü bilgisayar pille çalışırken ya da pil tasarrufu açıkken
-efektler azalır; "Her zaman" ve "Kapalı" seçenekleri de var. Uygulama boştayken hiçbir şeyi
-yoklamaz; kullanılmayan arama penceresi gizliyken belleği geri verir ve her
-pencere yalnızca kendi kodunu yükler. Windows'ta "Animasyon efektleri" kapalıysa masaüstü de
-animasyonsuz çalışır. Windows'un kendi duvar kağıdı kullanılırken grup arka planlarındaki bulanıklık
-(altında bulanacak bir şey olmadığından) hiç hesaplanmaz.
-
-Sistem tepsisi menüsünde Yeni ▸ (grup, akıllı grup, canlı klasör, en çok kullanılanlar, kutu, başlık, ayraç), simgeleri düzenle, uygulama ekle, ayarlar ve düzeni kilitle bulunur.
-
-Düzen `%APPDATA%\Folder Explorer\state.json` dosyasına anında kaydedilir; son 10 sürüm
-`backups\` klasöründe tutulur.
-
-## Geliştirme
-
-Gerekenler: Node.js, Rust (MSVC), WebView2 (Windows 11'de hazır gelir). İlk kez: `npm install`.
-
-**Canlı çalıştırma (kurulum gerekmez):** proje klasöründeki `calistir.bat` dosyasına çift tıkla.
-Çalışan Folder Explorer varsa düzgünce kapatır, sonra uygulamayı kaynak koddan başlatır. Arayüz
-kodunu (`src/`) değiştirince uygulama anında yenilenir; Rust kodunu (`src-tauri/`) değiştirince
-kendiliğinden yeniden derlenip açılır (yaklaşık 20 sn). Gerçek ayarların ve grupların kullanılır;
-oyundan dönünce sayfa baştan yüklenmez. 1420 portunu başka bir program tutuyorsa adını söyleyip durur.
-Kapatmak için pencerede Ctrl+C.
-
-Diğer komutlar:
+You need Node.js, Rust (stable, MSVC toolchain) and WebView2 (part of Windows 11).
 
 ```bash
-npm test
+npm install
 ```
 
 ```bash
-npm run lint
+npm run tauri dev
 ```
 
 ```bash
 npm run tauri build
 ```
 
-Son komut kurulum dosyasını üretir (`src-tauri/target/release/bundle/nsis/`); canlı çalıştırma için gerekmez.
+The last command writes the installer to `src-tauri/target/release/bundle/nsis/`. `npm run dev` previews the interface in a browser with sample data. Checks: `npm test`, `npm run typecheck`, `npm run lint`, and `cargo test --lib` and `cargo clippy` in `src-tauri/`; CI runs all of them on every push.
 
-**Sürüm:** numara yalnızca `package.json`'da tutulur. Yeni sürüm için `npm version 0.3.0 --no-git-tag-version`
-çalıştır (Rust tarafını da günceller) ve [CHANGELOG.md](CHANGELOG.md)'ye bir bölüm ekle. Ayarlar ▸ Hakkında
-sürümü ve derlendiği commit'i gösterir; `calistir.bat` ile açılan sürümde "geliştirme sürümü" yazar.
+## Contributing
 
-**Otomatik kontrol:** GitHub'a her push'ta testler, tip denetimi, oxlint, derleme, Rust testleri ve clippy
-çalışır (`.github/workflows/ci.yml`).
+Bug reports and pull requests are welcome. Interface text lives in `src/i18n.en.ts` (English) and `src/i18n.ts` (Turkish), with the same keys in both. Please report security issues privately through the repository's *Security* tab.
 
-* `src/` — React + Motion arayüzü, yerleşim mantığı (`src/layout/model.ts`, birim testli).
-* `src-tauri/` — Rust: masaüstü katmanı, Windows simgeleri, kabuk menüleri, dosya işlemleri, kayıt.
-* Ayrıntılar: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+## License
 
-Tarayıcıda sahte verilerle önizleme: `npm run dev` ve `http://localhost:1420` (Windows
-entegrasyonu olmadan, yalnızca arayüz).
-
-## Lisans
-
-[MIT](LICENSE). Hata bildirimi ve önerilere açık: GitHub'da bir issue aç.
+[MIT](LICENSE)

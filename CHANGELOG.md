@@ -2,6 +2,18 @@
 
 Kullanıcının fark edeceği değişiklikler. Kurulu sürümün numarası ve derlendiği commit Ayarlar ▸ Hakkında'da görünür.
 
+## Yayınlanmadı
+
+### Yeni
+
+- İngilizce arayüz, artık varsayılan dil. Türkçe Ayarlar ▸ Görünüm ▸ Dil'den seçilir; tepsi menüsü, Windows'un Yeni ▸ girişi ve hata mesajları da dili izler.
+- Kurulum İngilizce ve Türkçe; açılışta dil sorulur (İngilizce seçili gelir) ve uygulama kurulumda seçilen dille açılır.
+- Proje MIT lisansıyla açık kaynak.
+
+### Düzeltmeler
+
+- Klasöre taşıma, kısa (8.3) yol adıyla verilen dosyaların nereye gittiğini de bulur; bu taşımalar da Ctrl+Z ile geri alınır.
+
 ## 0.2.0 — 2026-10-25
 
 İzlenen ilk sürüm. Daha önceki bütün derlemeler içerikleri farklı olsa da "0.1.0" diyordu; bu yüzden o derlemeler birbirinden ayırt edilemez.
