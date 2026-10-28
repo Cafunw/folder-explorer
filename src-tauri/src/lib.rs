@@ -17,6 +17,7 @@ mod shell;
 mod shell_new;
 mod startup;
 mod store;
+mod update;
 mod util;
 mod wallpaper;
 mod windows_mgr;
@@ -99,6 +100,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("fe", icons::protocol)
         .invoke_handler(tauri::generate_handler![
             commands::get_environment,
@@ -167,6 +169,8 @@ pub fn run() {
             commands::raise_desktop,
             commands::set_windows_icons_mode,
             commands::quit_app,
+            commands::check_update,
+            commands::install_update,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -200,6 +204,7 @@ pub fn run() {
             windows_mgr::setup_tray(&handle)?;
             let settings = store::settings();
             windows_mgr::apply_settings(&handle, &settings);
+            update::start(handle.clone());
             Ok(())
         })
         .build(tauri::generate_context!())

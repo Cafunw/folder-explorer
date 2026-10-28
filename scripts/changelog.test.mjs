@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { release, releaseNotes, section } from "./changelog.mjs";
+import { release, releaseNotes, section, updateManifest } from "./changelog.mjs";
 
 const SAMPLE = `# Changelog
 
@@ -41,6 +41,16 @@ describe("changelog", () => {
     expect(notes).toContain("Folder.Explorer_0.3.0_x64-setup.exe");
     expect(notes).toContain("## Changes\n\n### Added\n\n- A feature.\n");
     expect(notes).toContain("`abc123`");
+  });
+
+  it("builds the updater's latest.json", () => {
+    const json = JSON.parse(updateManifest(SAMPLE, "0.3.0", "https://example.com/setup.exe", "c2ln\r\n", "2026-10-28T12:00:00.000Z"));
+    expect(json).toEqual({
+      version: "0.3.0",
+      notes: "### Added\n\n- A feature.",
+      pub_date: "2026-10-28T12:00:00.000Z",
+      platforms: { "windows-x86_64": { signature: "c2ln", url: "https://example.com/setup.exe" } },
+    });
   });
 
   // the version lives in package.json; the crate, the lock file and the changelog follow it

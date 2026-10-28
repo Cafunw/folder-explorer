@@ -1,6 +1,7 @@
 // CHANGELOG.md (Keep a Changelog) helpers for releasing.
 //   node scripts/changelog.mjs release <version> [YYYY-MM-DD]   move [Unreleased] into a new version section
 //   node scripts/changelog.mjs notes <version> <installer sha256> print the GitHub release notes
+//   node scripts/changelog.mjs update <version> <url> <sig file>  print latest.json for the updater
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -39,7 +40,7 @@ export function releaseNotes(text, version, sha256) {
 1. Download **Folder.Explorer_${version}_x64-setup.exe** below and run it. It installs for your user only, no administrator rights needed.
 2. The installer isn't code-signed yet, so Windows may show *"Windows protected your PC"*: click **More info → Run anyway**.
 
-Requires Windows 11 (x64). Upgrading: install over the old version; your layout and settings stay.
+Requires Windows 11 (x64). Upgrading: Folder Explorer offers new versions itself (*Settings ▸ About*), or install over the old version; your layout and settings stay.
 
 ## Changes
 
@@ -49,16 +50,25 @@ SHA-256 of the installer: \`${sha256}\`
 `;
 }
 
+/** latest.json, read by the app's updater (update.rs): the version, its changelog entries and the
+ *  signed installer. The signature is the installer's `.sig` from `tauri build` (createUpdaterArtifacts). */
+export function updateManifest(text, version, url, signature, date = new Date().toISOString()) {
+  const platforms = { "windows-x86_64": { signature: signature.trim(), url } };
+  return `${JSON.stringify({ version, notes: section(text, version), pub_date: date, platforms }, null, 2)}\n`;
+}
+
 const today = () => new Date().toISOString().slice(0, 10);
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  const [cmd, version, extra] = process.argv.slice(2);
+  const [cmd, version, extra, sigFile] = process.argv.slice(2);
   if (cmd === "release" && version) {
     writeFileSync(FILE, release(readFileSync(FILE, "utf8"), version, extra ?? today()));
   } else if (cmd === "notes" && version && extra) {
     process.stdout.write(releaseNotes(readFileSync(FILE, "utf8"), version, extra));
+  } else if (cmd === "update" && version && extra && sigFile) {
+    process.stdout.write(updateManifest(readFileSync(FILE, "utf8"), version, extra, readFileSync(sigFile, "utf8")));
   } else {
-    console.error("usage: changelog.mjs release <version> [date] | notes <version> <sha256>");
+    console.error("usage: changelog.mjs release <version> [date] | notes <version> <sha256> | update <version> <url> <sig file>");
     process.exit(1);
   }
 }

@@ -647,6 +647,18 @@ const tr = {
     "Folder Explorer, Windows masaüstündeki simgeleri telefondaki gibi birleştirip gruplamanı sağlar. Gruplar sanaldır: dosyaların diskte yerinden oynamaz.",
   quit: "Folder Explorer'dan çık",
   version: "Sürüm",
+  checkUpdates: "Güncellemeleri denetle",
+  checkUpdatesDesc: "Günde bir kez, GitHub'da. Sormadan hiçbir şey kurulmaz",
+  updates: "Güncellemeler",
+  updateIdle: "GitHub'da yeni sürüm var mı bakar",
+  updateCheck: "Şimdi denetle",
+  updateChecking: "Denetleniyor…",
+  updateLatest: "En son sürüm kurulu",
+  updateAvailable: (v: string) => `${v} sürümü hazır`,
+  updateInstall: "Yükle",
+  updateDownloading: "Güncelleme indiriliyor; Folder Explorer kendiliğinden yeniden açılır",
+  updateFailed: "Güncelleme alınamadı. Daha sonra yeniden dene",
+  updateReady: (v: string) => `Folder Explorer ${v} hazır`,
 };
 
 export type Dict = typeof tr;

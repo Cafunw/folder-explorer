@@ -85,12 +85,15 @@ FunctionEnd
   IfFileExists "$INSTDIR\${MAINBINARYNAME}.exe" 0 +3
     ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --quit'
     ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --show-icons'
-  ; "Start with Windows" shortcut made by the app (Startup folder).
-  Delete "$SMSTARTUP\Folder Explorer.lnk"
-  ; The New ▸ menu entry: remove exactly what was added.
-  DeleteRegKey HKCU "Software\Classes\.fegroup"
-  DeleteRegKey HKCU "Software\Classes\FolderExplorer.Group"
-  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
+  ; An update (/UPDATE, as the app's updater runs it) keeps what the new version would recreate anyway.
+  ${If} $UpdateMode <> 1
+    ; "Start with Windows" shortcut made by the app (Startup folder).
+    Delete "$SMSTARTUP\Folder Explorer.lnk"
+    ; The New ▸ menu entry: remove exactly what was added.
+    DeleteRegKey HKCU "Software\Classes\.fegroup"
+    DeleteRegKey HKCU "Software\Classes\FolderExplorer.Group"
+    System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
+  ${EndIf}
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL

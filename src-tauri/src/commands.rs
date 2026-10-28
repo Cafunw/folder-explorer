@@ -421,3 +421,13 @@ pub async fn quit_app(app: AppHandle) -> R<()> {
     windows_mgr::quit(&app);
     Ok(())
 }
+
+#[tauri::command]
+pub async fn check_update(app: AppHandle) -> R<Option<crate::update::UpdateInfo>> {
+    crate::update::check(&app).await
+}
+
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> R<()> {
+    crate::update::install(&app).await
+}

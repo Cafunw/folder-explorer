@@ -1,8 +1,9 @@
 name: Release
 
 # `npm version X.Y.Z -m "Release %s"` makes the release commit and the tag vX.Y.Z;
-# `git push --follow-tags` starts this: the installer is built from the tag and published with
-# the version's CHANGELOG entries and its checksum.
+# `git push --follow-tags` starts this: the installer is built from the tag, signed for the
+# updater, and published with the version's CHANGELOG entries, its checksum and latest.json (the
+# file the app's update check reads). Needs the repository secret TAURI_SIGNING_PRIVATE_KEY.
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
@@ -44,16 +45,25 @@ jobs:
           workspaces: src-tauri
           save-if: false
 
-      - run: npx tauri build
+      # createUpdaterArtifacts writes the installer's .sig; only here, so local builds need no key
+      - name: Build and sign
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: npx tauri build --config '{"bundle":{"createUpdaterArtifacts":true}}'
 
-      - name: Installer, checksum and notes
+      - name: Installer, checksum, notes and latest.json
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
           installer="Folder.Explorer_${version}_x64-setup.exe"
-          cp "src-tauri/target/release/bundle/nsis/Folder Explorer_${version}_x64-setup.exe" "$installer"
+          built="src-tauri/target/release/bundle/nsis/Folder Explorer_${version}_x64-setup.exe"
+          cp "$built" "$installer"
           sha=$(sha256sum "$installer" | cut -d' ' -f1)
           node scripts/changelog.mjs notes "$version" "$sha" > release-notes.md
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${installer}"
+          node scripts/changelog.mjs update "$version" "$url" "$built.sig" > latest.json
           echo "INSTALLER=$installer" >> "$GITHUB_ENV"
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
@@ -61,4 +71,4 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "$INSTALLER" --title "Folder Explorer $VERSION" --notes-file release-notes.md --verify-tag
+        run: gh release create "$GITHUB_REF_NAME" "$INSTALLER" latest.json --title "Folder Explorer $VERSION" --notes-file release-notes.md --verify-tag

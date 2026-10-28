@@ -25,6 +25,7 @@
     "allow-hello-verify",
     "allow-import-dropped",
     "allow-import-media",
+    "allow-install-update",
     "allow-item-context-menu",
     "allow-key-state",
     "allow-known-folders",

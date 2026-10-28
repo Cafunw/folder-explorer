@@ -83,6 +83,7 @@ export const DEFAULT_SETTINGS: Settings = {
     quickLook: true,
     dropOnApp: true,
     newMenuEntry: true,
+    checkUpdates: true,
   },
   customLook: null,
 };
@@ -275,6 +276,7 @@ export function normalizeSettings(raw: unknown): Settings {
       quickLook: bool(be.quickLook, d.behavior.quickLook),
       dropOnApp: bool(be.dropOnApp, d.behavior.dropOnApp),
       newMenuEntry: bool(be.newMenuEntry, d.behavior.newMenuEntry),
+      checkUpdates: bool(be.checkUpdates, d.behavior.checkUpdates),
     },
     // only the shape is checked here: applyThemePatch drops wrong keys and clamps values when it is restored
     customLook: r.customLook && typeof r.customLook === "object" && !Array.isArray(r.customLook) ? r.customLook : null,

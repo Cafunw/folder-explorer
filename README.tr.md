@@ -18,6 +18,10 @@ dosyasını indirip çalıştır (yönetici izni gerekmez, yalnızca senin kulla
 (Ayarlar ▸ Görünüm ▸ Dil) değiştirebilirsin. Kurulum dosyası henüz imzasız olduğu için Windows SmartScreen uyarı verebilir:
 **Ek bilgi ▸ Yine de çalıştır**. Gereken: Windows 11 (x64).
 
+Yeni sürümleri uygulama kendisi haber verir; *Yükle*'ye basmadan hiçbir şey kurulmaz. Bunun için günde bir
+kez GitHub'daki son sürümün numarasına bakar, senin hakkında hiçbir şey göndermez (kapatmak için:
+Ayarlar ▸ Davranış ▸ Güncellemeleri denetle). Bunun dışında uygulama kendi başına internete bağlanmaz.
+
 ## Kullanım
 
 | İşlem | Nasıl |

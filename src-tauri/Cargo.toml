@@ -28,6 +28,7 @@ webview2-com = "0.39"
 windows-future = "0.3"
 # `#[implement]` (the progress sink of moves) names this crate directly
 windows-core = "0.62"
+tauri-plugin-updater = "2"
 
 [profile.dev]
 opt-level = 1

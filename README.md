@@ -26,7 +26,7 @@ Folder Explorer draws its own desktop on top of your wallpaper and hides Explore
 1. Get **`Folder.Explorer_<version>_x64-setup.exe`** from the [latest release](https://github.com/Cafunw/folder-explorer/releases/latest) and run it. It installs for your user only, no administrator rights needed. The installer speaks English and Turkish, and the app starts in the language you pick there (change it any time in *Settings ▸ Appearance*).
 2. The installer isn't code-signed yet, so Windows may show *"Windows protected your PC"*. Click **More info → Run anyway**. Every release lists the installer's SHA-256, and you can always [build it yourself](#build-from-source).
 
-Requires Windows 11 (x64). WebView2 is already part of Windows 11.
+Requires Windows 11 (x64). WebView2 is already part of Windows 11. New versions are offered in the app itself; nothing is installed until you click *Install*.
 
 ## Features
 
@@ -82,7 +82,7 @@ The details, including every command and file format, are in [docs/ARCHITECTURE.
 
 ## Privacy
 
-Folder Explorer has no telemetry and makes no network requests of its own. The web is only reached when you ask: a web search from the search bar opens Google in your browser, and a URL shortcut you create opens its address.
+Folder Explorer has no telemetry. Its one network request of its own is the update check: once a day it reads which version the latest GitHub release is, sending nothing about you (turn it off in *Settings ▸ Behavior ▸ Check for updates*). Otherwise the web is only reached when you ask: a web search from the search bar opens Google in your browser, and a URL shortcut you create opens its address.
 
 ## Uninstall and getting your desktop back
 

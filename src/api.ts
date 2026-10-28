@@ -93,6 +93,9 @@ export const api = {
   raiseDesktop: (raised: boolean) => invoke<void>("raise_desktop", { raised }),
   setWindowsIconsMode: (enabled: boolean) => invoke<void>("set_windows_icons_mode", { enabled }),
   quitApp: () => invoke<void>("quit_app"),
+  checkUpdate: () => invoke<{ version: string } | null>("check_update"),
+  /** On success the app exits and the installer starts the new version. */
+  installUpdate: () => invoke<void>("install_update"),
 };
 
 export function on<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> {

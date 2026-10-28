@@ -1027,6 +1027,9 @@ function BehaviorSec({ s, update }: SecProps) {
         <Row title={t.newMenuEntry} desc={t.newMenuEntryDesc}>
           <Toggle on={be.newMenuEntry} onChange={(v) => set({ newMenuEntry: v })} />
         </Row>
+        <Row title={t.checkUpdates} desc={t.checkUpdatesDesc}>
+          <Toggle on={be.checkUpdates} onChange={(v) => set({ checkUpdates: v })} />
+        </Row>
       </div>
     </>
   );
@@ -1158,6 +1161,38 @@ function BackupSec({ update }: { update: Update }) {
   );
 }
 
+type UpdateState = { kind: "idle" | "checking" | "latest" | "installing" | "failed" } | { kind: "found"; version: string };
+
+function Updates() {
+  const [u, setU] = useState<UpdateState>({ kind: "idle" });
+  const check = () => {
+    setU({ kind: "checking" });
+    api.checkUpdate().then(
+      (found) => setU(found ? { kind: "found", version: found.version } : { kind: "latest" }),
+      () => setU({ kind: "failed" }),
+    );
+  };
+  const install = () => {
+    setU({ kind: "installing" });
+    api.installUpdate().catch(() => setU({ kind: "failed" }));
+  };
+  const desc = {
+    idle: t.updateIdle,
+    checking: t.updateChecking,
+    latest: t.updateLatest,
+    installing: t.updateDownloading,
+    failed: t.updateFailed,
+    found: u.kind === "found" ? t.updateAvailable(u.version) : "",
+  }[u.kind];
+  return (
+    <Row title={t.updates} desc={desc}>
+      <button className="btn" disabled={u.kind === "checking" || u.kind === "installing"} onClick={u.kind === "found" ? install : check}>
+        {u.kind === "found" ? t.updateInstall : t.updateCheck}
+      </button>
+    </Row>
+  );
+}
+
 function About() {
   const b = parseBuild(__APP_VERSION__, __APP_DESCRIBE__);
   // `import.meta.env.DEV` is true only under the Vite dev server (`npm run tauri dev`), never in an installed build
@@ -1167,6 +1202,9 @@ function About() {
       <div className="card">
         <Row title={t.appName} desc={build.filter(Boolean).join(" · ")} />
         <div style={{ padding: "0 18px 16px", color: "var(--fg-dim)", lineHeight: 1.55 }}>{t.aboutText}</div>
+      </div>
+      <div className="card">
+        <Updates />
       </div>
       <button className="btn danger" onClick={() => api.quitApp().catch(() => {})}>
         {t.quit}

@@ -1,6 +1,7 @@
 import { MotionConfig } from "motion/react";
 import { useEffect, useRef } from "react";
 import { api, on } from "../api";
+import { t } from "../i18n";
 import { gridAt, orderedGrids } from "../layout/grid";
 import { isFolderId, isHeadingId, normalizeLayout, pageCount } from "../layout/model";
 import { normalizeSettings } from "../settings";
@@ -43,6 +44,7 @@ import {
   refreshItems,
   refreshWallpapers,
   setPage,
+  toast,
   useDesk,
   useReducedMotion,
 } from "./store";
@@ -105,6 +107,21 @@ export function DesktopView() {
         commit(normalizeLayout(p.layout) as Layout);
         refreshItems().catch(console.error);
       }),
+    );
+    keep(
+      on<{ version: string }>("update-available", (p) =>
+        toast(
+          t.updateReady(p.version),
+          {
+            label: t.updateInstall,
+            run: () => {
+              toast(t.updateDownloading);
+              api.installUpdate().catch(() => toast(t.updateFailed));
+            },
+          },
+          60_000,
+        ),
+      ),
     );
     keep(setupExternalDrop());
     unsubs.push(installEffects());

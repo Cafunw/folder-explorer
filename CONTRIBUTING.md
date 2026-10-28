@@ -36,7 +36,7 @@ cargo clippy --lib --tests -- -D warnings
 
 1. Make sure `## [Unreleased]` in `CHANGELOG.md` lists what changed, and `main` is clean and green.
 2. `npm version patch -m "Release %s"` (or `minor`, or an exact `X.Y.Z`): it bumps the version everywhere, moves `[Unreleased]` into the new version, commits "Release X.Y.Z" and tags `vX.Y.Z`.
-3. `git push --follow-tags`. The Release workflow builds the installer from the tag and publishes the GitHub release with the changelog entries and checksum.
+3. `git push --follow-tags`. The Release workflow builds and signs the installer from the tag and publishes the GitHub release with the changelog entries, checksum and `latest.json`, which installed copies read to offer the update. Signing needs the repository secret `TAURI_SIGNING_PRIVATE_KEY` (the updater key; its public half is in `tauri.conf.json`). Losing the key means installed copies can't update anymore, so keep a backup.
 4. Update the winget manifest in `packaging/winget/` with the new installer URL, SHA-256 and date, and send it to microsoft/winget-pkgs.
 
 ## Translations

@@ -6,6 +6,7 @@
     "settings"
   ],
   "permissions": [
+    "allow-check-update",
     "allow-export-state",
     "allow-export-theme",
     "allow-get-environment",
@@ -13,6 +14,7 @@
     "allow-import-media",
     "allow-import-state",
     "allow-import-theme",
+    "allow-install-update",
     "allow-list-backups",
     "allow-load-state",
     "allow-quit-app",

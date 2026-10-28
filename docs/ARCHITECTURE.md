@@ -438,6 +438,8 @@ allowed for that window, and `cargo check` fails on a permission name that doesn
 | `raise_desktop` | `{ raised: boolean }` | `()` | |
 | `set_windows_icons_mode` | `{ enabled: boolean }` | `()` | true = hide our desktop window and show the Windows icons again (tray toggle) |
 | `quit_app` | – | `()` | restores icons, exits |
+| `check_update` | – | `{ version } \| null` | reads the latest release's `latest.json`; keeps a newer one for `install_update` |
+| `install_update` | – | `()` | downloads, verifies and runs the installer; the app exits on success (refused in dev builds) |
 
 ## Content security policy
 Built apps run under the CSP in `tauri.conf.json` › `app.security.csp`: scripts only from the bundle
@@ -485,6 +487,7 @@ buffers, least recently used out first). `OPTIONS` preflights get `Access-Contro
 | `wallpaper-changed` | – | `WM_SETTINGCHANGE` (SPI_SETDESKWALLPAPER) or Windows' transcoded wallpaper rewritten (slideshow, Spotlight); deferred while game-quiet |
 | `quiet-changed` | `Quiet` | to all windows when game / battery quiet state or the covered monitors change |
 | `settings-changed` | `{ settings }` | |
+| `update-available` | `{ version: string }` | to `desktop`: the daily check found a newer release (see *Updates*) |
 | `desktop-raised` | `{ raised: boolean }` | |
 | `menu-open` | `MenuRequest` | to `menu` (see `open_menu`) |
 | `menu-extra` | `{ key, verbs?, newItems?, openWith? }` | to `menu`: what the shell offers for the open menu (`key` = `menuKey(paths)`) |
@@ -819,7 +822,7 @@ Group kinds / displays in the UI (`src/desktop/`):
 language is, through an override of MUI's `MUI_LANGDLL_DISPLAY` in the hooks, and keeps a language
 stored by an earlier install). `src-tauri/installer-hooks.nsh` runs `--quit` before installing
 over / uninstalling a running copy and `--show-icons` on uninstall. It writes nothing into Windows'
-shell. On uninstall it removes the Startup shortcut and the Yeni ▸ menu keys. "Start with Windows" (`behavior.startWithWindows`, off by default)
+shell. On uninstall (not on an update) it removes the Startup shortcut and the Yeni ▸ menu keys. "Start with Windows" (`behavior.startWithWindows`, off by default)
 is a shortcut `Folder Explorer.lnk` in the user's Startup folder (`startup.rs`), never a registry
 value; dev builds never create it. The installer's welcome page has a "Start Folder Explorer when Windows starts" /
 "Bilgisayar açılınca Folder Explorer'ı da başlat" checkbox (checked when the shortcut exists or the app never ran, i.e. no `state.json`); after
@@ -843,8 +846,10 @@ Releasing is one command on a clean `main`: `npm version <patch|minor|X.Y.Z> -m 
 (`scripts/changelog.mjs`, refusing an empty `[Unreleased]`), and stages them; npm then commits
 "Release X.Y.Z" and makes the annotated tag `vX.Y.Z`. `git push --follow-tags` starts
 `.github/workflows/release.yml`: it checks that the tag matches `package.json`, runs the tests, builds
-the installer from the tag and publishes the GitHub release with that version's changelog entries and
-the installer's SHA-256 (`changelog.mjs notes`). Tags are never moved. `scripts/changelog.test.mjs`
+the installer from the tag, signs it for the updater (`createUpdaterArtifacts`, secret
+`TAURI_SIGNING_PRIVATE_KEY`; only in this workflow, so local builds need no key) and publishes the
+GitHub release with that version's changelog entries, the installer's SHA-256 (`changelog.mjs notes`)
+and `latest.json` (`changelog.mjs update`: version, notes, the installer's URL and signature). Tags are never moved. `scripts/changelog.test.mjs`
 checks that package.json, Cargo.toml, Cargo.lock and the changelog agree. A release also gets a winget
 manifest in `packaging/winget/Cafunw.FolderExplorer/<version>/` (new `InstallerUrl`, `InstallerSha256`,
 `ReleaseDate`; `winget validate --manifest <folder>`), submitted to microsoft/winget-pkgs.
@@ -853,7 +858,20 @@ Vite inlines the version and `git describe --tags --long --dirty --always` at bu
 (`__APP_VERSION__`, `__APP_DESCRIBE__`); `src/version.ts` turns them into what *Settings ▸ About*
 shows: "0.3.0 · cb2321b" for a build made exactly from the clean tag, "0.3.0+5 · 7c22a4f · unreleased
 build" for five commits after it (a dirty tree adds "-dirty"), and "development build" under the Vite
-dev server. There is no auto-update and the installer is unsigned.
+dev server. The installer has no Authenticode signature.
+
+**Updates** (`update.rs`, `tauri-plugin-updater`). The endpoint is the latest release's `latest.json`
+(`tauri.conf.json > plugins.updater`, with the minisign public key; the private key never enters the
+repository). While `behavior.checkUpdates` is on (default) a release build checks a minute after start,
+then once a day by the wall clock (an hourly tick; a failed check is retried the next hour), and a
+newer version reaches the desktop as `update-available`: a toast with *Install*. *Settings ▸ About ▸
+Updates* checks on demand. Nothing is downloaded until Install: `install_update` downloads the
+installer, verifies its signature and runs it in passive mode (`/P /UPDATE /R`, a progress bar only);
+the plugin ends the process with `std::process::exit`, so its `on_before_exit` hook does the graceful
+quit's part first (mark quitting, restore the Windows icons), and the installer starts the new
+version with the old one's arguments. Dev builds never check by themselves and refuse to install. On
+an update the uninstall hook keeps the Startup shortcut and the Yeni ▸ keys (`$UpdateMode`); the
+app would recreate them from the settings anyway.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs one Windows job on pushes to `main`, pull requests and
 on demand: typecheck, oxlint, vitest, the Vite build (which writes the `dist/` the crate embeds),

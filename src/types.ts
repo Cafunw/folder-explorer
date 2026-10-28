@@ -276,6 +276,7 @@ export type Settings = {
     quickLook: boolean; // Space previews the selected item
     dropOnApp: boolean; // files dropped on an app open with it
     newMenuEntry: boolean; // "Folder Explorer grubu" in Windows' Yeni ▸ menu (per-user registry entry)
+    checkUpdates: boolean; // once a day on GitHub (update.rs); installing always asks
   };
   /** the user's own look (visual settings, see themes.ts) kept when a theme preset replaced it; read through applyThemePatch */
   customLook: Record<string, unknown> | null;
