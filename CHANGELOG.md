@@ -11,6 +11,7 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 ### Fixed
 
 - The *Start with Windows* shortcut is only written when it is missing or points to another copy of the app. Rewriting it on every settings change looked like malware persistence, and Microsoft Defender quarantined the running app as `Trojan:Win32/Bearfoos.A!ml`, which left the desktop without icons.
+- With the English interface, the search bar's calculator reads `1,000` as one thousand. Thanks to [@Logic769](https://github.com/Logic769).
 
 ## [0.3.0] - 2026-10-28
 
