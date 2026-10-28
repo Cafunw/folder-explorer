@@ -757,6 +757,8 @@ pub fn kick(fast_ms: u64, tail_ms: u64) {
 /// Re-evaluate game mode within `delay_ms` (an earlier pending request stays earlier).
 pub fn request_game_eval(delay_ms: u64) {
     let at = now_ms() + delay_ms;
+    // shortcut: Rust 1.99 renamed fetch_update to try_update; switch once local toolchains are >= 1.99
+    #[allow(deprecated)]
     let _ = GAME_EVAL_AT.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |cur| {
         Some(if cur == 0 { at } else { cur.min(at) })
     });
