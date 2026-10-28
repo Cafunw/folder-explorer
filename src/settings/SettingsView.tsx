@@ -20,7 +20,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, emitToWindow, mediaUrl, on } from "../api";
-import { t } from "../i18n";
+import { locale, t } from "../i18n";
 import { cellMetrics } from "../layout/grid";
 import { ACCENTS, applyTheme, DEFAULT_SETTINGS, FOLDER_COLORS, normalizeSettings, spring } from "../settings";
 import { applyPreset, choosePreset, customLookSettings, readThemeFile, applyThemePatch, THEME_PRESETS, themeFile, visualSettings } from "../themes";
@@ -182,6 +182,17 @@ function Appearance({ s, update }: SecProps) {
   return (
     <>
       <div className="card">
+        <Row title={t.language}>
+          {/* each language in its own name; saving it reloads every window (main.tsx) */}
+          <Seg
+            value={s.language}
+            options={[
+              { v: "en", label: "English" },
+              { v: "tr", label: "Türkçe" },
+            ]}
+            onChange={(v) => update((c) => ({ ...c, language: v }))}
+          />
+        </Row>
         <Row title={t.theme}>
           <Seg
             value={s.theme}
@@ -279,7 +290,7 @@ function ThemesSec({ s, update }: SecProps) {
   const custom = useMemo(() => customLookSettings(s), [s]);
 
   const exportFile = async () => {
-    const path = await saveDialog({ defaultPath: "folder-explorer-tema.json", filters: [{ name: "JSON", extensions: ["json"] }] });
+    const path = await saveDialog({ defaultPath: t.themeFileName, filters: [{ name: "JSON", extensions: ["json"] }] });
     if (!path) return;
     try {
       await api.exportTheme(path, themeFile(s));
@@ -1086,7 +1097,7 @@ function BackupSec({ update }: { update: Update }) {
     setNote(msg);
   };
 
-  const fmt = new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" });
+  const fmt = new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeStyle: "short" });
   return (
     <>
       <p className="small-note">{t.backupsDesc}</p>
@@ -1095,7 +1106,7 @@ function BackupSec({ update }: { update: Update }) {
           <button
             className="btn"
             onClick={async () => {
-              const path = await saveDialog({ defaultPath: "folder-explorer-duzen.json", filters: [{ name: "JSON", extensions: ["json"] }] });
+              const path = await saveDialog({ defaultPath: t.layoutFileName, filters: [{ name: "JSON", extensions: ["json"] }] });
               if (!path) return;
               await api.exportState(path);
               setNote(t.exportDone);

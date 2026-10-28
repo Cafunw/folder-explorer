@@ -10,7 +10,7 @@ import { applyTheme, DEFAULT_SETTINGS, normalizeSettings, rgba } from "../settin
 import type { DesktopItem, FoundFile, Layout, RecentFile, Settings, StartApp } from "../types";
 import { useDialogFocus } from "../ui/dialog";
 import { calculate } from "./calc";
-import { SETTINGS_PAGES } from "./settingsPages";
+import { pageName, SETTINGS_PAGES } from "./settingsPages";
 import "./search.css";
 
 type Group = "calc" | "commands" | "desktop" | "apps" | "settings" | "recent" | "files" | "web";
@@ -85,7 +85,7 @@ const COMMANDS: { id: string; name: string; run: () => Promise<unknown> }[] = [
 
 const fold = (s: string) =>
   s
-    .toLocaleLowerCase("tr")
+    .toLowerCase() // locale-free: İ → i + dot (stripped below), ı → i, so Turkish names match in any UI language
     .replace(/ı/g, "i")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "");
@@ -346,11 +346,18 @@ export function SearchView() {
     );
     if (prefs.settingsPages) {
       out.push(
-        ...SETTINGS_PAGES.map((p) => ({ p, s: Math.max(scoreWords(p.name, qq), ...p.keywords.map((k) => scoreWords(k, qq) - 50)) }))
+        ...SETTINGS_PAGES.map((p) => ({ p, s: Math.max(scoreWords(pageName(p), qq), ...[p.en, p.tr, ...p.keywords].map((k) => scoreWords(k, qq) - 50)) }))
           .filter((r) => r.s >= 0)
           .sort((a, b) => b.s - a.s)
           .slice(0, 4)
-          .map<Entry>(({ p }) => ({ key: `set:${p.uri}`, group: "settings", kind: "setting", name: p.name, sub: t.settingsPageSub, value: p.uri })),
+          .map<Entry>(({ p }) => ({
+            key: `set:${p.uri}`,
+            group: "settings",
+            kind: "setting",
+            name: pageName(p),
+            sub: p.uri ? t.settingsPageSub : `${t.appName} · ${t.settingsTitle}`,
+            value: p.uri,
+          })),
       );
     }
     const seen = new Set(entries.filter((e) => e.path).map((e) => e.path!.toLowerCase()));
@@ -411,7 +418,7 @@ export function SearchView() {
           if (e.path) await api.openItem(e.path);
           break;
         case "setting":
-          if (e.value) await api.openItem(e.value);
+          await (e.value ? api.openItem(e.value) : api.openSettingsWindow());
           break;
         case "web":
           await api.openItem(`https://www.google.com/search?q=${encodeURIComponent(q.trim())}`);

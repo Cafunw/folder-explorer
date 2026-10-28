@@ -1,5 +1,6 @@
 // Pure layout logic. Every exported operation returns a NEW layout (inputs are never mutated).
 
+import { locale, t } from "../i18n";
 import type {
   DesktopItem,
   Environment,
@@ -184,7 +185,7 @@ function normalizeFolder(id: string, f: any): VirtualFolder | null {
   if (!isFolderId(id) || !f || typeof f !== "object") return null;
   const out: VirtualFolder = {
     id,
-    name: typeof f.name === "string" ? f.name : "Grup",
+    name: typeof f.name === "string" ? f.name : t.ql.group,
     color: typeof f.color === "string" ? f.color : null,
     children: [],
   };
@@ -1028,7 +1029,7 @@ export function sortMonitor(
   const all = Object.keys(l.placements).filter((id) => l.placements[id].m === monitorId);
   const fixed = all.filter((id) => isAnchored(l, id));
   const ids = all.filter((id) => !isAnchored(l, id));
-  const coll = new Intl.Collator("tr", { numeric: true, sensitivity: "base" });
+  const coll = new Intl.Collator(locale(), { numeric: true, sensitivity: "base" });
   ids.sort((a, b) => {
     const A = info(a);
     const B = info(b);

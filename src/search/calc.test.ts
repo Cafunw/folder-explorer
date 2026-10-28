@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setLanguage } from "../i18n";
 import { calculate, evaluate, formatNumber, tokenize } from "./calc";
 
 describe("tokenize", () => {
@@ -80,10 +81,20 @@ describe("calculate", () => {
   it("answers calculations", () => {
     expect(calculate("2+2")).toEqual({ value: 4, text: "4" });
     expect(calculate("= 6/4")?.text).toBe("1.5");
-    expect(calculate("1,25+1")?.text).toBe("2,25");
+    expect(calculate("1,25+1")?.text).toBe("2.25");
     expect(calculate("sqrt 2")?.value).toBeCloseTo(Math.SQRT2);
     expect(calculate("15%")?.value).toBeCloseTo(0.15);
     expect(calculate("-5+3")?.value).toBe(-2);
+  });
+  it("keeps a decimal comma the query used, in Turkish only", () => {
+    setLanguage("tr");
+    try {
+      expect(calculate("1,25+1")?.text).toBe("2,25");
+      expect(calculate("1.25+1")?.text).toBe("2.25");
+      expect(calculate("10/4")?.text).toBe("2.5");
+    } finally {
+      setLanguage("en");
+    }
   });
   it("ignores plain searches and bare numbers", () => {
     for (const s of ["rapor", "e", "pi", "42", "-5", "(5)", "7-zip", "mp3", "windows 11", "2024 rapor", "1/0"]) {

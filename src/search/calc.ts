@@ -3,6 +3,8 @@
 // sqrt sin cos tan log ln abs round, implicit multiplication before "(" / names ("2pi", "3(1+2)").
 // A trailing % is a percentage: "200 + 10%" = 220, "15%" = 0.15; between operands it is modulo.
 
+import { language } from "../i18n";
+
 type Tok = { t: "num"; v: number } | { t: "op"; v: string } | { t: "lp" } | { t: "rp" } | { t: "id"; v: string };
 
 const FUNCS: Record<string, (x: number) => number> = {
@@ -210,5 +212,6 @@ export function calculate(query: string): { value: number; text: string } | null
   if (!meaningful) return null;
   const value = evaluate(q);
   if (value === null) return null;
-  return { value, text: formatNumber(value, /\d,\d/.test(q) && !/\d\.\d/.test(q)) };
+  // English always answers with a point; Turkish echoes a decimal comma when the query used one
+  return { value, text: formatNumber(value, language() === "tr" && /\d,\d/.test(q) && !/\d\.\d/.test(q)) };
 }

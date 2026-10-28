@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { t } from "../i18n";
+import { locale, t } from "../i18n";
 
-export const pct = (v: number) => `%${Math.round(v * 100)}`;
+/** "50%" in English, "%50" in Turkish. */
+export const pct = (v: number) => new Intl.NumberFormat(locale(), { style: "percent" }).format(v);
 export const px = (v: number) => `${Math.round(v * 10) / 10} px`;
 export const times = (v: number) => `${v.toFixed(2)}×`;
 

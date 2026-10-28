@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { api, iconUrl, previewUrl, thumbUrl } from "../api";
-import { t } from "../i18n";
+import { locale, t } from "../i18n";
 import { fenceOf } from "../layout/blocks";
 import { primaryGrid } from "../layout/grid";
 import { isFolderId } from "../layout/model";
@@ -61,7 +61,7 @@ function typeLabel(id: string, it: DesktopItem | undefined) {
   return t.ql.fileOfType(it.ext.replace(/^\./, ""));
 }
 
-const sizeFormat = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 1 });
+const sizeFormat = new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 });
 export function formatBytes(n: number) {
   if (n < 1024) return t.ql.bytes(n);
   const units = ["KB", "MB", "GB", "TB"];
@@ -74,7 +74,7 @@ export function formatBytes(n: number) {
   return `${sizeFormat.format(v)} ${units[i]}`;
 }
 
-const formatDate = (ms: number) => (ms ? new Date(ms).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" }) : "");
+const formatDate = (ms: number) => (ms ? new Date(ms).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "");
 
 /** What ←/→ walk through: the open group's children, else the icons of the item's monitor page. */
 function siblings(id: string): string[] {
