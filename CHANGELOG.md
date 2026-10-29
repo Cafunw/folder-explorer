@@ -4,6 +4,10 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added
+
+- Files can be dropped straight from an archive onto the desktop, a folder icon or a group: a ZIP or RAR opened in File Explorer, WinRAR, or mail attachments. Windows extracts them, just like dropping them in File Explorer.
+
 ## [0.3.2] - 2026-10-29
 
 ### Fixed

@@ -134,56 +134,100 @@ async function handleDrop(paths: string[], target: DropTarget, keys: Keys) {
     const result: string[] = [];
     if (same.length) result.push(...(await api.importDropped(same, false)));
     if (other.length) result.push(...(await api.importDropped(other, true)));
-    const ids = result.map((p) => p.toLowerCase());
-    const known = ids.filter((id) => desk().itemMap.has(id));
-    const fresh = ids.filter((id) => !desk().itemMap.has(id));
-
-    let layout = desk().layout;
-    if (target.kind === "cell") {
-      if (known.length) layout = moveToCell(layout, desk().grids, known, known[0], target.placement);
-      for (const id of fresh) expectItemAt(id, target.placement);
-    } else {
-      let folderId: string | null = target.kind === "into" ? target.folderId : null;
-      if (target.kind === "merge") {
-        const r = mergeIntoNewFolder(layout, target.id, known, t.newFolderName, desk().settings.folders.defaultColor);
-        if (r) {
-          layout = r.layout;
-          folderId = r.folderId;
-        } else if (fresh.length) {
-          // only new files: wrap the target alone first
-          const l2 = clone(layout);
-          const fid = `v:${crypto.randomUUID()}`;
-          const pl = l2.placements[target.id];
-          if (pl) {
-            delete l2.placements[target.id];
-            l2.folders[fid] = { id: fid, name: t.newFolderName, color: desk().settings.folders.defaultColor, children: [target.id] };
-            l2.placements[fid] = pl;
-            layout = l2;
-            folderId = fid;
-          }
-        }
-      } else if (folderId && known.length) {
-        layout = moveIntoFolder(layout, known, folderId);
-      }
-      if (folderId && fresh.length) {
-        const l2 = clone(layout);
-        const now = Date.now();
-        fresh.forEach((id, i) => {
-          l2.remembered[id] = { at: now, folder: folderId!, index: (l2.folders[folderId!]?.children.length ?? 0) + i };
-        });
-        layout = l2;
-      }
-    }
-    if (layout !== desk().layout) {
-      if (known.length) commit(layout);
-      else replaceLayout(layout);
-    }
-    await refreshItems();
+    await place(result, target);
   } catch (e) {
     console.error("drop", e);
     toast(t.operationFailed);
   }
 }
+
+/** Puts files that are now on the desktop where the drop asked: a cell, a group, or a new group. */
+async function place(result: string[], target: NonNullable<DropTarget>) {
+  const ids = result.map((p) => p.toLowerCase());
+  const known = ids.filter((id) => desk().itemMap.has(id));
+  const fresh = ids.filter((id) => !desk().itemMap.has(id));
+
+  let layout = desk().layout;
+  if (target.kind === "cell") {
+    if (known.length) layout = moveToCell(layout, desk().grids, known, known[0], target.placement);
+    for (const id of fresh) expectItemAt(id, target.placement);
+  } else {
+    let folderId: string | null = target.kind === "into" ? target.folderId : null;
+    if (target.kind === "merge") {
+      const r = mergeIntoNewFolder(layout, target.id, known, t.newFolderName, desk().settings.folders.defaultColor);
+      if (r) {
+        layout = r.layout;
+        folderId = r.folderId;
+      } else if (fresh.length) {
+        // only new files: wrap the target alone first
+        const l2 = clone(layout);
+        const fid = `v:${crypto.randomUUID()}`;
+        const pl = l2.placements[target.id];
+        if (pl) {
+          delete l2.placements[target.id];
+          l2.folders[fid] = { id: fid, name: t.newFolderName, color: desk().settings.folders.defaultColor, children: [target.id] };
+          l2.placements[fid] = pl;
+          layout = l2;
+          folderId = fid;
+        }
+      }
+    } else if (folderId && known.length) {
+      layout = moveIntoFolder(layout, known, folderId);
+    }
+    if (folderId && fresh.length) {
+      const l2 = clone(layout);
+      const now = Date.now();
+      fresh.forEach((id, i) => {
+        l2.remembered[id] = { at: now, folder: folderId!, index: (l2.folders[folderId!]?.children.length ?? 0) + i };
+      });
+      layout = l2;
+    }
+  }
+  if (layout !== desk().layout) {
+    if (known.length) commit(layout);
+    else replaceLayout(layout);
+  }
+  await refreshItems();
+}
+
+/**
+ * Files out of an archive, extracted by Windows into `folder` (native_drop.rs): on the desktop they go
+ * where the drop asked under their names; a real folder or a live group's folder shows them itself.
+ */
+async function placeExtracted(names: string[], folder: string, target: DropTarget) {
+  const desktop = desk().env?.desktopDir.replace(/[\\/]+$/, "");
+  try {
+    if (target && desktop && folder.replace(/[\\/]+$/, "").toLowerCase() === desktop.toLowerCase()) {
+      await place(names.map((n) => `${desktop}\\${n}`), target);
+    } else await refreshItems();
+  } catch (e) {
+    console.error("drop", e);
+    toast(t.operationFailed);
+  }
+}
+
+type DropDest = { kind: "none" } | { kind: "accept" } | { kind: "folder"; path: string };
+
+/** Where the native layer sends a drag: real files the page imports itself, virtual ones a folder takes. */
+function destFor(target: DropTarget, files: boolean): DropDest {
+  if (!target) return { kind: "none" };
+  if (files) return { kind: "accept" };
+  const desktop = desk().env?.desktopDir;
+  if (target.kind === "real") {
+    const dir = realDirOf(target.id);
+    return dir ? { kind: "folder", path: dir } : { kind: "none" };
+  }
+  if (target.kind === "into") {
+    const group = desk().layout.folders[target.folderId];
+    if (group?.kind === "frequent") return { kind: "none" };
+    if (group?.kind === "live") return group.source ? { kind: "folder", path: group.source } : { kind: "none" };
+  }
+  if (target.kind === "app" || target.kind === "recycle" || !desktop) return { kind: "none" };
+  return { kind: "folder", path: desktop };
+}
+
+type NativeDrag = { phase: "over" | "leave"; x: number; y: number; ctrl: boolean; shift: boolean; files: boolean };
+type NativeDrop = { x: number; y: number; ctrl: boolean; shift: boolean; paths: string[]; names: string[]; folder: string | null };
 
 type WebView2 = { postMessageWithAdditionalObjects(message: unknown, objects: FileList): void };
 const webview2 = () => (window as unknown as { chrome?: { webview?: WebView2 } }).chrome?.webview;
@@ -195,14 +239,45 @@ let dropSeq = 0;
 const waiting = new Map<number, (paths: string[]) => void>();
 
 /**
- * Drops from other apps (Explorer, Everything, mail…) arrive as the page's own drag events; the files'
- * paths come from WebView2 (desktop_window.rs `watch_drops`). Nothing else may be dropped: a link or
- * text would navigate the page.
+ * Drops from other apps. When a file drag comes in, the page asks for the native drop layer
+ * (native_drop.rs), which takes the drag from WebView2 and reports it here: `native-drag` to follow
+ * it, `native-drop` with real files' paths or the names Windows extracted out of an archive. Should the
+ * drop still land on the page, real files come through WebView2 (desktop_window.rs `watch_drops`).
+ * Nothing else may be dropped: a link or text would navigate the page.
  */
 export async function setupExternalDrop(): Promise<() => void> {
   const unlisten = await on<{ id: number; paths: string[] }>("drop-paths", (p) => {
     waiting.get(p.id)?.(p.paths);
     waiting.delete(p.id);
+  });
+  let layer = false;
+  let lastDest = "";
+  const css = (p: { x: number; y: number }) => ({ x: p.x / (window.devicePixelRatio || 1), y: p.y / (window.devicePixelRatio || 1) });
+  const unlistenDrag = await on<NativeDrag>("native-drag", (p) => {
+    if (p.phase === "leave") {
+      layer = false;
+      lastDest = "";
+      useDrag.setState({ external: null });
+      return;
+    }
+    const { x, y } = css(p);
+    const target = targetAt(x, y, { ctrl: p.ctrl, shift: p.shift });
+    useDrag.setState({ external: target });
+    const dest = destFor(target, p.files);
+    if (JSON.stringify(dest) !== lastDest) {
+      lastDest = JSON.stringify(dest);
+      void api.setDropDest(dest).catch(() => {});
+    }
+  });
+  const unlistenDrop = await on<NativeDrop>("native-drop", (p) => {
+    layer = false;
+    lastDest = "";
+    useDrag.setState({ external: null });
+    const { x, y } = css(p);
+    const keys = { ctrl: p.ctrl, shift: p.shift };
+    const target = targetAt(x, y, keys);
+    if (p.paths.length) void handleDrop(p.paths, target, keys);
+    else if (p.folder) void placeExtracted(p.names, p.folder, target);
   });
   const over = (e: DragEvent) => {
     e.preventDefault();
@@ -211,7 +286,13 @@ export async function setupExternalDrop(): Promise<() => void> {
       e.dataTransfer.dropEffect = "none";
       return;
     }
-    if (e.type === "dragenter") warmDropKinds();
+    if (e.type === "dragenter") {
+      warmDropKinds();
+      if (!layer) {
+        layer = true;
+        void api.beginNativeDrop().catch(() => (layer = false));
+      }
+    }
     const target = targetAt(e.clientX, e.clientY, keysOf(e));
     // always "copy" to the source, even for a move: we move the files after the drop, and a source
     // told "move" could delete them before that
@@ -219,11 +300,14 @@ export async function setupExternalDrop(): Promise<() => void> {
     useDrag.setState({ external: target });
   };
   const leave = (e: DragEvent) => {
-    if (!e.relatedTarget) useDrag.setState({ external: null });
+    if (e.relatedTarget) return;
+    useDrag.setState({ external: null });
+    layer = false;
   };
   const drop = (e: DragEvent) => {
     e.preventDefault();
     useDrag.setState({ external: null });
+    layer = false;
     const files = e.dataTransfer?.files;
     const keys = keysOf(e);
     const target = targetAt(e.clientX, e.clientY, keys);
@@ -247,6 +331,8 @@ export async function setupExternalDrop(): Promise<() => void> {
   window.addEventListener("drop", drop);
   return () => {
     unlisten();
+    unlistenDrag();
+    unlistenDrop();
     window.removeEventListener("dragenter", over);
     window.removeEventListener("dragover", over);
     window.removeEventListener("dragleave", leave);

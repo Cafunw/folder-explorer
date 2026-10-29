@@ -6,6 +6,7 @@
     "desktop"
   ],
   "permissions": [
+    "allow-begin-native-drop",
     "allow-classic-menu",
     "allow-clipboard-files",
     "allow-compress",
@@ -49,6 +50,7 @@
     "allow-run-as-admin",
     "allow-save-layout",
     "allow-save-settings",
+    "allow-set-drop-dest",
     "allow-shell-verb",
     "allow-shortcut-target",
     "allow-show-properties",

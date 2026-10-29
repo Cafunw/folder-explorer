@@ -417,6 +417,18 @@ pub async fn quit_app(app: AppHandle) -> R<()> {
     Ok(())
 }
 
+/// A file drag came in over the desktop page: put the native drop layer over it (native_drop.rs).
+#[tauri::command]
+pub async fn begin_native_drop() -> R<()> {
+    util::on_main(crate::native_drop::show)
+}
+
+#[tauri::command]
+pub async fn set_drop_dest(dest: crate::native_drop::Dest) -> R<()> {
+    crate::native_drop::set_dest(dest);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn check_update(app: AppHandle) -> R<Option<crate::update::UpdateInfo>> {
     crate::update::check(&app).await

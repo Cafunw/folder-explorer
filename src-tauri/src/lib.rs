@@ -12,6 +12,7 @@ mod icons;
 mod items;
 mod lang;
 mod live;
+mod native_drop;
 mod quiet;
 mod shell;
 mod shell_new;
@@ -168,6 +169,8 @@ pub fn run() {
             commands::raise_desktop,
             commands::set_windows_icons_mode,
             commands::quit_app,
+            commands::begin_native_drop,
+            commands::set_drop_dest,
             commands::check_update,
             commands::install_update,
         ])

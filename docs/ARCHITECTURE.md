@@ -437,6 +437,8 @@ allowed for that window, and `cargo check` fails on a permission name that doesn
 | `raise_desktop` | `{ raised: boolean }` | `()` | |
 | `set_windows_icons_mode` | `{ enabled: boolean }` | `()` | true = hide our desktop window and show the Windows icons again (tray toggle) |
 | `quit_app` | – | `()` | restores icons, exits |
+| `begin_native_drop` | – | `()` | shows the native drop layer over the desktop for the file drag that just came in (see *Events*) |
+| `set_drop_dest` | `{ dest: { kind: "none" } \| { kind: "accept" } \| { kind: "folder", path } }` | `()` | where the layer sends the current drag |
 | `check_update` | – | `{ version } \| null` | reads the latest release's `latest.json`; keeps a newer one for `install_update` |
 | `install_update` | – | `()` | downloads, verifies and runs the installer; the app exits on success (refused in dev builds) |
 
@@ -487,6 +489,8 @@ buffers, least recently used out first). `OPTIONS` preflights get `Access-Contro
 | `quiet-changed` | `Quiet` | to all windows when game / battery quiet state or the covered monitors change |
 | `settings-changed` | `{ settings }` | |
 | `drop-paths` | `{ id: number, paths: string[] }` | to `desktop`: the paths of the files a drop posted with `{ feDrop: id }` (see below) |
+| `native-drag` | `{ phase: "over" \| "leave", x, y, ctrl, shift, files }` | to `desktop`: a drag over the native drop layer (client px; `files` = real files) |
+| `native-drop` | `{ x, y, ctrl, shift, paths, names, folder }` | to `desktop`: dropped real files (`paths`), or names Windows extracted into `folder` |
 | `update-available` | `{ version: string }` | to `desktop`: the daily check found a newer release (see *Updates*) |
 | `desktop-raised` | `{ raised: boolean }` | |
 | `menu-open` | `MenuRequest` | to `menu` (see `open_menu`) |
@@ -503,15 +507,29 @@ desktop: palette commands that are not menu entries), `menu-sub-open` /
 `menu-sub-close` / `menu-sub-hover-set` (menu → menusub), `menu-sub-hover` / `menu-sub-pick`
 (menusub → menu).
 
-File drops from other apps (Explorer, Everything, mail) are the desktop page's own HTML5 drag events:
-Tauri's drop handler is off for the desktop window, because since WebView2 156 WebView2's drop target
-replaces Tauri's and every drag showed the no-drop cursor. On a drop the page posts the `FileList` with
+File drops from other apps (Explorer, Everything, archives, mail). Tauri's drop handler is off for the
+desktop window: since WebView2 156 WebView2's drop target replaces Tauri's, and every drag showed the
+no-drop cursor. When the page's `dragenter` sees files it calls `begin_native_drop`: `native_drop.rs`
+shows an invisible layer (alpha 1, owned by the desktop window and placed directly above it, so other
+apps stay on top) with its own `IDropTarget`, and the drag moves on to it. The layer reports the drag as
+`native-drag` (client px; the page picks the target and answers `set_drop_dest`) and the drop as
+`native-drop`. Real files (CF_HDROP) come back as paths for the page's import, as below; the source is
+told "copy". Virtual files (a ZIP or RAR opened in Explorer, WinRAR, mail attachments) go to the shell
+drop target of the chosen folder (`shell::item_drop_target`: the desktop folder for a cell, a group or a
+merge; a folder icon's or a live group's folder), so Windows extracts them as in Explorer; the page then
+places them by name (shell items name themselves, others come with a file group descriptor). Not for an
+app, the Recycle Bin or a frequent group. The layer hides on drop or leave, and its 250 ms timer hides it
+whenever no mouse button is down. `cargo test --lib native_drop -- --ignored` drives the shell part with
+a real ZIP and RAR.
+
+If a drop still lands on the page (the layer came too late), real files come through WebView2: the page
+posts the `FileList` with
 `chrome.webview.postMessageWithAdditionalObjects('{"feDrop": id}', files)` (a string: Tauri's own
 message handler runs first and fails on an object, and WebView2 then calls no further handler);
 `watch_drops` (desktop_window.rs) reads the paths from WebView2's `ICoreWebView2File` objects and answers
 with `drop-paths` `{ id, paths }`. Files from inside an archive (Explorer's ZIP / RAR view, WinRAR) are
-virtual: no path, unreadable from the page, and posting them crashes the renderer, so the page checks for
-a file-system entry (`webkitGetAsEntry`) first and shows a message instead. The page always reports
+virtual: no path, unreadable from the page, and posting them crashes the renderer, so this path checks
+for a file-system entry (`webkitGetAsEntry`) first and shows a message instead. The page always reports
 "copy" to the source and moves the files itself afterwards, so a source never deletes them first. Drags
 without files (links, text) are refused, since they would navigate the page.
 

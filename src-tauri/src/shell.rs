@@ -849,15 +849,19 @@ pub fn drop_on_item(target: String, paths: Vec<String>) -> Result<String, String
     rx.recv().map_err(|_| "the drop thread didn't respond".to_string())?
 }
 
-unsafe fn drop_sta(target: &str, paths: &[String], owner: HWND) -> Result<String, String> {
-    use windows::Win32::Foundation::POINTL;
-    use windows::Win32::System::Ole::{IDropTarget, DROPEFFECT_NONE};
-    use windows::Win32::System::SystemServices::MK_LBUTTON;
-    let item = parse_pidl(target)?;
+/// The shell's drop target of a file or folder: what Explorer hands a drop on that item to.
+pub(crate) unsafe fn item_drop_target(path: &str, owner: HWND) -> Result<windows::Win32::System::Ole::IDropTarget, String> {
+    let item = parse_pidl(path)?;
     let mut last: *mut ITEMIDLIST = std::ptr::null_mut();
     let folder: IShellFolder = SHBindToParent(item.0, Some(&mut last)).map_err(|e| e.message())?;
-    let drop_target: IDropTarget =
-        folder.GetUIObjectOf(owner, &[last as *const ITEMIDLIST], None).map_err(|e| e.message())?;
+    folder.GetUIObjectOf(owner, &[last as *const ITEMIDLIST], None).map_err(|e| e.message())
+}
+
+unsafe fn drop_sta(target: &str, paths: &[String], owner: HWND) -> Result<String, String> {
+    use windows::Win32::Foundation::POINTL;
+    use windows::Win32::System::Ole::DROPEFFECT_NONE;
+    use windows::Win32::System::SystemServices::MK_LBUTTON;
+    let drop_target = item_drop_target(target, owner)?;
     let data = files_data_object(paths)?;
     let mut cursor = POINT::default();
     let _ = GetCursorPos(&mut cursor);
