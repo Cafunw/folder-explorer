@@ -1,6 +1,6 @@
 [package]
 name = "folder-explorer"
-version = "0.3.2"
+version = "0.3.3"
 description = "Telefon tarzı klasörlerle masaüstü"
 authors = ["Folder Explorer"]
 license = "MIT"
