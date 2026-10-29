@@ -66,6 +66,8 @@ const COMMANDS: &[&str] = &[
     "raise_desktop",
     "set_windows_icons_mode",
     "quit_app",
+    "begin_native_drop",
+    "set_drop_dest",
     "check_update",
     "install_update",
 ];

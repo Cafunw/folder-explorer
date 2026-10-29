@@ -92,6 +92,9 @@ export const api = {
   raiseDesktop: (raised: boolean) => invoke<void>("raise_desktop", { raised }),
   setWindowsIconsMode: (enabled: boolean) => invoke<void>("set_windows_icons_mode", { enabled }),
   quitApp: () => invoke<void>("quit_app"),
+  beginNativeDrop: () => invoke<void>("begin_native_drop"),
+  setDropDest: (dest: { kind: "none" } | { kind: "accept" } | { kind: "folder"; path: string }) =>
+    invoke<void>("set_drop_dest", { dest }),
   checkUpdate: () => invoke<{ version: string } | null>("check_update"),
   /** On success the app exits and the installer starts the new version. */
   installUpdate: () => invoke<void>("install_update"),
