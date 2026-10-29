@@ -275,11 +275,23 @@ impl IDropTarget_Impl for LayerTarget_Impl {
     ) -> windows::core::Result<()> {
         let data = data.ok()?.clone();
         unsafe {
-            let paths = hdrop_paths(&data);
+            // Only plain files on disk are the page's to import. A drag out of an archive goes to the shell:
+            // Explorer extracts a ZIP's files to %TEMP% for other apps and deletes them once the drop is over,
+            // and WinRAR hands over bare names (no folder) during the drag and extracts to %TEMP% only when
+            // the drop asks for the files, which the shell's drop does.
+            let descriptor = has_format(&data, descriptor_format());
+            let all = hdrop_paths(&data);
+            let names = match &all {
+                Some(p) if !p.is_empty() && p.iter().any(|p| !is_absolute(p) || in_temp(p)) => {
+                    p.iter().map(|p| p.rsplit(['\\', '/']).next().unwrap_or(p).to_string()).collect()
+                }
+                _ => Vec::new(),
+            };
+            let paths = all.filter(|_| !descriptor && names.is_empty());
             let helper: Option<IDropTargetHelper> = CoCreateInstance(&CLSID_DragDropHelper, None, CLSCTX_INPROC_SERVER).ok();
             {
                 let mut st = self.0.borrow_mut();
-                st.names = if paths.is_none() { virtual_names(&data) } else { Vec::new() };
+                st.names = if paths.is_some() { Vec::new() } else if names.is_empty() { virtual_names(&data) } else { names };
                 st.paths = paths;
                 st.data = Some(data.clone());
                 st.helper = helper.clone();
@@ -362,6 +374,32 @@ impl IDropTarget_Impl for LayerTarget_Impl {
         self.reset();
         Ok(())
     }
+}
+
+fn descriptor_format() -> u16 {
+    unsafe { RegisterClipboardFormatW(CFSTR_FILEDESCRIPTORW) as u16 }
+}
+
+unsafe fn has_format(data: &IDataObject, cf: u16) -> bool {
+    let fmt = FORMATETC {
+        cfFormat: cf,
+        ptd: std::ptr::null_mut(),
+        dwAspect: DVASPECT_CONTENT.0,
+        lindex: -1,
+        tymed: TYMED_HGLOBAL.0 as u32,
+    };
+    data.QueryGetData(&fmt) == windows::Win32::Foundation::S_OK
+}
+
+/// "C:\…" or "\\server\…", not a bare name.
+fn is_absolute(path: &str) -> bool {
+    let b = path.as_bytes();
+    (b.len() > 2 && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/')) || path.starts_with(r"\\")
+}
+
+fn in_temp(path: &str) -> bool {
+    let temp = std::env::temp_dir().to_string_lossy().to_lowercase();
+    path.to_lowercase().starts_with(temp.trim_end_matches('\\'))
 }
 
 /// The paths a drag carries as real files (CF_HDROP), if it does.
@@ -488,6 +526,16 @@ mod tests {
         assert_eq!(names, ["inside.txt"]);
         assert_eq!(std::fs::read_to_string(dest.join("inside.txt")).unwrap(), "from the archive");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn only_absolute_paths_outside_temp_count_as_real_files() {
+        assert!(is_absolute(r"C:\Users\u\a.txt"));
+        assert!(is_absolute(r"\\server\share\a.txt"));
+        assert!(!is_absolute("horizon-windows-x64"));
+        assert!(!is_absolute(r"folder\a.txt"));
+        assert!(in_temp(&std::env::temp_dir().join("Temp1_a.zip").join("a.txt").to_string_lossy()));
+        assert!(!in_temp(r"C:\Users\Public\Desktop\a.txt"));
     }
 
     // Need the Windows shell: `cargo test --lib native_drop -- --ignored`.
