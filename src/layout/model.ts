@@ -219,6 +219,9 @@ function normalizeFolder(id: string, f: any): VirtualFolder | null {
     }
     if (Object.keys(added).length) out.added = added;
   }
+  if (out.kind === "temp" && typeof f.archiveId === "string" && isFolderId(f.archiveId) && f.archiveId !== id) {
+    out.archiveId = f.archiveId;
+  }
   return out;
 }
 
