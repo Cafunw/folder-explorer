@@ -513,8 +513,10 @@ no-drop cursor. When the page's `dragenter` sees files it calls `begin_native_dr
 shows an invisible layer (alpha 1, owned by the desktop window and placed directly above it, so other
 apps stay on top) with its own `IDropTarget`, and the drag moves on to it. The layer reports the drag as
 `native-drag` (client px; the page picks the target and answers `set_drop_dest`) and the drop as
-`native-drop`. Real files (CF_HDROP) come back as paths for the page's import, as below; the source is
-told "copy". Virtual files (a ZIP or RAR opened in Explorer, WinRAR, mail attachments) go to the shell
+`native-drop`. Real files (CF_HDROP with absolute paths outside %TEMP%) come back as paths for the page's import, as
+below; the source is told "copy". Everything else counts as an archive: a file group descriptor, paths
+in %TEMP% (Explorer extracts a ZIP's files there for other apps and deletes them after the drop), or
+bare names (WinRAR, which extracts to %TEMP% only when the drop asks for the files). Virtual files (a ZIP or RAR opened in Explorer, WinRAR, mail attachments) go to the shell
 drop target of the chosen folder (`shell::item_drop_target`: the desktop folder for a cell, a group or a
 merge; a folder icon's or a live group's folder), so Windows extracts them as in Explorer; the page then
 places them by name (shell items name themselves, others come with a file group descriptor). Not for an
