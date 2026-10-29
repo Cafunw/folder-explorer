@@ -28,7 +28,6 @@ const COMMANDS: &[&str] = &[
     "move_into_folder",
     "copy_into_folder",
     "drop_on_item",
-    "key_state",
     "import_dropped",
     "start_drag_out",
     "cursor_over_foreign_window",

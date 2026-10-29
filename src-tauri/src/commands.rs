@@ -171,11 +171,6 @@ pub async fn drop_on_item(target: String, paths: Vec<String>) -> R<String> {
 }
 
 #[tauri::command]
-pub async fn key_state() -> R<shell::KeyState> {
-    Ok(shell::key_state())
-}
-
-#[tauri::command]
 pub async fn import_dropped(paths: Vec<String>, copy: Option<bool>) -> R<Vec<String>> {
     blocking(move || shell::import_dropped(paths, copy.unwrap_or(false))).await
 }

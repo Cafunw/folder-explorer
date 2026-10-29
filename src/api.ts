@@ -49,7 +49,6 @@ export const api = {
   copyIntoFolder: (paths: string[], targetDir: string) =>
     invoke<void>("copy_into_folder", { paths, targetDir }),
   dropOnItem: (target: string, paths: string[]) => invoke<string>("drop_on_item", { target, paths }),
-  keyState: () => invoke<{ ctrl: boolean; shift: boolean; alt: boolean }>("key_state"),
   importDropped: (paths: string[], copy: boolean) =>
     invoke<string[]>("import_dropped", { paths, copy }),
   startDragOut: (paths: string[]) => invoke<string>("start_drag_out", { paths }),

@@ -4,6 +4,10 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 
 ## [Unreleased]
 
+### Fixed
+
+- Files and folders can be dropped on the desktop again, from File Explorer, Everything and other apps. Since WebView2 156 every drop showed the no-entry cursor. Dropping straight from inside an archive (a ZIP or RAR opened in File Explorer, WinRAR) isn't supported yet and says so; extract the files first.
+
 ## [0.3.1] - 2026-10-28
 
 ### Added

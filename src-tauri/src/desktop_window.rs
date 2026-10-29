@@ -34,11 +34,12 @@ use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::Media::{timeBeginPeriod, timeEndPeriod};
 use windows::Win32::UI::WindowsAndMessaging::*;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
-    ICoreWebView2, ICoreWebView2Controller, COREWEBVIEW2_PROCESS_FAILED_KIND,
-    COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED, COREWEBVIEW2_PROCESS_FAILED_KIND_FRAME_RENDER_PROCESS_EXITED,
-    COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED, COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE,
+    ICoreWebView2, ICoreWebView2Controller, ICoreWebView2File, ICoreWebView2WebMessageReceivedEventArgs2,
+    COREWEBVIEW2_PROCESS_FAILED_KIND, COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED,
+    COREWEBVIEW2_PROCESS_FAILED_KIND_FRAME_RENDER_PROCESS_EXITED, COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED,
+    COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE,
 };
-use webview2_com::ProcessFailedEventHandler;
+use webview2_com::{ProcessFailedEventHandler, WebMessageReceivedEventHandler};
 
 use crate::env::{self, Point, Rect};
 use crate::{dlog, quiet, util, wallpaper};
@@ -368,6 +369,46 @@ unsafe fn watch_crashes(c: &ICoreWebView2Controller, app: AppHandle) {
     }));
     let mut token = 0i64;
     let _ = wv.add_ProcessFailed(&handler, &mut token);
+}
+
+#[derive(Serialize, Clone)]
+struct DropPaths {
+    id: u64,
+    paths: Vec<String>,
+}
+
+/// Files dropped on the desktop. WebView2 takes the drop itself (Tauri's handler is off for this
+/// window: since WebView2 156 its own drop target replaces Tauri's, which then never sees a drag), the
+/// page posts the dropped File objects with the string `{"feDrop": id}`, and WebView2 hands them over
+/// here with their paths. Files from inside an archive have none; the page doesn't post those.
+unsafe fn watch_drops(c: &ICoreWebView2Controller, app: AppHandle) {
+    let Ok(wv) = c.CoreWebView2() else { return };
+    let handler = WebMessageReceivedEventHandler::create(Box::new(move |_, args| {
+        let Some(args) = args else { return Ok(()) };
+        let mut text = windows::core::PWSTR::null();
+        if args.TryGetWebMessageAsString(&mut text).is_err() {
+            return Ok(());
+        }
+        let msg: serde_json::Value = serde_json::from_str(&util::take_pwstr(text)).unwrap_or_default();
+        let Some(id) = msg.get("feDrop").and_then(|v| v.as_u64()) else { return Ok(()) };
+        let mut paths = Vec::new();
+        if let Ok(objects) = args.cast::<ICoreWebView2WebMessageReceivedEventArgs2>().and_then(|a| a.AdditionalObjects()) {
+            let mut count = 0u32;
+            let _ = objects.Count(&mut count);
+            for i in 0..count {
+                let Ok(file) = objects.GetValueAtIndex(i).and_then(|o| o.cast::<ICoreWebView2File>()) else { continue };
+                let mut path = windows::core::PWSTR::null();
+                if file.Path(&mut path).is_ok() {
+                    paths.push(util::take_pwstr(path));
+                }
+            }
+        }
+        dlog!("drop: {} path(s)", paths.len());
+        let _ = app.emit_to("desktop", "drop-paths", DropPaths { id, paths });
+        Ok(())
+    }));
+    let mut token = 0i64;
+    let _ = wv.add_WebMessageReceived(&handler, &mut token);
 }
 
 /// Always safe to call; brings the Windows desktop icons back (unless Windows' own setting hides them).
@@ -1302,6 +1343,8 @@ pub fn create(app: &AppHandle) -> Result<(), String> {
         .transparent(true)
         .background_color(tauri::window::Color(0, 0, 0, 0))
         .initialization_script("window.__FE_VIEW__ = 'desktop';")
+        // drops from other apps go through WebView2 (watch_drops)
+        .disable_drag_drop_handler()
         .on_page_load(|_w, payload| {
             if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
                 std::thread::spawn(|| {
@@ -1314,7 +1357,11 @@ pub fn create(app: &AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     let crash_app = app.clone();
-    let _ = win.with_webview(move |wv| unsafe { watch_crashes(&wv.controller(), crash_app) });
+    let drop_app = app.clone();
+    let _ = win.with_webview(move |wv| unsafe {
+        watch_crashes(&wv.controller(), crash_app);
+        watch_drops(&wv.controller(), drop_app);
+    });
 
     let hwnd = HWND(win.hwnd().map_err(|e| e.to_string())?.0 as *mut _);
     DESKTOP.store(hwnd.0 as isize, Ordering::SeqCst);

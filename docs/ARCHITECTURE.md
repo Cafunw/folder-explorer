@@ -101,8 +101,8 @@ rule) in `src/desktop/input.ts` (tested):
   Explorer does (the app's `IDropTarget`, usually it opens the files); the files stay where they
   are. External files dropped on an app tile do the same (Shift: group).
 * **External files into a real folder** (a folder / folder-shortcut icon, a live group): like
-  Explorer, the same volume moves and another copies, Ctrl copies, Shift moves (Tauri's drop event
-  has no modifiers, so `key_state` asks Windows). Moves are one undo step (`FileOp move`), copies
+  Explorer, the same volume moves and another copies, Ctrl copies, Shift moves (the drag event's
+  modifier keys). Moves are one undo step (`FileOp move`), copies
   cannot be undone. Internal drags onto a folder always move (undoable) as before.
 
 ### Desktop refreshes
@@ -405,7 +405,6 @@ allowed for that window, and `cargo check` fails on a permission name that doesn
 | `import_dropped` | `{ paths, copy?: boolean }` | `string[]` | copy/move external files into the user desktop (default like Explorer: same drive moves, other drive copies; name collisions get a new name); returns the real new paths. Files already on a desktop are returned unchanged. |
 | `start_drag_out` | `{ paths }` | `string` | native OLE drag (`SHDoDragDrop`), call while the mouse button is down; returns `"copy" \| "move" \| "link" \| "none"` |
 | `drop_on_item` | `{ target, paths }` | `string` | Explorer's drop of `paths` onto the item `target` (an app: it opens them): its `IDropTarget` (`GetUIObjectOf` from the parent folder), the shell data object of the files, `DragEnter` / `DragOver` / `Drop` with the left button and copy / move / link allowed, at the cursor. Own STA thread (`fe-drop`, `OleInitialize`) that pumps messages until 1.5 s quiet (max 60 s) for targets that finish asynchronously. Returns the effect like `start_drag_out`. |
-| `key_state` | – | `KeyState` | Ctrl / Shift / Alt held now (`GetAsyncKeyState`, read-only); Tauri's file-drop events carry no modifiers |
 | `cursor_over_foreign_window` | – | `boolean` | true when the top-level window under the cursor is not the desktop window (another app, taskbar…) |
 | `list_start_apps` | – | `StartApp[]` | enumerate `FOLDERID_AppsFolder` |
 | `list_dir_preview` | `{ path, limit? = 200 }` | `DirPreview` | Quick Look of a real folder: folders first, then by name; hidden / system entries left out |
@@ -487,6 +486,7 @@ buffers, least recently used out first). `OPTIONS` preflights get `Access-Contro
 | `wallpaper-changed` | – | `WM_SETTINGCHANGE` (SPI_SETDESKWALLPAPER) or Windows' transcoded wallpaper rewritten (slideshow, Spotlight); deferred while game-quiet |
 | `quiet-changed` | `Quiet` | to all windows when game / battery quiet state or the covered monitors change |
 | `settings-changed` | `{ settings }` | |
+| `drop-paths` | `{ id: number, paths: string[] }` | to `desktop`: the paths of the files a drop posted with `{ feDrop: id }` (see below) |
 | `update-available` | `{ version: string }` | to `desktop`: the daily check found a newer release (see *Updates*) |
 | `desktop-raised` | `{ raised: boolean }` | |
 | `menu-open` | `MenuRequest` | to `menu` (see `open_menu`) |
@@ -503,7 +503,17 @@ desktop: palette commands that are not menu entries), `menu-sub-open` /
 `menu-sub-close` / `menu-sub-hover-set` (menu → menusub), `menu-sub-hover` / `menu-sub-pick`
 (menusub → menu).
 
-File drops from Explorer use Tauri's own `onDragDropEvent` on the desktop webview.
+File drops from other apps (Explorer, Everything, mail) are the desktop page's own HTML5 drag events:
+Tauri's drop handler is off for the desktop window, because since WebView2 156 WebView2's drop target
+replaces Tauri's and every drag showed the no-drop cursor. On a drop the page posts the `FileList` with
+`chrome.webview.postMessageWithAdditionalObjects('{"feDrop": id}', files)` (a string: Tauri's own
+message handler runs first and fails on an object, and WebView2 then calls no further handler);
+`watch_drops` (desktop_window.rs) reads the paths from WebView2's `ICoreWebView2File` objects and answers
+with `drop-paths` `{ id, paths }`. Files from inside an archive (Explorer's ZIP / RAR view, WinRAR) are
+virtual: no path, unreadable from the page, and posting them crashes the renderer, so the page checks for
+a file-system entry (`webkitGetAsEntry`) first and shows a message instead. The page always reports
+"copy" to the source and moves the files itself afterwards, so a source never deletes them first. Drags
+without files (links, text) are refused, since they would navigate the page.
 
 ## Persisted JSON (owned by the UI)
 
@@ -799,8 +809,8 @@ Group kinds / displays in the UI (`src/desktop/`):
     `moveToDir`, `deleteIds`, `setPage`, the edit mode, refused drops. One `AudioContext`, created on
     the first sound, suspended after 10 s of silence and closed after 60 s; muted while game-quiet
     (`setSoundConfig` from `installEffects`). The settings window's "Dinle" uses `previewSound`.
-* Tauri's native drag-drop handler is on (for files from Explorer), so HTML5 drag & drop does
-  not work inside the webview; all icon dragging is pointer-event based (`src/desktop/dnd.ts`).
+* All icon dragging inside the desktop is pointer-event based (`src/desktop/dnd.ts`); HTML5 drag
+  events are only used for drops from other apps (see *Events*).
 * When the app is started from an MSIX-packaged parent (e.g. a sandboxed terminal), `%APPDATA%`
   may be virtualized; the state then lives under that package's `LocalCache\Roaming`.
 

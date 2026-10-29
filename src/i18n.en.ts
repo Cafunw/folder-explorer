@@ -113,6 +113,7 @@ export const en: Dict = {
   renameFailed: "Couldn't rename",
   renameNeedsAdmin: "This item needs administrator permission; it was renamed only in Folder Explorer",
   operationFailed: "Something went wrong",
+  dropFromArchive: "Files can't be dropped straight from an archive yet. Extract them first",
   saveFailed: "Couldn't save changes. Check that the disk has free space and can be written to.",
   layoutLocked: "The layout is locked. You can unlock it from the tray menu or in Settings.",
   cantDropIntoItself: "A group can't be moved into itself",

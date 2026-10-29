@@ -1,7 +1,6 @@
 // Files dragged in from Explorer (or any app) and dropped on the desktop / a folder.
 
-import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { api } from "../api";
+import { api, on } from "../api";
 import { t } from "../i18n";
 import { cellAt, cellKey, gridAt, iconBox } from "../layout/grid";
 import { isFence } from "../layout/blocks";
@@ -10,7 +9,7 @@ import type { Placement } from "../types";
 import { currentPanelFolder } from "./actions";
 import { RECYCLE_ID, useDrag, type DropTarget } from "./dnd";
 import { dropEffect } from "./input";
-import { dropKindOf, dropOnApp, heldKeys, realDirOf, refreshHeldKeys, warmDropKinds } from "./interaction";
+import { dropKindOf, dropOnApp, realDirOf, warmDropKinds } from "./interaction";
 import { panelGrid } from "./registry";
 import {
   commit,
@@ -29,7 +28,7 @@ const desk = () => useDesk.getState();
 
 type Keys = { ctrl: boolean; shift: boolean };
 
-function targetAt(x: number, y: number, keys: Keys = heldKeys()): DropTarget {
+function targetAt(x: number, y: number, keys: Keys): DropTarget {
   const st = desk();
   if (st.panel && panelGrid.panelEl) {
     const r = panelGrid.panelEl.getBoundingClientRect();
@@ -91,11 +90,6 @@ async function dropIntoDir(paths: string[], dir: string, keys: Keys) {
     const entry = gone.length ? commit(removeIds(desk().layout, gone), op) : recordFileOpOnly(op);
     toast(t.moved, { label: t.undo, run: () => void undoEntry(entry) });
   } else toast(copy.length ? t.copied : t.operationFailed);
-}
-
-function toCss(pos: { x: number; y: number }) {
-  const r = window.devicePixelRatio || 1;
-  return { x: pos.x / r, y: pos.y / r };
 }
 
 const drive = (p: string) => p.slice(0, 2).toLowerCase();
@@ -191,28 +185,71 @@ async function handleDrop(paths: string[], target: DropTarget, keys: Keys) {
   }
 }
 
+type WebView2 = { postMessageWithAdditionalObjects(message: unknown, objects: FileList): void };
+const webview2 = () => (window as unknown as { chrome?: { webview?: WebView2 } }).chrome?.webview;
+
+const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
+const keysOf = (e: DragEvent): Keys => ({ ctrl: e.ctrlKey, shift: e.shiftKey });
+
+let dropSeq = 0;
+const waiting = new Map<number, (paths: string[]) => void>();
+
+/**
+ * Drops from other apps (Explorer, Everything, mail…) arrive as the page's own drag events; the files'
+ * paths come from WebView2 (desktop_window.rs `watch_drops`). Nothing else may be dropped: a link or
+ * text would navigate the page.
+ */
 export async function setupExternalDrop(): Promise<() => void> {
-  return getCurrentWebview().onDragDropEvent((event) => {
-    const p = event.payload;
-    if (p.type === "leave") {
-      useDrag.setState({ external: null });
-      return;
-    }
-    const { x, y } = toCss(p.position);
-    if (p.type === "drop") {
-      useDrag.setState({ external: null });
-      // the event carries no modifier keys: ask for them (Ctrl copies / Shift moves, Shift on an app = group)
-      const paths = p.paths;
-      api
-        .keyState()
-        .catch(() => heldKeys())
-        .then((keys) => handleDrop(paths, targetAt(x, y, keys), keys));
-      return;
-    }
-    if (p.type === "enter") warmDropKinds();
-    const target = targetAt(x, y);
-    // Shift turns an app target into a group: keep the key state fresh while over an app
-    if ((target?.kind === "app" || target?.kind === "merge") && dropKindOf(target.id)?.kind === "app") refreshHeldKeys();
-    useDrag.setState({ external: target });
+  const unlisten = await on<{ id: number; paths: string[] }>("drop-paths", (p) => {
+    waiting.get(p.id)?.(p.paths);
+    waiting.delete(p.id);
   });
+  const over = (e: DragEvent) => {
+    e.preventDefault();
+    if (!e.dataTransfer) return;
+    if (!hasFiles(e)) {
+      e.dataTransfer.dropEffect = "none";
+      return;
+    }
+    if (e.type === "dragenter") warmDropKinds();
+    const target = targetAt(e.clientX, e.clientY, keysOf(e));
+    // always "copy" to the source, even for a move: we move the files after the drop, and a source
+    // told "move" could delete them before that
+    e.dataTransfer.dropEffect = target ? "copy" : "none";
+    useDrag.setState({ external: target });
+  };
+  const leave = (e: DragEvent) => {
+    if (!e.relatedTarget) useDrag.setState({ external: null });
+  };
+  const drop = (e: DragEvent) => {
+    e.preventDefault();
+    useDrag.setState({ external: null });
+    const files = e.dataTransfer?.files;
+    const keys = keysOf(e);
+    const target = targetAt(e.clientX, e.clientY, keys);
+    const wv = webview2();
+    if (!hasFiles(e) || !files?.length || !target || !wv) return;
+    // A file inside an archive (Explorer's ZIP / RAR view, WinRAR) has no path on disk, and handing it
+    // to WebView2 crashes the page: real files and folders come with a file-system entry, those don't.
+    if ([...(e.dataTransfer?.items ?? [])].some((i) => i.kind === "file" && !i.webkitGetAsEntry())) {
+      toast(t.dropFromArchive);
+      return;
+    }
+    const id = ++dropSeq;
+    waiting.set(id, (paths) => void (paths.length ? handleDrop(paths, target, keys) : toast(t.operationFailed)));
+    // During the event (the FileList is emptied afterwards), and as a string: Tauri's own message
+    // handler runs first and fails on anything else, which stops WebView2 from calling ours.
+    wv.postMessageWithAdditionalObjects(JSON.stringify({ feDrop: id }), files);
+  };
+  window.addEventListener("dragenter", over);
+  window.addEventListener("dragover", over);
+  window.addEventListener("dragleave", leave);
+  window.addEventListener("drop", drop);
+  return () => {
+    unlisten();
+    window.removeEventListener("dragenter", over);
+    window.removeEventListener("dragover", over);
+    window.removeEventListener("dragleave", leave);
+    window.removeEventListener("drop", drop);
+  };
 }
