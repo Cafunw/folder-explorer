@@ -130,7 +130,6 @@ pub fn run() {
             commands::move_into_folder,
             commands::copy_into_folder,
             commands::drop_on_item,
-            commands::key_state,
             commands::import_dropped,
             commands::start_drag_out,
             commands::cursor_over_foreign_window,

@@ -904,20 +904,6 @@ fn pump_until_quiet(quiet: std::time::Duration, max: std::time::Duration) {
     }
 }
 
-#[derive(Serialize, Clone, Copy, Debug, Default)]
-pub struct KeyState {
-    pub ctrl: bool,
-    pub shift: bool,
-    pub alt: bool,
-}
-
-/// The modifier keys held right now (read-only; for drops from other apps, whose events carry none).
-pub fn key_state() -> KeyState {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_MENU};
-    let down = |vk: u16| unsafe { (GetAsyncKeyState(vk as i32) as u16) & 0x8000 != 0 };
-    KeyState { ctrl: down(VK_CONTROL.0), shift: down(VK_SHIFT.0), alt: down(VK_MENU.0) }
-}
-
 pub fn cursor_over_foreign_window() -> bool {
     unsafe {
         let mut pt = POINT::default();

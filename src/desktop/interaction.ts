@@ -116,24 +116,6 @@ export async function dropOnApp(appId: string, paths: string[]) {
   }
 }
 
-/** Modifier keys during a drag from another app (its events carry none): asked from Rust, throttled. */
-let keys = { ctrl: false, shift: false, alt: false };
-let keysAt = 0;
-let keysBusy = false;
-export const heldKeys = () => keys;
-export function refreshHeldKeys() {
-  if (keysBusy || performance.now() - keysAt < 120) return;
-  keysBusy = true;
-  api
-    .keyState()
-    .then((k) => {
-      keys = k ?? keys;
-      keysAt = performance.now();
-    })
-    .catch(() => {})
-    .finally(() => (keysBusy = false));
-}
-
 // ---------------------------------------------------------------- double-click on the empty desktop
 
 let lastClick: Click | null = null;

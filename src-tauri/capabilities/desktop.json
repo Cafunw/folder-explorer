@@ -27,7 +27,6 @@
     "allow-import-media",
     "allow-install-update",
     "allow-item-context-menu",
-    "allow-key-state",
     "allow-known-folders",
     "allow-list-desktop-items",
     "allow-list-dir-preview",
