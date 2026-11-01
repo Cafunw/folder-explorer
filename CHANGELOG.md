@@ -4,6 +4,11 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 
 ## [Unreleased]
 
+### Fixed
+
+- *Blur* in *Settings ▸ Wallpaper* works with the *Windows* wallpaper source too. Before, only *Dim* did anything there. The Windows wallpaper is then drawn by Folder Explorer, placed the way Windows places it.
+- A temporary group's *Move to archive* keeps using the same archive group after you switch the interface language, instead of creating a second one. Thanks to [@bfs2021](https://github.com/bfs2021).
+
 ## [0.3.3] - 2026-10-29
 
 ### Added

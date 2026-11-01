@@ -7,6 +7,7 @@ import {
   groupTileStyle,
   labelShadow,
   normalizeSettings,
+  paintsWallpaper,
   plateRadius,
   resolveGroupBox,
 } from "./settings";
@@ -14,6 +15,7 @@ import type { DesktopItem, MonitorInfo } from "./types";
 import {
   accentFromColors,
   dominantColor,
+  drawsWallpaper,
   isNight,
   msToNextSwitch,
   packMatch,
@@ -21,6 +23,7 @@ import {
   parallaxStep,
   stemOf,
   wallpaperFor,
+  wallpaperRect,
 } from "./visual";
 
 const at = (h: number, m = 0, s = 0) => new Date(2026, 9, 24, h, m, s);
@@ -83,6 +86,27 @@ describe("wallpaper choice", () => {
     expect(parallaxStep(1000, 1)).toBe(0);
     expect(parallaxStep(1000, 2)).toBe(100);
     expect(parallaxStep(1000, 7) * 6).toBeCloseTo(300);
+  });
+
+  it("paints Windows' own wallpaper only to blur it", () => {
+    const windows = normalizeSettings({ wallpaper: { source: "windows", dim: 0.3 } }).wallpaper;
+    expect(drawsWallpaper(windows)).toBe(false);
+    expect(paintsWallpaper(windows)).toBe(false);
+    const blurred = { ...windows, blur: 12 };
+    expect(drawsWallpaper(blurred)).toBe(true);
+    expect(paintsWallpaper(blurred)).toBe(true);
+    expect(drawsWallpaper(s.wallpaper)).toBe(true);
+  });
+
+  it("places Windows' wallpaper like Windows does", () => {
+    const box = { x: 0, y: 0, w: 1920, h: 1080 };
+    // a 1000 × 1000 image on a 1920 × 1080 monitor
+    expect(wallpaperRect("fill", 1000, 1000, box)).toEqual({ x: 0, y: -420, w: 1920, h: 1920 });
+    expect(wallpaperRect("fit", 1000, 1000, box)).toEqual({ x: 420, y: 0, w: 1080, h: 1080 });
+    expect(wallpaperRect("stretch", 1000, 1000, box)).toEqual(box);
+    expect(wallpaperRect("center", 1000, 1000, box)).toEqual({ x: 460, y: 40, w: 1000, h: 1000 });
+    // span: covers the whole box of all monitors, which starts left of this one
+    expect(wallpaperRect("fill", 3840, 1080, { x: -1920, y: 0, w: 3840, h: 1080 })).toEqual({ x: -1920, y: 0, w: 3840, h: 1080 });
   });
 });
 
