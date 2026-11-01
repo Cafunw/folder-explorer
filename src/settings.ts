@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { t } from "./i18n";
 import type { FolderLook, IconShape, Settings, WallpaperSpec } from "./types";
+import { drawsWallpaper } from "./visual";
 
 const DEFAULT_WALLPAPER: WallpaperSpec = {
   source: "windows",
@@ -461,7 +462,7 @@ export function applyTheme(s: Settings) {
 
 /** Some wallpaper (main, night or a page's own) is painted by us, not Windows' own shown through. */
 export const paintsWallpaper = (wp: Settings["wallpaper"]) =>
-  [wp, ...(wp.dayNight.enabled ? [wp.dayNight.night] : []), ...Object.values(wp.perPage)].some((x) => x.source !== "windows");
+  [wp, ...(wp.dayNight.enabled ? [wp.dayNight.night] : []), ...Object.values(wp.perPage)].some(drawsWallpaper);
 
 /** Spring transition honouring the animation speed, stiffness and bounce settings. */
 export function spring(s: Pick<Settings, "animation">, base = 0.42, bounce = 0.18) {

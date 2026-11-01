@@ -6,7 +6,17 @@ import { primaryGrid, type GridInfo } from "../layout/grid";
 import { pageCount } from "../layout/model";
 import { applyTheme, setWallpaperAccent } from "../settings";
 import type { Settings, WallpaperInfo, WallpaperSpec } from "../types";
-import { accentFromColors, dominantColor, drawsWallpaper, isNight, msToNextSwitch, parallaxStep, wallpaperFor } from "../visual";
+import {
+  accentFromColors,
+  dominantColor,
+  drawsWallpaper,
+  isNight,
+  msToNextSwitch,
+  parallaxStep,
+  wallpaperFor,
+  wallpaperRect,
+  type Box,
+} from "../visual";
 import { pagePos } from "./registry";
 import { useAnimation, useDesk } from "./store";
 
@@ -116,10 +126,20 @@ function Layer({
   x: MotionValue<number>;
   quiet: boolean;
 }) {
-  const image = spec.source === "image" && spec.image ? mediaUrl(spec.image) : null;
-  const blurred = useBlurredImage(image, spec.blur, width, g.height);
+  // Windows' own picture, painted by us only when blurred (drawsWallpaper)
+  const win = spec.source === "windows" && spec.blur > 0 && info?.path ? info : null;
+  const image = win ? wallpaperUrl(win.monitorId, win.version) : spec.source === "image" && spec.image ? mediaUrl(spec.image) : null;
+  const fit: Fit = !win
+    ? { position: "fill", color: null, x: 0, y: 0, w: width, h: g.height }
+    : win.position === "span" // one image across all monitors
+      ? { position: "fill", color: win.color, x: span.left - g.left, y: span.top - g.top, w: span.width, h: span.height }
+      : { position: win.position, color: win.color, x: 0, y: 0, w: width, h: g.height };
+  const blurred = useBlurredImage(image, spec.blur, width, g.height, fit);
   let layer: CSSProperties;
-  if (spec.source === "windows") {
+  if (win) {
+    // until the blurred copy is ready (or when it failed) Windows' own shows through, unblurred
+    layer = blurred ? { backgroundImage: `url("${blurred}")`, backgroundSize: "100% 100%" } : {};
+  } else if (spec.source === "windows") {
     if (info?.path) {
       const mode = SIZE[info.position] ?? SIZE.fill;
       layer = {
@@ -160,22 +180,25 @@ function Layer({
 // ---------------------------------------------------------------- pre-blurred images
 
 /**
- * A blurred copy of an image wallpaper, rendered once on a small canvas (the blur hides the lower
+ * A blurred copy of a wallpaper image, rendered once on a small canvas (the blur hides the lower
  * resolution) and shown as a plain image: no live `filter: blur()` while the desktop is on screen.
  */
 const blurred = new Map<string, string | null>(); // key → object URL (null = failed)
 const blurring = new Map<string, Promise<string | null>>();
 const BLUR_KEEP = 12;
 
-function useBlurredImage(url: string | null, blur: number, w: number, h: number): string | null {
-  const key = url && blur > 0 ? `${url}|${blur}|${Math.round(w)}x${Math.round(h)}` : "";
+/** How the picture is placed in the w × h layer: ours cover it, Windows' own goes where Windows puts it. */
+type Fit = Box & { position: WallpaperInfo["position"]; color: string | null };
+
+function useBlurredImage(url: string | null, blur: number, w: number, h: number, fit: Fit): string | null {
+  const key = url && blur > 0 ? `${url}|${blur}|${Math.round(w)}x${Math.round(h)}|${JSON.stringify(fit)}` : "";
   const [, rerender] = useState(0);
   useEffect(() => {
     if (!key || blurred.has(key)) return;
     let alive = true;
     let job = blurring.get(key);
     if (!job) {
-      job = renderBlurred(url!, blur, w, h).then((v) => {
+      job = renderBlurred(url!, blur, w, h, fit).then((v) => {
         blurring.delete(key);
         blurred.set(key, v);
         while (blurred.size > BLUR_KEEP) {
@@ -204,22 +227,39 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   return img.decode().then(() => img);
 }
 
-async function renderBlurred(url: string, blur: number, w: number, h: number): Promise<string | null> {
+async function renderBlurred(url: string, blur: number, w: number, h: number, fit: Fit): Promise<string | null> {
   try {
     const img = await loadImage(url);
     const q = Math.min(1, Math.max(0.125, 3 / blur));
     const cw = Math.max(1, Math.round(w * q));
     const ch = Math.max(1, Math.round(h * q));
-    const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
-    const sw = cw / scale;
-    const sh = ch / scale;
+    // the picture as it is shown, at the reduced size…
+    const sharp = new OffscreenCanvas(cw, ch);
+    const s = sharp.getContext("2d");
     const canvas = new OffscreenCanvas(cw, ch);
     const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
+    if (!s || !ctx) return null;
+    s.scale(q, q);
+    if (fit.color) {
+      s.fillStyle = fit.color;
+      s.fillRect(0, 0, w, h);
+    }
+    const px = window.devicePixelRatio || 1; // Windows centres and tiles an image at its own pixel size
+    if (fit.position === "tile") {
+      const pattern = s.createPattern(img, "repeat");
+      if (pattern) {
+        pattern.setTransform(new DOMMatrix().scale(1 / px));
+        s.fillStyle = pattern;
+        s.fillRect(0, 0, w, h);
+      }
+    } else {
+      const at = wallpaperRect(fit.position, img.naturalWidth / px, img.naturalHeight / px, fit);
+      s.drawImage(img, at.x, at.y, at.w, at.h);
+    }
+    // …then blurred, drawn a bit larger than the canvas so the blur does not fade out at the edges
     const r = blur * q;
-    // drawn a bit larger than the canvas so the blur does not fade out at the edges
     ctx.filter = `blur(${r}px)`;
-    ctx.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, -2 * r, -2 * r, cw + 4 * r, ch + 4 * r);
+    ctx.drawImage(sharp, -2 * r, -2 * r, cw + 4 * r, ch + 4 * r);
     const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.9 });
     return URL.createObjectURL(blob);
   } catch {

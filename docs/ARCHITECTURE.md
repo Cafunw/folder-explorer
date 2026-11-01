@@ -749,7 +749,11 @@ Group kinds / displays in the UI (`src/desktop/`):
   and follow the monitor's page position `pagePos` (see *Motion*), so they move with every page
   transition (slide, cube, cards, fade) and jump with it when motion is reduced. Blur: an image is blurred once on an `OffscreenCanvas` at
   reduced size (blur hides it) and shown as a plain blob image, so no live `filter: blur()`; only
-  while that copy is being made (or if it failed) a CSS filter, never in quiet modes. `WallpaperSync`
+  while that copy is being made (or if it failed) a CSS filter, never in quiet modes. A blurred
+  "windows" wallpaper is painted too (`drawsWallpaper`: the real one behind the window can't be
+  blurred): `fe://wallpaper` is drawn where Windows puts it (`wallpaperRect`: fill / fit / stretch /
+  center / span, tile as a pattern, the background colour around it) and blurred the same way;
+  until that copy is ready Windows' own shows through, unblurred. `WallpaperSync`
   (rendered once): the day / night clock is one `setTimeout` to the next switch (`msToNextSwitch`),
   re-armed when it fires, on settings change, `visibilitychange` / focus and environment / wallpaper /
   quiet changes (wake-ups after sleep); the accent is computed once per source (64 × 64 canvas →

@@ -1,7 +1,7 @@
 // Pure helpers for the visual settings on the desktop: wallpaper choice, day / night clock,
 // accent from the wallpaper, icon pack lookup. No DOM, unit-tested in visual.test.ts.
 
-import type { DesktopItem, Settings, WallpaperSpec } from "./types";
+import type { DesktopItem, Settings, WallpaperInfo, WallpaperSpec } from "./types";
 
 // ---------------------------------------------------------------- day / night
 
@@ -46,8 +46,23 @@ export function wallpaperFor(wp: Settings["wallpaper"], monitorId: string, page:
   return { key: "main", spec: wp };
 }
 
-/** We paint this wallpaper ourselves (else the transparent window shows Windows' own, no parallax). */
-export const drawsWallpaper = (spec: WallpaperSpec) => spec.source !== "windows";
+/**
+ * We paint this wallpaper ourselves (else the transparent window shows Windows' own, no parallax).
+ * Windows' own is painted too when it is blurred: the real one behind the window can't be.
+ */
+export const drawsWallpaper = (spec: WallpaperSpec) => spec.source !== "windows" || spec.blur > 0;
+
+export type Box = { x: number; y: number; w: number; h: number };
+
+/** Where a wallpaper image (iw × ih, CSS px) lands in its box, placed like Windows does (`tile` aside). */
+export function wallpaperRect(position: WallpaperInfo["position"], iw: number, ih: number, box: Box): Box {
+  if (position === "stretch") return { ...box };
+  const s =
+    position === "center" ? 1 : position === "fit" ? Math.min(box.w / iw, box.h / ih) : Math.max(box.w / iw, box.h / ih); // fill, span: cover
+  const w = iw * s;
+  const h = ih * s;
+  return { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, w, h };
+}
 
 /** Parallax shift per page (px): a tenth of the width, less with many pages (overscan ≤ 30 %). */
 export function parallaxStep(width: number, pages: number) {
