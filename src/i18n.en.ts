@@ -387,6 +387,7 @@ export const en: Dict = {
   wpColor: "Solid color",
   wpGradient: "Gradient",
   wpBlur: "Blur",
+  wpBlurLive: "Windows blurs a live wallpaper (Wallpaper Engine); its strength can't be set, only turned on or off",
   wpDim: "Dim",
   wpFrom: "From",
   wpTo: "To",

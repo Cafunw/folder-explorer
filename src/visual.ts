@@ -48,9 +48,14 @@ export function wallpaperFor(wp: Settings["wallpaper"], monitorId: string, page:
 
 /**
  * We paint this wallpaper ourselves (else the transparent window shows Windows' own, no parallax).
- * Windows' own is painted too when it is blurred: the real one behind the window can't be.
+ * Windows' own is painted too when it is blurred: the real one behind the window can't be. Not
+ * while a live wallpaper app (`live`: Wallpaper Engine…) draws over it: the picture Windows
+ * reports is not what is on screen, so it stays unblurred.
  */
-export const drawsWallpaper = (spec: WallpaperSpec) => spec.source !== "windows" || spec.blur > 0;
+export const drawsWallpaper = (spec: WallpaperSpec, live = false) => spec.source !== "windows" || (spec.blur > 0 && !live);
+
+/** A blurred "windows" wallpaper under a live one is blurred by Windows behind our window (acrylic). */
+export const blursBehind = (spec: WallpaperSpec, live = false) => live && spec.source === "windows" && spec.blur > 0;
 
 export type Box = { x: number; y: number; w: number; h: number };
 

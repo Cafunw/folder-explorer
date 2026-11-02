@@ -382,6 +382,7 @@ const tr = {
   wpColor: "Düz renk",
   wpGradient: "Gradyan",
   wpBlur: "Bulanıklık",
+  wpBlurLive: "Hareketli duvar kağıdını (Wallpaper Engine) Windows bulanıklaştırır; gücü ayarlanamaz, sadece açılıp kapanır",
   wpDim: "Karartma",
   wpFrom: "Başlangıç",
   wpTo: "Bitiş",

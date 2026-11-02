@@ -429,6 +429,13 @@ pub async fn set_drop_dest(dest: crate::native_drop::Dest) -> R<()> {
     Ok(())
 }
 
+/// Windows' acrylic blur behind the desktop window (a blurred "windows" wallpaper under a live one).
+#[tauri::command]
+pub async fn set_backdrop_blur(on: bool) -> R<()> {
+    desktop_window::set_backdrop_blur(on);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn check_update(app: AppHandle) -> R<Option<crate::update::UpdateInfo>> {
     crate::update::check(&app).await

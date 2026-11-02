@@ -52,6 +52,8 @@ export type WallpaperInfo = {
   position: "fill" | "fit" | "stretch" | "tile" | "center" | "span";
   color: string;
   version: string;
+  /** a live wallpaper app (Wallpaper Engine…) draws over it: `path` is not what is on screen */
+  live: boolean;
 };
 
 export type StartApp = { name: string; parsingName: string };

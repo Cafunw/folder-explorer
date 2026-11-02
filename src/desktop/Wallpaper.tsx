@@ -1,13 +1,14 @@
 import { AnimatePresence, motion, useTransform, type MotionValue } from "motion/react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { create } from "zustand";
-import { mediaUrl, wallpaperUrl } from "../api";
+import { api, mediaUrl, wallpaperUrl } from "../api";
 import { primaryGrid, type GridInfo } from "../layout/grid";
 import { pageCount } from "../layout/model";
 import { applyTheme, setWallpaperAccent } from "../settings";
 import type { Settings, WallpaperInfo, WallpaperSpec } from "../types";
 import {
   accentFromColors,
+  blursBehind,
   dominantColor,
   drawsWallpaper,
   isNight,
@@ -56,7 +57,7 @@ export function Wallpaper({ g, span }: { g: GridInfo; span: Span }) {
   const clock = useClock((c) => c.night);
 
   const { key, spec } = wallpaperFor(wp, g.monitorId, page, nightOf(clock, wp));
-  const painted = drawsWallpaper(spec) || drawWindowsWallpaper;
+  const painted = drawsWallpaper(spec, info?.live) || drawWindowsWallpaper;
   const total = Math.max(pages, page + 1);
   // the same for every spec, so the old and the new picture move together while they cross-fade
   const step = animation.parallax ? parallaxStep(g.width, total) : 0;
@@ -127,7 +128,7 @@ function Layer({
   quiet: boolean;
 }) {
   // Windows' own picture, painted by us only when blurred (drawsWallpaper)
-  const win = spec.source === "windows" && spec.blur > 0 && info?.path ? info : null;
+  const win = spec.source === "windows" && spec.blur > 0 && info?.path && !info.live ? info : null;
   const image = win ? wallpaperUrl(win.monitorId, win.version) : spec.source === "image" && spec.image ? mediaUrl(spec.image) : null;
   const fit: Fit = !win
     ? { position: "fill", color: null, x: 0, y: 0, w: width, h: g.height }
@@ -273,7 +274,23 @@ async function renderBlurred(url: string, blur: number, w: number, h: number, fi
 export function WallpaperSync() {
   useDayNightClock();
   useWallpaperAccent();
+  useBackdropBlur();
   return null;
+}
+
+/** Windows' acrylic behind the window while a monitor shows a blurred "windows" wallpaper under a live one. */
+function useBackdropBlur() {
+  const clock = useClock((c) => c.night);
+  const on = useDesk((s) => {
+    const wp = s.settings.wallpaper;
+    return Object.values(s.grids).some((g) => {
+      const info = s.wallpapers.find((w) => w.monitorId === g.monitorId) ?? s.wallpapers[0];
+      return blursBehind(wallpaperFor(wp, g.monitorId, s.pages[g.monitorId] ?? 0, nightOf(clock, wp)).spec, info?.live);
+    });
+  });
+  useEffect(() => {
+    api.setBackdropBlur(on).catch((e) => console.warn("backdrop blur", e));
+  }, [on]);
 }
 
 /** One timeout to the next switch time; re-checked when it fires, on settings change and wake-ups. */

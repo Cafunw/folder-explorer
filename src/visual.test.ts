@@ -14,6 +14,7 @@ import {
 import type { DesktopItem, MonitorInfo } from "./types";
 import {
   accentFromColors,
+  blursBehind,
   dominantColor,
   drawsWallpaper,
   isNight,
@@ -96,6 +97,17 @@ describe("wallpaper choice", () => {
     expect(drawsWallpaper(blurred)).toBe(true);
     expect(paintsWallpaper(blurred)).toBe(true);
     expect(drawsWallpaper(s.wallpaper)).toBe(true);
+  });
+
+  it("leaves a live wallpaper (Wallpaper Engine) alone instead of painting Windows' saved picture", () => {
+    const blurred = { ...normalizeSettings({ wallpaper: { source: "windows" } }).wallpaper, blur: 12 };
+    expect(drawsWallpaper(blurred, true)).toBe(false);
+    expect(drawsWallpaper({ ...blurred, source: "image" }, true)).toBe(true); // ours is ours
+    // ...and has Windows blur it behind the window, live
+    expect(blursBehind(blurred, true)).toBe(true);
+    expect(blursBehind(blurred, false)).toBe(false); // a still picture: painted, strength adjustable
+    expect(blursBehind({ ...blurred, blur: 0 }, true)).toBe(false);
+    expect(blursBehind({ ...blurred, source: "image" }, true)).toBe(false);
   });
 
   it("places Windows' wallpaper like Windows does", () => {
