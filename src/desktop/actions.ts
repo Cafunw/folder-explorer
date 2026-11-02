@@ -142,7 +142,8 @@ export const currentPanelFolder = () => {
 
 // ---------------------------------------------------------------- delete
 
-export async function deleteIds(ids: string[]) {
+/** Files to the Recycle Bin, or deleted for good (`permanent`: Shift+Delete, Windows asks first). */
+export async function deleteIds(ids: string[], permanent = false) {
   const { layout, itemMap } = get();
   const folders = ids.filter((id) => isFolderId(id) && layout.folders[id]);
   const files = ids.filter((id) => {
@@ -155,7 +156,7 @@ export async function deleteIds(ids: string[]) {
   const paths = files.map((id) => itemMap.get(id)!.path);
   if (files.length) {
     try {
-      await api.recycle(paths);
+      if (!(await api.recycle(paths, permanent))) return; // "No" in Windows' confirmation
     } catch (e) {
       console.error(e);
       toast(t.operationFailed);
@@ -166,7 +167,12 @@ export async function deleteIds(ids: string[]) {
   // the Recycle Bin can take a while: build on the layout as it is now, so moves made meanwhile stay
   let next = headings.length ? removeIds(get().layout, headings) : get().layout;
   for (const f of folders) if (next.folders[f]) next = dissolveFolder(next, get().grids, f);
-  if (files.length) {
+  if (files.length && permanent) {
+    // gone for good: nothing to bring back, so no Undo button
+    commit(removeIds(next, files));
+    playSound("delete");
+    toast(t.deletedForGood(files.length));
+  } else if (files.length) {
     next = removeIds(next, files);
     const entry = commit(next, { kind: "recycle", paths });
     playSound("delete");
@@ -195,7 +201,7 @@ export async function deleteFolderDeep(folderIds: string[], fileIds: string[]) {
   const { itemMap } = get();
   const paths = fileIds.map((id) => itemMap.get(id)?.path).filter((p): p is string => !!p);
   try {
-    if (paths.length) await api.recycle(paths);
+    if (paths.length && !(await api.recycle(paths))) return;
   } catch (e) {
     console.error(e);
     toast(t.operationFailed);

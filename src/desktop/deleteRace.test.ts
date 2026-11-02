@@ -24,6 +24,7 @@ vi.mock("./store", () => ({
   toast: mocks.toast, undo: vi.fn(), undoEntry: mocks.undoEntry,
 }));
 
+import { t } from "../i18n";
 import { deleteIds } from "./actions";
 
 function layoutWithB(c: number, r: number): Layout {
@@ -45,7 +46,7 @@ describe("deleting while something else changes", () => {
 
   it("keeps a move made while the Recycle Bin was busy", async () => {
     let finish!: () => void;
-    mocks.api.recycle.mockReturnValue(new Promise<void>((done) => (finish = done)));
+    mocks.api.recycle.mockReturnValue(new Promise<boolean>((done) => (finish = () => done(true))));
     mocks.state.layout = layoutWithB(0, 1);
     mocks.state.selection = new Set(["a"]);
 
@@ -63,14 +64,45 @@ describe("deleting while something else changes", () => {
   });
 
   it("gives the toast's undo the delete's own history entry", async () => {
-    mocks.api.recycle.mockResolvedValue(undefined);
+    mocks.api.recycle.mockResolvedValue(true);
     const entry = { before: layoutWithB(0, 1), after: layoutWithB(0, 1) };
     mocks.commit.mockReturnValue(entry);
     mocks.state.layout = layoutWithB(0, 1);
     mocks.state.selection = new Set();
 
     await deleteIds(["a"]);
+    expect(mocks.api.recycle).toHaveBeenCalledWith(["C:\\Users\\u\\Desktop\\a.txt"], false);
     mocks.toast.mock.calls[0][1].run();
     expect(mocks.undoEntry).toHaveBeenCalledWith(entry);
+  });
+});
+
+describe("Shift+Delete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.state.itemMap = new Map([["a", { id: "a", kind: "file", path: "C:\\Users\\u\\Desktop\\a.txt" }]]);
+    mocks.state.grids = {};
+    mocks.state.layout = layoutWithB(0, 1);
+    mocks.state.selection = new Set(["a"]);
+  });
+
+  it("deletes for good, without a Recycle Bin undo", async () => {
+    mocks.api.recycle.mockResolvedValue(true);
+    await deleteIds(["a"], true);
+
+    expect(mocks.api.recycle).toHaveBeenCalledWith(["C:\\Users\\u\\Desktop\\a.txt"], true);
+    expect(mocks.commit).toHaveBeenCalledTimes(1);
+    expect(mocks.commit.mock.calls[0][1]).toBeUndefined(); // no file op to restore
+    expect((mocks.commit.mock.calls[0][0] as Layout).placements.a).toBeUndefined();
+    expect(mocks.toast).toHaveBeenCalledWith(t.deletedForGood(1));
+  });
+
+  it("keeps everything when Windows' confirmation is answered No", async () => {
+    mocks.api.recycle.mockResolvedValue(false);
+    await deleteIds(["a"], true);
+
+    expect(mocks.commit).not.toHaveBeenCalled();
+    expect(mocks.toast).not.toHaveBeenCalled();
+    expect(mocks.state.selection).toEqual(new Set(["a"]));
   });
 });

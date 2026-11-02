@@ -4,6 +4,11 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 
 ## [Unreleased]
 
+### Fixed
+
+- *Dim*, *Blur* and your own wallpaper reach the right edge of the screen. A thin strip there used to show the Windows wallpaper, untouched.
+- Shift+Delete deletes files for good, as in File Explorer, after Windows asks. It used to send them to the Recycle Bin. Answering *No* in a Windows delete confirmation no longer says something went wrong.
+
 ## [0.3.4] - 2026-11-01
 
 ### Fixed

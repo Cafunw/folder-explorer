@@ -539,14 +539,18 @@ pub fn get_windows_layout() -> WindowsLayout {
 // ---------------------------------------------------------------------------
 // Z-order
 
-/// Pixels the window stays short of the monitors' edge (right and bottom). Wallpaper Engine
-/// pauses for any window that is monitor-sized, even a transparent one; this keeps us under
-/// that. Only the empty taskbar strip / outer cell padding is lost.
+/// Pixels the window stays short of the monitors' bottom edge. A monitor-sized window, even a
+/// transparent one, reads as a fullscreen app (Wallpaper Engine pauses for it). The bottom edge
+/// only, where the taskbar hides the strip; on the right it showed Windows' own wallpaper beside
+/// ours, undimmed and unblurred (#8).
 const FIT_INSET: i32 = 6;
 
 fn window_bounds() -> Rect {
-    let b = env::virtual_bounds();
-    Rect { x: b.x, y: b.y, width: (b.width - FIT_INSET).max(1), height: (b.height - FIT_INSET).max(1) }
+    fit_bounds(env::virtual_bounds())
+}
+
+fn fit_bounds(b: Rect) -> Rect {
+    Rect { x: b.x, y: b.y, width: b.width, height: (b.height - FIT_INSET).max(1) }
 }
 
 static PROGMAN: AtomicIsize = AtomicIsize::new(0);
@@ -1477,6 +1481,14 @@ pub fn scale_factor(app: &AppHandle) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_window_reaches_the_right_edge_and_stays_short_of_the_bottom() {
+        let monitor = Rect { x: 0, y: 0, width: 1920, height: 1080 };
+        let b = fit_bounds(monitor);
+        assert_eq!((b.x, b.y, b.width), (0, 0, 1920)); // dim / blur reach the right edge (#8)
+        assert!(b.height < monitor.height); // not monitor-sized: no "fullscreen app"
+    }
 
     #[test]
     fn restarts_only_a_settled_app_that_is_not_quitting() {
