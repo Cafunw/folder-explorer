@@ -440,6 +440,7 @@ allowed for that window, and `cargo check` fails on a permission name that doesn
 | `quit_app` | – | `()` | restores icons, exits |
 | `begin_native_drop` | – | `()` | shows the native drop layer over the desktop for the file drag that just came in (see *Events*) |
 | `set_drop_dest` | `{ dest: { kind: "none" } \| { kind: "accept" } \| { kind: "folder", path } }` | `()` | where the layer sends the current drag |
+| `set_backdrop_blur` | `{ on }` | `()` | Windows' acrylic blur behind the desktop window (a blurred "windows" wallpaper under a live one) |
 | `check_update` | – | `{ version } \| null` | reads the latest release's `latest.json`; keeps a newer one for `install_update` |
 | `install_update` | – | `()` | downloads, verifies and runs the installer; the app exits on success (refused in dev builds) |
 
@@ -755,7 +756,14 @@ Group kinds / displays in the UI (`src/desktop/`):
   "windows" wallpaper is painted too (`drawsWallpaper`: the real one behind the window can't be
   blurred): `fe://wallpaper` is drawn where Windows puts it (`wallpaperRect`: fill / fit / stretch /
   center / span, tile as a pattern, the background colour around it) and blurred the same way;
-  until that copy is ready Windows' own shows through, unblurred. `WallpaperSync`
+  until that copy is ready Windows' own shows through, unblurred. Not while a live wallpaper app
+  (Wallpaper Engine, Lively…) draws in the WorkerW behind the icons (`live_wallpaper`, a visible
+  child window there; `WallpaperInfo.live`, re-checked by `fe-keepalive`): the picture Windows
+  reports isn't on screen. Then the blur is Windows' acrylic behind our window, live and of fixed
+  strength (`set_backdrop_blur`: accent policy 4 with an almost clear tint, as Zed does on layered
+  windows; blur-behind 3 renders black on current Windows 11, the DWM backdrops need focus), on
+  while any monitor shows such a wallpaper (`blursBehind`, `WallpaperSync`); Settings then shows a
+  switch instead of the strength slider (`get_wallpapers` → `live`). `WallpaperSync`
   (rendered once): the day / night clock is one `setTimeout` to the next switch (`msToNextSwitch`),
   re-armed when it fires, on settings change, `visibilitychange` / focus and environment / wallpaper /
   quiet changes (wake-ups after sleep); the accent is computed once per source (64 × 64 canvas →

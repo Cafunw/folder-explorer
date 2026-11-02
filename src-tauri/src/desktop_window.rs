@@ -227,6 +227,41 @@ fn enable_dark_menus(hwnd: HWND) {
     }
 }
 
+/// Windows' acrylic blur behind our window, for a blurred "windows" wallpaper under a live wallpaper
+/// app (Wallpaper Engine…): it blurs whatever is drawn there, live. The undocumented accent policy
+/// (`SetWindowCompositionAttribute`, attribute 19) as Zed uses it on its layered windows: acrylic (4)
+/// with an all but transparent tint (acrylic wants alpha > 0). Blur-behind (3) and the DWM backdrops
+/// don't work here: 3 renders black on current Windows 11, the backdrops only while focused.
+pub fn set_backdrop_blur(on: bool) {
+    use windows::core::PCSTR;
+    use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
+    #[repr(C)]
+    struct AccentPolicy {
+        state: u32,
+        flags: u32,
+        gradient: u32,
+        animation: u32,
+    }
+    #[repr(C)]
+    struct Data {
+        attrib: u32,
+        data: *mut std::ffi::c_void,
+        size: usize,
+    }
+    let hwnd = desktop_hwnd();
+    if hwnd.is_invalid() {
+        return;
+    }
+    unsafe {
+        let Ok(user32) = LoadLibraryW(w!("user32.dll")) else { return };
+        let Some(f) = GetProcAddress(user32, PCSTR(c"SetWindowCompositionAttribute".as_ptr().cast())) else { return };
+        let f: unsafe extern "system" fn(HWND, *mut Data) -> BOOL = std::mem::transmute(f);
+        let mut policy = AccentPolicy { state: if on { 4 } else { 0 }, flags: 0, gradient: 0x0100_0000, animation: 0 };
+        let mut data = Data { attrib: 19, data: (&raw mut policy).cast(), size: std::mem::size_of::<AccentPolicy>() };
+        let _ = f(hwnd, &mut data);
+    }
+}
+
 /// Private message: "close gracefully" (sent by `--quit`, e.g. from the uninstaller).
 const WM_FE_QUIT: u32 = WM_APP + 0x2F;
 /// Windows' Yeni ▸ Folder Explorer grubu runs `--new-group`, which posts this to the running desktop.
@@ -569,6 +604,35 @@ fn progman() -> HWND {
             }
             _ => HWND::default(),
         }
+    }
+}
+
+/// A live wallpaper app (Wallpaper Engine, Lively…) draws in the WorkerW behind the desktop icons, a
+/// child of Progman (or a top-level one on older Windows). Then the picture Windows reports is not
+/// what is on screen, so a blurred "windows" wallpaper can't be painted from it.
+pub fn live_wallpaper() -> bool {
+    unsafe {
+        let shown = |w: HWND| IsWindowVisible(w).as_bool();
+        let drawn_in = |w: HWND| FindWindowExW(Some(w), None, None, None).is_ok_and(|c| !c.is_invalid() && shown(c));
+        let workers = |parent: Option<HWND>| {
+            let mut out = Vec::new();
+            let mut after = None;
+            while let Ok(w) = FindWindowExW(parent, after, w!("WorkerW"), None) {
+                if w.is_invalid() {
+                    break;
+                }
+                out.push(w);
+                after = Some(w);
+            }
+            out
+        };
+        let pm = progman();
+        let in_progman = !pm.is_invalid() && workers(Some(pm)).into_iter().any(|w| shown(w) && drawn_in(w));
+        // older Windows: the WorkerW that holds the icons doesn't count, the one behind it does
+        in_progman
+            || workers(None).into_iter().any(|w| {
+                shown(w) && drawn_in(w) && FindWindowExW(Some(w), None, w!("SHELLDLL_DefView"), None).is_err()
+            })
     }
 }
 
@@ -1438,6 +1502,7 @@ pub fn create(app: &AppHandle) -> Result<(), String> {
                 }
             }
             quiet::revalidate();
+            wallpaper::check_live();
         })
         .ok();
     Ok(())

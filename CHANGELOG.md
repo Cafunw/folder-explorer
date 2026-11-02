@@ -7,6 +7,7 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 ### Fixed
 
 - *Dim*, *Blur* and your own wallpaper reach the right edge of the screen. A thin strip there used to show the Windows wallpaper, untouched.
+- *Blur* with the *Windows* wallpaper source works on Wallpaper Engine and other live wallpapers. They stay live and Windows blurs them, at a fixed strength. Before, Windows' saved wallpaper picture replaced them.
 - Shift+Delete deletes files for good, as in File Explorer, after Windows asks. It used to send them to the Recycle Bin. Answering *No* in a Windows delete confirmation no longer says something went wrong.
 
 ## [0.3.4] - 2026-11-01

@@ -68,6 +68,7 @@ const COMMANDS: &[&str] = &[
     "quit_app",
     "begin_native_drop",
     "set_drop_dest",
+    "set_backdrop_blur",
     "check_update",
     "install_update",
 ];

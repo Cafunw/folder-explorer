@@ -25,9 +25,20 @@ pub struct WallpaperInfo {
     pub position: &'static str,
     pub color: String,
     pub version: String,
+    /// A live wallpaper app (Wallpaper Engine…) draws over it: `path` is not what is on screen.
+    pub live: bool,
 }
 
 static LAST: Mutex<Option<Vec<WallpaperInfo>>> = Mutex::new(None);
+static LIVE: AtomicBool = AtomicBool::new(false);
+
+/// Keep-alive tick: a live wallpaper app started or stopped, so the wallpapers are read again.
+pub fn check_live() {
+    let live = crate::desktop_window::live_wallpaper();
+    if LIVE.swap(live, Ordering::SeqCst) != live {
+        std::thread::spawn(refresh_if_changed);
+    }
+}
 
 fn transcoded_fallback(index: usize) -> Option<String> {
     let appdata = std::env::var("APPDATA").ok()?;
@@ -54,6 +65,8 @@ fn mtime(path: &str) -> u64 {
 /// Needs STA.
 pub fn get_wallpapers_sta() -> Result<Vec<WallpaperInfo>, String> {
     let monitors = env::monitors();
+    let live = crate::desktop_window::live_wallpaper();
+    LIVE.store(live, Ordering::SeqCst);
     unsafe {
         let dw: IDesktopWallpaper = CoCreateInstance(&DesktopWallpaper, None, CLSCTX_ALL).map_err(|e| e.message())?;
         let position = match dw.GetPosition().unwrap_or(DWPOS_FILL) {
@@ -94,14 +107,14 @@ pub fn get_wallpapers_sta() -> Result<Vec<WallpaperInfo>, String> {
                 position,
                 color
             ));
-            out.push(WallpaperInfo { monitor_id, path, position, color: color.clone(), version });
+            out.push(WallpaperInfo { monitor_id, path, position, color: color.clone(), version, live });
         }
         if out.is_empty() {
             // IDesktopWallpaper returned nothing usable; fall back to the transcoded image.
             for (i, m) in monitors.iter().enumerate() {
                 let path = transcoded_fallback(i);
                 let version = util::short_hash(&format!("{:?}|{}", path, path.as_deref().map(mtime).unwrap_or(0)));
-                out.push(WallpaperInfo { monitor_id: m.id.clone(), path, position, color: color.clone(), version });
+                out.push(WallpaperInfo { monitor_id: m.id.clone(), path, position, color: color.clone(), version, live });
             }
         }
         Ok(out)

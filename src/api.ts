@@ -96,6 +96,8 @@ export const api = {
   beginNativeDrop: () => invoke<void>("begin_native_drop"),
   setDropDest: (dest: { kind: "none" } | { kind: "accept" } | { kind: "folder"; path: string }) =>
     invoke<void>("set_drop_dest", { dest }),
+  /** Windows' acrylic blur behind the desktop window (a blurred "windows" wallpaper under a live one). */
+  setBackdropBlur: (on: boolean) => invoke<void>("set_backdrop_blur", { on }),
   checkUpdate: () => invoke<{ version: string } | null>("check_update"),
   /** On success the app exits and the installer starts the new version. */
   installUpdate: () => invoke<void>("install_update"),

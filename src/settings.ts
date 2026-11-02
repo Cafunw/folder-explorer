@@ -462,7 +462,7 @@ export function applyTheme(s: Settings) {
 
 /** Some wallpaper (main, night or a page's own) is painted by us, not Windows' own shown through. */
 export const paintsWallpaper = (wp: Settings["wallpaper"]) =>
-  [wp, ...(wp.dayNight.enabled ? [wp.dayNight.night] : []), ...Object.values(wp.perPage)].some(drawsWallpaper);
+  [wp, ...(wp.dayNight.enabled ? [wp.dayNight.night] : []), ...Object.values(wp.perPage)].some((x) => drawsWallpaper(x));
 
 /** Spring transition honouring the animation speed, stiffness and bounce settings. */
 export function spring(s: Pick<Settings, "animation">, base = 0.42, bounce = 0.18) {

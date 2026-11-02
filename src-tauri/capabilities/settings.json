@@ -10,6 +10,7 @@
     "allow-export-state",
     "allow-export-theme",
     "allow-get-environment",
+    "allow-get-wallpapers",
     "allow-import-icon-pack",
     "allow-import-media",
     "allow-import-state",

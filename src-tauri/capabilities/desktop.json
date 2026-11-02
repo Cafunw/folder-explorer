@@ -50,6 +50,7 @@
     "allow-run-as-admin",
     "allow-save-layout",
     "allow-save-settings",
+    "allow-set-backdrop-blur",
     "allow-set-drop-dest",
     "allow-shell-verb",
     "allow-shortcut-target",

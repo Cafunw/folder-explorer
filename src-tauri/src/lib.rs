@@ -171,6 +171,7 @@ pub fn run() {
             commands::quit_app,
             commands::begin_native_drop,
             commands::set_drop_dest,
+            commands::set_backdrop_blur,
             commands::check_update,
             commands::install_update,
         ])

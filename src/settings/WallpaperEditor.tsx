@@ -1,16 +1,29 @@
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import { t } from "../i18n";
 import type { WallpaperSpec } from "../types";
-import { Colors, pct, px, Row, Seg, Slider } from "./controls";
+import { Colors, pct, px, Row, Seg, Slider, Toggle } from "./controls";
 import { WallpaperThumb } from "./previews";
 
 const COLORS = ["#0f172a", "#1f2937", "#111827", "#3f3f46", "#1e3a8a", "#14532d", "#7c2d12", "#581c87"];
 
+/** A live wallpaper app (Wallpaper Engine…) draws over Windows' own: its blur is Windows', on or off. */
+function useLiveWallpaper() {
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    api
+      .getWallpapers()
+      .then((list) => setLive(list.some((w) => w.live)))
+      .catch(() => {});
+  }, []);
+  return live;
+}
+
 /** Rows that edit one wallpaper (the main one, the night one or a page's own). */
 export function WallpaperEditor({ spec, onChange }: { spec: WallpaperSpec; onChange: (patch: Partial<WallpaperSpec>) => void }) {
   const [error, setError] = useState("");
+  const live = useLiveWallpaper() && spec.source === "windows";
   const pick = async () => {
     const file = await openDialog({ multiple: false, filters: [{ name: t.imageFiles, extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif"] }] });
     if (typeof file !== "string") return;
@@ -62,9 +75,15 @@ export function WallpaperEditor({ spec, onChange }: { spec: WallpaperSpec; onCha
           </Row>
         </>
       )}
-      <Row title={t.wpBlur}>
-        <Slider value={spec.blur} min={0} max={40} format={px} onChange={(v) => onChange({ blur: v })} />
-      </Row>
+      {live ? (
+        <Row title={t.wpBlur} desc={t.wpBlurLive}>
+          <Toggle on={spec.blur > 0} onChange={(v) => onChange({ blur: v ? 20 : 0 })} />
+        </Row>
+      ) : (
+        <Row title={t.wpBlur}>
+          <Slider value={spec.blur} min={0} max={40} format={px} onChange={(v) => onChange({ blur: v })} />
+        </Row>
+      )}
       <Row title={t.wpDim}>
         <Slider value={spec.dim} min={0} max={0.8} step={0.01} format={pct} onChange={(v) => onChange({ dim: v })} />
       </Row>
