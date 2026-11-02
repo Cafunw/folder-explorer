@@ -163,7 +163,8 @@ treat it as the desktop.
 * `fe-keepalive` (every 5 s; every second if the hooks could not be installed) is the safety net:
   owner link, z-order, Windows icons hidden, our window shown, covering windows still there.
 * The window is excluded from Aero Peek (`DWMWA_EXCLUDED_FROM_PEEK`) and kept 6 px short of the
-  monitors' right/bottom edge (`FIT_INSET`).
+  monitors' bottom edge (`FIT_INSET`: not monitor-sized, so not a "fullscreen app"; the taskbar
+  hides the strip). It reaches the right edge, so a dim / blur / own wallpaper covers it all.
 * Wallpaper Engine pauses for fullscreen / maximized windows by user setting; with nothing
   maximized it keeps playing with our window present.
 * `raise_desktop(true)` enters raised mode on demand until another window becomes foreground (a
@@ -397,7 +398,7 @@ allowed for that window, and `cargo check` fails on a permission name that doesn
 | `clipboard_files` | `{ paths, cut }` | `()` | Explorer's Copy / Cut: the shell data object on the clipboard (`OleSetClipboard` + flush; cut adds `Preferred DropEffect` = move). No shell extensions, so instant. |
 | `copy_text` | `{ text }` | `()` | text to the clipboard ("Yol olarak kopyala") |
 | `show_properties` / `run_as_admin` | `{ path }` | `()` | `SHObjectProperties` / `ShellExecuteEx` verb `runas` |
-| `recycle` | `{ paths }` | `()` | IFileOperation + FOFX_RECYCLEONDELETE / FOF_ALLOWUNDO |
+| `recycle` | `{ paths, permanent? }` | `bool` | IFileOperation + FOFX_RECYCLEONDELETE / FOF_ALLOWUNDO; `permanent` (Shift+Delete) without them, Windows asks first. `false` = "No" in Windows' confirmation |
 | `restore_from_recycle` | `{ paths }` | `string[]` | restores the most recently deleted entries with these original paths ("undelete" verb); returns restored paths |
 | `rename_item` | `{ path, newName, exact? }` | `string` (new path) | `newName` is a display name and keeps a hidden extension (.lnk, known types), unless `exact`: then it is the whole file name (undo / redo replay recorded names) |
 | `move_into_folder` | `{ paths, targetDir }` | `(string \| null)[]` | real move via IFileOperation (shows Windows conflict UI); each source's real new path from an `IFileOperationProgressSink` (`x (2)` after "Keep both"), `null` where it was skipped or cancelled |
@@ -679,7 +680,8 @@ Group kinds / displays in the UI (`src/desktop/`):
 * **Live folders** (`live.ts`): `useLiveItems(dir)` refcounts a folder while any tile / panel / Quick
   Look shows it (`watch_folder` once, `unwatch_folder` + cache dropped 3 s after the last user);
   `folder-changed` → one coalesced `list_folder`. Live entries are never in the layout, the
-  desktop selection or the undo history (Delete = recycle with an undo toast that restores it).
+  desktop selection or the undo history (Delete = recycle with an undo toast that restores it;
+  Shift+Delete = deleted for good, no undo).
 * **Locks** (`locks.ts`): `useUnlocked` (memory only, so a restart locks everything). Opening a
   locked group (or a group inside one) goes through `requestUnlock` → dialog `{ kind: "unlock", id }`:
   Windows Hello when `lock.method === "hello"` and `hello_available`, else / on failure the PIN pad

@@ -140,8 +140,8 @@ pub async fn debug_log(line: String) -> R<()> {
 }
 
 #[tauri::command]
-pub async fn recycle(paths: Vec<String>) -> R<()> {
-    blocking(move || shell::recycle(paths)).await
+pub async fn recycle(paths: Vec<String>, permanent: Option<bool>) -> R<bool> {
+    blocking(move || shell::recycle(paths, permanent.unwrap_or(false))).await
 }
 
 #[tauri::command]

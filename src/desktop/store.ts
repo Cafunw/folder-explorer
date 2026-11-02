@@ -245,8 +245,9 @@ async function revert(op: FileOp) {
 }
 
 async function reapply(op: FileOp) {
-  if (op.kind === "recycle") await api.recycle(op.paths);
-  else if (op.kind === "rename") await api.renameItem(op.from, baseName(op.to, true), true);
+  if (op.kind === "recycle") {
+    if (!(await api.recycle(op.paths))) throw new Error("cancelled");
+  } else if (op.kind === "rename") await api.renameItem(op.from, baseName(op.to, true), true);
   else if (op.kind === "move") {
     for (const mv of op.moves) await moveOne(mv.from, dirName(mv.to));
   }

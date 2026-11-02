@@ -296,7 +296,7 @@ function useKeyboard() {
         return;
       }
       if (e.key === "Delete") {
-        if (sel.length) deleteIds(sel);
+        if (sel.length) deleteIds(sel, e.shiftKey);
         return;
       }
       if (ctrl && e.shiftKey && (e.key === "n" || e.key === "N")) {

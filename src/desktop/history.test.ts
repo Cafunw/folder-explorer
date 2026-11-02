@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => {
   const ok = () => Promise.resolve(undefined);
   return {
     api: {
-      listDesktopItems: vi.fn(() => Promise.resolve([])), restoreFromRecycle: vi.fn(ok), recycle: vi.fn(ok),
+      listDesktopItems: vi.fn(() => Promise.resolve([])), restoreFromRecycle: vi.fn(ok), recycle: vi.fn(() => Promise.resolve(true)),
       moveIntoFolder: vi.fn((paths: string[]) => Promise.resolve(paths.map((): string | null => "moved"))),
       saveLayout: vi.fn(ok), saveSettings: vi.fn(ok), mirrorSelection: vi.fn(ok), raiseDesktop: vi.fn(ok),
     },

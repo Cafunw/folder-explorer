@@ -28,7 +28,7 @@ import { armLongPress, removeByBadge } from "./Jiggle";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.api.recycle.mockResolvedValue(undefined);
+  mocks.api.recycle.mockResolvedValue(true);
   const layout = emptyLayout();
   layout.placements.a = { m: "M1", p: 0, c: 0, r: 0 };
   layout.placements["v:g"] = { m: "M1", p: 0, c: 1, r: 0 };
@@ -51,7 +51,7 @@ describe("the edit-mode remove badge", () => {
     expect(mocks.commit).not.toHaveBeenCalled();
 
     await deleteIds((mocks.state.dialog as { ids: string[] }).ids); // what the confirm's "Sil" runs
-    expect(mocks.api.recycle).toHaveBeenCalledWith(["C:\\Users\\u\\Desktop\\a.txt"]);
+    expect(mocks.api.recycle).toHaveBeenCalledWith(["C:\\Users\\u\\Desktop\\a.txt"], false);
   });
 
   it("dissolves a virtual group without asking", async () => {

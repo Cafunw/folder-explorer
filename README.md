@@ -70,7 +70,7 @@ The details, including every command and file format, are in [docs/ARCHITECTURE.
 | Make a group | Drag an icon onto the middle of another |
 | Open a group | Click it; Esc goes back up |
 | Rename | F2, or click a group's title |
-| Delete | Delete (to the Recycle Bin; a deleted group leaves its items on the desktop) |
+| Delete | Delete (to the Recycle Bin; a deleted group leaves its items on the desktop), Shift+Delete deletes files for good after Windows asks |
 | Undo / redo | Ctrl+Z / Ctrl+Y |
 | Search | Start typing on the desktop |
 | Command palette | Ctrl+Shift+P, or `>` in search |

@@ -367,10 +367,13 @@ fn perform(op: &IFileOperation) -> Result<(), String> {
     Ok(())
 }
 
-pub fn recycle(paths: Vec<String>) -> Result<(), String> {
+/// Into the Recycle Bin, or deleted for good (`permanent`, Shift+Delete): then Windows asks first,
+/// as in File Explorer. `Ok(false)`: the user said no in Windows' confirmation.
+pub fn recycle(paths: Vec<String>, permanent: bool) -> Result<bool, String> {
     util::run_sta(move || unsafe {
         let op = file_op()?;
-        op.SetOperationFlags(FOF_ALLOWUNDO | FOFX_RECYCLEONDELETE).map_err(|e| e.message())?;
+        let flags = if permanent { Default::default() } else { FOF_ALLOWUNDO | FOFX_RECYCLEONDELETE };
+        op.SetOperationFlags(flags).map_err(|e| e.message())?;
         let mut any = false;
         for p in &paths {
             if p.starts_with("::") {
@@ -381,9 +384,10 @@ pub fn recycle(paths: Vec<String>) -> Result<(), String> {
             any = true;
         }
         if any {
-            perform(&op)
+            op.PerformOperations().map_err(|e| e.message())?;
+            Ok(!op.GetAnyOperationsAborted().map(|b| b.as_bool()).unwrap_or(false))
         } else {
-            Ok(())
+            Ok(true)
         }
     })?
 }

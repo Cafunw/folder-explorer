@@ -38,7 +38,8 @@ export const api = {
   showProperties: (path: string) => invoke<void>("show_properties", { path }),
   runAsAdmin: (path: string) => invoke<void>("run_as_admin", { path }),
   debugLog: (line: string) => invoke<void>("debug_log", { line }),
-  recycle: (paths: string[]) => invoke<void>("recycle", { paths }),
+  /** `permanent`: deleted for good (Shift+Delete), Windows asks first. False: cancelled in Windows' confirmation. */
+  recycle: (paths: string[], permanent = false) => invoke<boolean>("recycle", { paths, permanent }),
   restoreFromRecycle: (paths: string[]) => invoke<string[]>("restore_from_recycle", { paths }),
   /** `exact`: `newName` is the whole file name; otherwise a hidden extension (.lnk) is kept. */
   renameItem: (path: string, newName: string, exact = false) =>

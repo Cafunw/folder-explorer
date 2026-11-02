@@ -32,7 +32,7 @@ Ayarlar ▸ Davranış ▸ Güncellemeleri denetle). Bunun dışında uygulama k
 | Yer değiştir | Simgeyi dolu bir hücrenin kenarına bırak |
 | Grubu aç | Gruba tek tıkla; Esc bir üst seviyeye döner |
 | Yeniden adlandır | F2 (gerçek dosyanın adı değişir) ya da grup başlığına tıkla |
-| Sil | Delete → Geri Dönüşüm Kutusu (grup silinince içindekiler dışarı çıkar) |
+| Sil | Delete → Geri Dönüşüm Kutusu (grup silinince içindekiler dışarı çıkar), Shift+Delete → Windows sorduktan sonra kalıcı olarak siler |
 | Geri al / yinele | Ctrl+Z / Ctrl+Y |
 | Sayfa değiştir | Fare tekerleği, PageUp / PageDown, ok tuşlarıyla sayfa kenarını geç, ya da sürüklerken ekran kenarında bekle |
 | Ok tuşları | En yakın simgeye geçer (sayfanın kenarında bir sonraki sayfaya); **Shift** + ok seçimi genişletir, Home / End ilk / son simge. Hiçbir şey seçili değilse ilk simgeyi seçer. Kutuda ↓ içine girer, ilk satırda ↑ kutuyu seçer; açık grupta grubun ızgarasında gezer |

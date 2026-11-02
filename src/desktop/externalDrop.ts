@@ -99,8 +99,7 @@ async function handleDrop(paths: string[], target: DropTarget, keys: Keys) {
   if (!target || !st.env || paths.length === 0) return;
   try {
     if (target.kind === "recycle") {
-      await api.recycle(paths);
-      toast(t.movedToRecycle(paths.length));
+      if (await api.recycle(paths)) toast(t.movedToRecycle(paths.length));
       return;
     }
     if (target.kind === "real") {

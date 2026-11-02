@@ -183,12 +183,15 @@ function dragLiveOut(item: DesktopItem) {
     .catch((e) => console.error("drag out", e));
 }
 
-/** A live entry to the Recycle Bin, undoable like a desktop delete. */
-async function recycleLive(item: DesktopItem) {
+/** A live entry to the Recycle Bin, undoable like a desktop delete, or deleted for good (Shift+Delete). */
+async function recycleLive(item: DesktopItem, permanent = false) {
   try {
-    await api.recycle([item.path]);
-    const entry = recordFileOpOnly({ kind: "recycle", paths: [item.path] });
-    toast(t.movedToRecycle(1), { label: t.undo, run: () => undoEntry(entry) });
+    if (!(await api.recycle([item.path], permanent))) return;
+    if (permanent) toast(t.deletedForGood(1));
+    else {
+      const entry = recordFileOpOnly({ kind: "recycle", paths: [item.path] });
+      toast(t.movedToRecycle(1), { label: t.undo, run: () => undoEntry(entry) });
+    }
     reloadLive(dirName(item.path));
   } catch (e) {
     console.warn("recycle", e);
@@ -353,7 +356,7 @@ export function useLiveKeys(active: boolean) {
       if (e.key === "Enter") openId(sel);
       else if (e.key === " " && st.settings.behavior.quickLook && !e.repeat) useDesk.setState({ dialog: { kind: "quicklook", id: sel } });
       else if (e.key === "F2") useLive.setState({ renaming: sel });
-      else if (e.key === "Delete") void recycleLive(item);
+      else if (e.key === "Delete") void recycleLive(item, e.shiftKey);
       else return;
       e.preventDefault();
     };

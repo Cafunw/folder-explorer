@@ -103,6 +103,7 @@ const tr = {
   notAvailableHere: "Bu öğe için kullanılamıyor",
   movedToRecycle: (n: number) =>
     n === 1 ? "Öğe Geri Dönüşüm Kutusu'na taşındı" : `${n} öğe Geri Dönüşüm Kutusu'na taşındı`,
+  deletedForGood: (n: number) => (n === 1 ? "Öğe kalıcı olarak silindi" : `${n} öğe kalıcı olarak silindi`),
   folderDissolved: "Grup kaldırıldı, içindekiler dışarı alındı",
   undo: "Geri al",
   undone: "Geri alındı",

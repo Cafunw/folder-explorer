@@ -104,6 +104,7 @@ export const en: Dict = {
   notAvailableHere: "Not available for this item",
   movedToRecycle: (n: number) =>
     n === 1 ? "Item moved to the Recycle Bin" : `${n} items moved to the Recycle Bin`,
+  deletedForGood: (n: number) => (n === 1 ? "Item permanently deleted" : `${n} items permanently deleted`),
   folderDissolved: "Group removed, its contents moved out",
   undo: "Undo",
   undone: "Undone",
