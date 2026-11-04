@@ -585,7 +585,26 @@ fn window_bounds() -> Rect {
 }
 
 fn fit_bounds(b: Rect) -> Rect {
-    Rect { x: b.x, y: b.y, width: b.width, height: (b.height - FIT_INSET).max(1) }
+    // never 0 wide: `BOUNDS` with no width turns off the WM_WINDOWPOSCHANGING clamp
+    Rect { x: b.x, y: b.y, width: b.width.max(1), height: (b.height - FIT_INSET).max(1) }
+}
+
+/// Keep-alive: the window isn't where the monitors say (it can start before Windows reports the
+/// real display after a sign-in, and then stayed 800 × 600 at Tauri's default spot): put it back
+/// and have the page lay itself out again.
+fn heal_bounds(h: HWND) {
+    let mut r = windows::Win32::Foundation::RECT::default();
+    if unsafe { GetWindowRect(h, &mut r) }.is_err() {
+        return;
+    }
+    let want = window_bounds();
+    if Rect::from_rect(&r) != want {
+        dlog!("desktop window at {:?}, monitors want {:?}: refitting", Rect::from_rect(&r), want);
+        apply_bounds(h);
+        if let Some(app) = util::app() {
+            let _ = app.emit("environment-changed", ());
+        }
+    }
 }
 
 static PROGMAN: AtomicIsize = AtomicIsize::new(0);
@@ -1498,6 +1517,8 @@ pub fn create(app: &AppHandle) -> Result<(), String> {
                 unsafe {
                     if IsIconic(h).as_bool() || !IsWindowVisible(h).as_bool() {
                         let _ = ShowWindowAsync(h, SW_SHOWNOACTIVATE);
+                    } else {
+                        heal_bounds(h);
                     }
                 }
             }
@@ -1553,6 +1574,9 @@ mod tests {
         let b = fit_bounds(monitor);
         assert_eq!((b.x, b.y, b.width), (0, 0, 1920)); // dim / blur reach the right edge (#8)
         assert!(b.height < monitor.height); // not monitor-sized: no "fullscreen app"
+        // an empty display at sign-in still keeps the size clamp on
+        let empty = fit_bounds(Rect { x: 0, y: 0, width: 0, height: 0 });
+        assert!(empty.width > 0 && empty.height > 0);
     }
 
     #[test]

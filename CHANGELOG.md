@@ -4,6 +4,10 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 
 ## [Unreleased]
 
+### Fixed
+
+- After signing in to Windows, the desktop could stay squeezed into a small box: icons shifted and some missing. The desktop now notices when it doesn't cover the screen and fits itself again within seconds.
+
 ## [0.3.5] - 2026-11-02
 
 ### Fixed

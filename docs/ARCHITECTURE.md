@@ -161,7 +161,9 @@ treat it as the desktop.
   bracket each burst. The guard rests in Windows-icons mode and while every monitor is covered by a
   fullscreen app.
 * `fe-keepalive` (every 5 s; every second if the hooks could not be installed) is the safety net:
-  owner link, z-order, Windows icons hidden, our window shown, covering windows still there.
+  owner link, z-order, Windows icons hidden, our window shown, covering windows still there, and
+  the window where the monitors are (`heal_bounds`: started before Windows reported the real display
+  after a sign-in, it stayed at Tauri's default 800 × 600; refit + `environment-changed`).
 * The window is excluded from Aero Peek (`DWMWA_EXCLUDED_FROM_PEEK`) and kept 6 px short of the
   monitors' bottom edge (`FIT_INSET`: not monitor-sized, so not a "fullscreen app"; the taskbar
   hides the strip). It reaches the right edge, so a dim / blur / own wallpaper covers it all.
