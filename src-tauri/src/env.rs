@@ -98,10 +98,14 @@ pub fn monitors() -> Vec<MonitorInfo> {
 
 /// Bounding box of all monitors (physical px).
 pub fn virtual_bounds() -> Rect {
-    let mons = monitors();
-    let mut it = mons.iter();
+    bounds_of(&monitors())
+}
+
+/// An empty monitor rect (a display Windows reports before the real one is up) doesn't count.
+fn bounds_of(mons: &[MonitorInfo]) -> Rect {
+    let mut it = mons.iter().map(|m| m.bounds).filter(|b| b.width > 0 && b.height > 0);
     match it.next() {
-        Some(first) => it.fold(first.bounds, |acc, m| acc.union(&m.bounds)),
+        Some(first) => it.fold(first, |acc, b| acc.union(&b)),
         None => Rect { x: 0, y: 0, width: 1920, height: 1080 },
     }
 }
@@ -133,4 +137,21 @@ fn windows_icon_size() -> u32 {
         )
     };
     if res.is_ok() && data > 0 { data } else { 48 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mon(x: i32, width: i32) -> MonitorInfo {
+        let bounds = Rect { x, y: 0, width, height: if width > 0 { 1080 } else { 0 } };
+        MonitorInfo { id: format!("m{x}"), primary: x == 0, bounds, work: bounds, scale: 1.0 }
+    }
+
+    #[test]
+    fn an_empty_display_is_left_out_of_the_desktop_bounds() {
+        let b = bounds_of(&[mon(0, 0), mon(0, 1920), mon(1920, 2560)]);
+        assert_eq!((b.x, b.y, b.width, b.height), (0, 0, 4480, 1080));
+        assert_eq!(bounds_of(&[mon(0, 0)]).width, 1920); // nothing usable: a sane default
+    }
 }
