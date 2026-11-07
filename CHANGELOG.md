@@ -4,6 +4,8 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-11-07
+
 ### Fixed
 
 - Making icons bigger with Ctrl+mouse wheel and then smaller again puts every icon back where it was. Icons used to stay shuffled once the bigger size had pushed some of them aside.
@@ -102,7 +104,8 @@ The first tracked version. Every earlier build said "0.1.0" whatever it containe
 - No console window flashes from *New ▸* or at start.
 - Slow network shortcuts don't hold up the wallpaper and previews; desktop refreshes that change nothing aren't redrawn or saved; hidden windows use less memory.
 
-[Unreleased]: https://github.com/Cafunw/folder-explorer/compare/v0.3.6...HEAD
+[Unreleased]: https://github.com/Cafunw/folder-explorer/compare/v0.3.7...HEAD
+[0.3.7]: https://github.com/Cafunw/folder-explorer/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/Cafunw/folder-explorer/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/Cafunw/folder-explorer/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/Cafunw/folder-explorer/compare/v0.3.3...v0.3.4
