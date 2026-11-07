@@ -295,10 +295,6 @@
   min-width: 0;
 }
 
-.rule-row select.input {
-  appearance: auto;
-}
-
 .icon-btn {
   display: grid;
   place-items: center;
