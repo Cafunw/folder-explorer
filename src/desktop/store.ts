@@ -406,15 +406,34 @@ export function applySettings(next: Settings) {
     prev.labels.size !== next.labels.size ||
     prev.grid.autoArrange !== next.grid.autoArrange;
   if (env && gridChanged) {
+    const { layout, grids: from } = get();
+    if (!sizeBase || sizeBase.env !== env || sizeBase.shown !== layout.placements || prev.grid.autoArrange !== next.grid.autoArrange) {
+      sizeBase = { placements: layout.placements, home: layout.home, grids: from, env, shown: layout.placements };
+    }
+    const base = sizeBase.placements === layout.placements ? layout : { ...layout, placements: sizeBase.placements, home: sizeBase.home };
     const grids = computeGrids(env, next);
-    const anchored = anchorToEdges(get().layout, get().grids, grids);
     set({ grids });
-    replaceLayout(anchored);
+    replaceLayout(anchorToEdges(base, sizeBase.grids, grids));
   }
   if (gridChanged || prev.behavior.showSystemIcons !== next.behavior.showSystemIcons) {
     if (get().ready) applyItems();
   }
+  if (sizeBase && gridChanged) sizeBase.shown = get().layout.placements;
 }
+
+/**
+ * Where the icons were before the icon size started changing (Ctrl+wheel, View ▸, the settings).
+ * Every size is laid out from there, so going back to that size puts every icon back; going from
+ * one size to the next loses where the gaps were. Dropped once anything else moves an icon.
+ */
+let sizeBase: {
+  placements: Layout["placements"];
+  home: Layout["home"];
+  grids: GridMap;
+  env: Environment;
+  /** the placements this size change left on screen */
+  shown: Layout["placements"];
+} | null = null;
 
 export async function refreshEnvironment() {
   const env = await api.getEnvironment();

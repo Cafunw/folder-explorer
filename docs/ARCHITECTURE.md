@@ -299,7 +299,10 @@ View ▸ Small 32 / Medium 48 / Large 96, absent = 48) logical px at that monito
 icon image is requested and drawn at the size Windows uses. That cell width is a minimum:
 `computeGrids` spreads the leftover width over the columns, so the last column reaches the right
 edge (no unusable strip there). When a grid gets more / fewer
-cells, `anchorToEdges` keeps right / bottom runs against their edge.
+cells, `anchorToEdges` keeps right / bottom runs against their edge. `applySettings` always lays
+out a new size from the placements before the size started changing (`sizeBase` in
+`desktop/store.ts`), not from the previous size, so a Ctrl+wheel gesture back to where it started
+puts every icon back; any other change to the placements, or new monitors, starts a new base.
 
 ## Types (TS ⇄ Rust, camelCase JSON)
 

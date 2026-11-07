@@ -4,6 +4,10 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 
 ## [Unreleased]
 
+### Fixed
+
+- Making icons bigger with Ctrl+mouse wheel and then smaller again puts every icon back where it was. Icons used to stay shuffled once the bigger size had pushed some of them aside.
+
 ## [0.3.6] - 2026-11-04
 
 ### Fixed
