@@ -511,6 +511,8 @@ const tr = {
   labelShadow: "Gölge",
   labelHoverOnly: "Yalnızca üzerine gelince göster",
   labelHoverOnlyDesc: "Etiket, fare simgenin üstündeyken görünür",
+  showSize: "Boyutları göster",
+  showSizeDesc: "Her simgenin altında: dosyanın boyutu, klasörün içindekilerin toplamı, grubun toplamı",
   hoverToSee: "Görmek için simgenin üzerine gel",
 
   hGroupBox: "Grup çerçevesi",

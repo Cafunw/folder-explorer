@@ -18,6 +18,7 @@ import { LiveImage, useFrequentIds } from "./GroupContent";
 import { liveItem, liveSiblings, useLive, useLiveItem } from "./live";
 import { useContentHidden } from "./locks";
 import { panelGrid, rectOf } from "./registry";
+import { formatBytes } from "./bytes";
 import { dirName, displayName, useDesk } from "./store";
 import { FolderGlyph, iconPx, ItemImage } from "./Tile";
 import "./quicklook.css";
@@ -61,18 +62,6 @@ function typeLabel(id: string, it: DesktopItem | undefined) {
   return t.ql.fileOfType(it.ext.replace(/^\./, ""));
 }
 
-const sizeFormat = new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 });
-export function formatBytes(n: number) {
-  if (n < 1024) return t.ql.bytes(n);
-  const units = ["KB", "MB", "GB", "TB"];
-  let v = n / 1024;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${sizeFormat.format(v)} ${units[i]}`;
-}
 
 const formatDate = (ms: number) => (ms ? new Date(ms).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "");
 

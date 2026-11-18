@@ -34,6 +34,7 @@ const COMMANDS: &[&str] = &[
     "list_start_apps",
     "list_dir_preview",
     "list_folder",
+    "dir_size",
     "watch_folder",
     "unwatch_folder",
     "known_folders",

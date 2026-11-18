@@ -32,6 +32,7 @@
     "allow-list-desktop-items",
     "allow-list-dir-preview",
     "allow-list-folder",
+    "allow-dir-size",
     "allow-list-start-apps",
     "allow-load-state",
     "allow-mirror-selection",

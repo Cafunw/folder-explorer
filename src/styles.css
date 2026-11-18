@@ -253,6 +253,41 @@ textarea {
   transition: none;
 }
 
+/* size under the label (settings.labels.showSize; its height is in grid.ts cellMetrics) */
+.tile-size {
+  position: relative;
+  margin-top: 1px;
+  padding: 0 5px 1px;
+  max-width: calc(100% - 6px);
+  font-family: var(--label-font, var(--font));
+  font-size: calc(var(--label-size, 12px) * 0.85);
+  font-weight: var(--label-weight, 400);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.28;
+  color: var(--label-color, #fff);
+  text-shadow: var(--label-shadow, 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 6px rgba(0, 0, 0, 0.45));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 6px;
+  background: var(--label-bg);
+  opacity: 0.8;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+:root[data-label-hover] .tile:not(:hover):not([data-selected="true"]) .tile-size {
+  opacity: 0;
+}
+
+:root[data-quiet] .tile-size {
+  transition: none;
+}
+
+.tile:has(.drop-label) .tile-size {
+  visibility: hidden;
+}
+
 .tile[data-selected="true"] .tile-label {
   -webkit-line-clamp: unset !important;
   overflow: visible;

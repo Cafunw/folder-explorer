@@ -57,6 +57,7 @@ export const api = {
   listStartApps: () => invoke<StartApp[]>("list_start_apps"),
   listDirPreview: (path: string, limit?: number) => invoke<DirPreview>("list_dir_preview", { path, limit }),
   listFolder: (dir: string) => invoke<DesktopItem[]>("list_folder", { dir }),
+  dirSize: (path: string) => invoke<number>("dir_size", { path }),
   watchFolder: (dir: string) => invoke<void>("watch_folder", { dir }),
   unwatchFolder: (dir: string) => invoke<void>("unwatch_folder", { dir }),
   knownFolders: () =>

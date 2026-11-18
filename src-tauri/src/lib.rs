@@ -137,6 +137,7 @@ pub fn run() {
             commands::list_start_apps,
             commands::list_dir_preview,
             commands::list_folder,
+            commands::dir_size,
             commands::watch_folder,
             commands::unwatch_folder,
             commands::known_folders,

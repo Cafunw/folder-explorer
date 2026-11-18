@@ -10,6 +10,7 @@ import { useShallow } from "zustand/react/shallow";
 import { beginIconPointer, useBump, useDrag, type DropTarget } from "./dnd";
 import { GlyphBadges, KindMinis, LockMark, showsOwnMinis } from "./GroupContent";
 import { iconEls, takeFlyFrom } from "./registry";
+import { useSizeText } from "./sizes";
 import { nameIn, useAnimation, useDesk, useReducedMotion } from "./store";
 import { usePackIcon } from "./iconPack";
 import { hoverHandlers } from "./effects";
@@ -197,6 +198,7 @@ export const Tile = memo(function Tile({ id, cellW, cellH, size, where, hidden }
   const animation = useAnimation();
   const reduced = useReducedMotion();
   const name = useDesk((s) => nameIn(s, id));
+  const bytes = useSizeText(id);
   const drop = useDrag((d) => dropOn(d.drag?.target ?? d.external, id));
   const bump = useBump((b) => (b.id === id ? b.n : 0));
   const jiggle = useJiggle((j) => j.on);
@@ -289,6 +291,7 @@ export const Tile = memo(function Tile({ id, cellW, cellH, size, where, hidden }
           </div>
         )
       )}
+      {bytes && !renaming && <div className="tile-size">{bytes}</div>}
     </div>
   );
 });
