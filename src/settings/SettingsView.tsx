@@ -28,6 +28,7 @@ import { applyPreset, choosePreset, customLookSettings, readThemeFile, applyThem
 import type { BackupInfo, IconShape, MonitorInfo, PersistedState, Settings, WallpaperSpec } from "../types";
 import { AutoColor, Colors, pct, px, Row, Seg, Slider, times, Toggle } from "./controls";
 import { IconSample, MockFolder, PageIndicator, plateRadius, ThemeThumb, WallpaperThumb } from "./previews";
+import { formatBytes } from "../desktop/bytes";
 import { previewSound } from "../desktop/sounds";
 import { WallpaperEditor } from "./WallpaperEditor";
 import "./settings.css";
@@ -691,6 +692,8 @@ function IconPackCard({ s, update }: SecProps) {
   );
 }
 
+/** what the label samples show as their sizes (a folder, an app shortcut, a document) */
+const SAMPLE_SIZES = [2.4 * 1024 ** 3, 1460, 86 * 1024];
 const FONTS = ["Segoe UI", "Segoe UI Variable", "Bahnschrift", "Consolas", "Georgia", "Trebuchet MS", "Verdana"];
 const OTHER_FONT = "__other__";
 
@@ -702,7 +705,7 @@ function LabelsSec({ s, update }: SecProps) {
     <>
       <div className="preview-strip">
         {[0, 1, 2].map((g) => (
-          <IconSample key={g} s={s} glyph={g} label={t.sampleNames[g]} />
+          <IconSample key={g} s={s} glyph={g} label={t.sampleNames[g]} bytes={s.labels.showSize ? formatBytes(SAMPLE_SIZES[g]) : undefined} />
         ))}
         {s.labels.hoverOnly && <span className="strip-hint">{t.hoverToSee}</span>}
       </div>
@@ -766,6 +769,9 @@ function LabelsSec({ s, update }: SecProps) {
         </Row>
         <Row title={t.labelHoverOnly} desc={t.labelHoverOnlyDesc}>
           <Toggle on={s.labels.hoverOnly} onChange={(v) => lb({ hoverOnly: v })} />
+        </Row>
+        <Row title={t.showSize} desc={t.showSizeDesc}>
+          <Toggle on={s.labels.showSize} onChange={(v) => lb({ showSize: v })} />
         </Row>
       </div>
     </>

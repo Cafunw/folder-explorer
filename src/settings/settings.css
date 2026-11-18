@@ -429,6 +429,12 @@
   transition: opacity 150ms;
 }
 
+.sample-size {
+  margin-top: -3px;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
 .sample[data-label-hover] .sample-label {
   opacity: 0;
 }

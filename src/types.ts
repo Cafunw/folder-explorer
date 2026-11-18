@@ -214,6 +214,7 @@ export type Settings = {
     color: string | null; // null = automatic
     shadow: number; // 0..1
     hoverOnly: boolean;
+    showSize: boolean; // a line under the label: the file's / folder's / group's size on disk
   };
   groupBox: {
     borderWidth: number; // px 0..4

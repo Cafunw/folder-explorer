@@ -90,14 +90,82 @@ fn system_icon_visible(clsid_parsing: &str, default_visible: bool) -> bool {
 }
 
 pub fn recycle_bin_full() -> bool {
+    recycle_bin_info().0
+}
+
+/// (has items, total size in bytes) of the Recycle Bin on every drive.
+fn recycle_bin_info() -> (bool, u64) {
     let mut info = SHQUERYRBINFO { cbSize: std::mem::size_of::<SHQUERYRBINFO>() as u32, ..Default::default() };
     unsafe {
         if SHQueryRecycleBinW(PCWSTR::null(), &mut info).is_ok() {
-            info.i64NumItems > 0
+            (info.i64NumItems > 0, info.i64Size.max(0) as u64)
         } else {
-            false
+            (false, 0)
         }
     }
+}
+
+/// `\\?\` form of a local or UNC path, so trees deeper than MAX_PATH can be walked.
+fn long_path(dir: &str) -> String {
+    let dir = dir.replace('/', r"\");
+    let dir = dir.trim_end_matches('\\');
+    if dir.starts_with(r"\\?\") {
+        dir.to_string()
+    } else if let Some(unc) = dir.strip_prefix(r"\\") {
+        format!(r"\\?\UNC\{unc}")
+    } else {
+        format!(r"\\?\{dir}")
+    }
+}
+
+/// Total size in bytes of every file under `dir` (hidden and system files too), like the folder's
+/// Properties in Explorer: the logical size, so cloud placeholders (OneDrive) count in full and are
+/// never downloaded. Junctions and symbolic links are not followed, so a link loop or a link to a
+/// whole drive can't inflate it. Only metadata is read (FindFirstFileEx), no file is opened.
+pub fn dir_size(dir: &str) -> u64 {
+    use windows::Win32::Storage::FileSystem::{
+        FindClose, FindExInfoBasic, FindExSearchNameMatch, FindFirstFileExW, FindNextFileW, FIND_FIRST_EX_LARGE_FETCH,
+        WIN32_FIND_DATAW,
+    };
+    const DIRECTORY: u32 = 0x10;
+    const REPARSE_POINT: u32 = 0x400;
+    const NAME_SURROGATE: u32 = 0x2000_0000; // reparse tag bit of junctions and symbolic links
+    let mut total = 0u64;
+    let mut stack = vec![long_path(dir)];
+    while let Some(d) = stack.pop() {
+        let pattern = HSTRING::from(format!(r"{d}\*"));
+        let mut data = WIN32_FIND_DATAW::default();
+        let found = unsafe {
+            FindFirstFileExW(
+                &pattern,
+                FindExInfoBasic,
+                &mut data as *mut WIN32_FIND_DATAW as *mut _,
+                FindExSearchNameMatch,
+                None,
+                FIND_FIRST_EX_LARGE_FETCH,
+            )
+        };
+        let Ok(handle) = found else { continue };
+        loop {
+            let attrs = data.dwFileAttributes;
+            if attrs & DIRECTORY == 0 {
+                total += ((data.nFileSizeHigh as u64) << 32) | data.nFileSizeLow as u64;
+            } else if attrs & REPARSE_POINT == 0 || data.dwReserved0 & NAME_SURROGATE == 0 {
+                let len = data.cFileName.iter().position(|&c| c == 0).unwrap_or(data.cFileName.len());
+                let name = String::from_utf16_lossy(&data.cFileName[..len]);
+                if name != "." && name != ".." {
+                    stack.push(format!(r"{d}\{name}"));
+                }
+            }
+            if unsafe { FindNextFileW(handle, &mut data) }.is_err() {
+                break;
+            }
+        }
+        unsafe {
+            let _ = FindClose(handle);
+        }
+    }
+    total
 }
 
 fn mtime_ms(md: &std::fs::Metadata) -> u64 {
@@ -183,11 +251,11 @@ pub fn list_desktop_items_sta() -> Vec<DesktopItem> {
             continue;
         }
         let name = display_name(clsid).unwrap_or_else(|| clsid.to_string());
-        let (recycle_full, icon_version) = if *clsid == RECYCLE_BIN {
-            let full = recycle_bin_full();
-            (Some(full), if full { "full".to_string() } else { "empty".to_string() })
+        let (recycle_full, icon_version, size) = if *clsid == RECYCLE_BIN {
+            let (full, size) = recycle_bin_info();
+            (Some(full), if full { "full".to_string() } else { "empty".to_string() }, size)
         } else {
-            (None, "1".to_string())
+            (None, "1".to_string(), 0)
         };
         out.push(DesktopItem {
             id: clsid.to_lowercase(),
@@ -199,7 +267,7 @@ pub fn list_desktop_items_sta() -> Vec<DesktopItem> {
             is_shortcut: false,
             is_public: false,
             modified: 0,
-            size: 0,
+            size,
             icon_version,
             recycle_full,
         });
@@ -377,5 +445,34 @@ pub fn on_recycle_notify(wparam: WPARAM, lparam: LPARAM) {
     }
     if let Some(tx) = RECYCLE_TX.lock().unwrap().as_ref() {
         let _ = tx.send(());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn long_path_forms() {
+        assert_eq!(long_path(r"C:\Users\a\Desktop\"), r"\\?\C:\Users\a\Desktop");
+        assert_eq!(long_path("C:/x/y"), r"\\?\C:\x\y");
+        assert_eq!(long_path(r"\\server\share\dir"), r"\\?\UNC\server\share\dir");
+        assert_eq!(long_path(r"\\?\C:\deep"), r"\\?\C:\deep");
+    }
+
+    #[test]
+    fn dir_size_adds_nested_files() {
+        let root = std::env::temp_dir().join(format!("fe-dir-size-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("a").join("b")).unwrap();
+        std::fs::create_dir_all(root.join("empty")).unwrap();
+        std::fs::write(root.join("one.bin"), vec![0u8; 1000]).unwrap();
+        std::fs::write(root.join("a").join("two.bin"), vec![0u8; 2345]).unwrap();
+        std::fs::write(root.join("a").join("b").join("three.bin"), vec![0u8; 7]).unwrap();
+        let path = root.to_string_lossy().to_string();
+        assert_eq!(dir_size(&path), 1000 + 2345 + 7);
+        assert_eq!(dir_size(&root.join("empty").to_string_lossy()), 0);
+        assert_eq!(dir_size(&root.join("missing").to_string_lossy()), 0);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -516,6 +516,8 @@ export const en: Dict = {
   labelShadow: "Shadow",
   labelHoverOnly: "Show only on hover",
   labelHoverOnlyDesc: "The label appears while the mouse is over the icon",
+  showSize: "Show sizes",
+  showSizeDesc: "Under each icon: a file's size, everything in a folder, the total of a group",
   hoverToSee: "Hover over the icon to see it",
 
   hGroupBox: "Group frame",

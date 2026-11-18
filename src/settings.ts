@@ -29,7 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
     accentFromWallpaper: false,
   },
   icons: { shape: "none", plateColor: null, plateOpacity: 0.9, inset: 0.18, pack: null },
-  labels: { font: "", size: 12, weight: 400, color: null, shadow: 0.6, hoverOnly: false },
+  labels: { font: "", size: 12, weight: 400, color: null, shadow: 0.6, hoverOnly: false, showSize: false },
   groupBox: { borderWidth: 0, borderColor: null, borderOpacity: 0.25, shadow: 0, gradient: false, glow: 0 },
   pageIndicator: { style: "dots", position: "bottom" },
   selection: { color: null, style: "fill", marqueeRadius: 4 },
@@ -199,6 +199,7 @@ export function normalizeSettings(raw: unknown): Settings {
       color: color(lb.color),
       shadow: clamp(lb.shadow, 0, 1, d.labels.shadow),
       hoverOnly: bool(lb.hoverOnly, d.labels.hoverOnly),
+      showSize: bool(lb.showSize, d.labels.showSize),
     },
     groupBox: {
       borderWidth: clamp(gb.borderWidth, 0, 4, d.groupBox.borderWidth),

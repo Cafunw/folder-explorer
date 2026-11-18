@@ -4,6 +4,10 @@ Changes you'll notice in Folder Explorer. The format follows [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added
+
+- *Settings ▸ Labels ▸ Show sizes* writes the size under each icon: a file's own size, everything inside a folder, what the Recycle Bin holds and the total of a group (a live group: its folder). Folder sizes are worked out in the background and never download OneDrive files. Off by default.
+
 ## [0.3.7] - 2026-11-07
 
 ### Fixed

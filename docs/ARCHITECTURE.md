@@ -415,6 +415,7 @@ allowed for that window, and `cargo check` fails on a permission name that doesn
 | `list_start_apps` | – | `StartApp[]` | enumerate `FOLDERID_AppsFolder` |
 | `list_dir_preview` | `{ path, limit? = 200 }` | `DirPreview` | Quick Look of a real folder: folders first, then by name; hidden / system entries left out |
 | `list_folder` | `{ dir }` | `DesktopItem[]` | a live group's entries: like `list_desktop_items` for one folder (STA; hidden / system entries left out), newest first, at most 500; registers `dir` with `icons::allow_root` (thumbnails / Quick Look). Error "Klasör bulunamadı" when missing. |
+| `dir_size` | `{ path }` | `number` | total bytes of every file under a real folder (`labels.showSize`): `FindFirstFileEx` metadata only (logical size, cloud placeholders are never downloaded), hidden / system files included, junctions and symbolic links not followed, `\\?\` paths so deep trees work; an unreadable folder adds 0. The UI walks two at a time and keeps each result for the session (`src/desktop/sizes.ts`). |
 | `watch_folder` / `unwatch_folder` | `{ dir }` | `()` | refcounted per folder (case-insensitive); the first watch starts the `fe-live` watcher, the last unwatch drops it. Changes → `folder-changed` |
 | `known_folders` | – | `{ downloads, documents, pictures }` | `string \| null` each (`SHGetKnownFolderPath`), the live group picker's quick buttons |
 | `hello_available` | – | `boolean` | `UserConsentVerifier::CheckAvailabilityAsync` = Available (read-only) |

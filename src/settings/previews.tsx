@@ -59,10 +59,13 @@ export function IconSample({
   labelScale = 1,
   selected,
   hover,
+  bytes,
 }: {
   s: Settings;
   glyph: number;
   label?: string;
+  /** the size line under the label (settings.labels.showSize) */
+  bytes?: string;
   size?: number;
   labelScale?: number;
   selected?: boolean;
@@ -93,6 +96,11 @@ export function IconSample({
       {label && s.grid.labels && (
         <span className="sample-label" style={labelStyle(s, labelScale)}>
           {label}
+        </span>
+      )}
+      {bytes && (
+        <span className="sample-label sample-size" style={{ ...labelStyle(s, labelScale * 0.85), WebkitLineClamp: 1 }}>
+          {bytes}
         </span>
       )}
     </div>

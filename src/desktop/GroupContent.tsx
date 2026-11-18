@@ -15,6 +15,7 @@ import { jiggling } from "./Jiggle";
 import { liveItem, reloadLive, useLive, useLiveItems } from "./live";
 import { useUnlocked } from "./locks";
 import { iconEls } from "./registry";
+import { useSizeText } from "./sizes";
 import { dirName, nameIn, recordFileOpOnly, toast, undoEntry, useDesk } from "./store";
 import { iconPx, ItemImage } from "./Tile";
 import "./groups.css";
@@ -264,6 +265,7 @@ export function EntryTile({ entry, cellW, cellH, size }: { entry: Entry; cellW: 
   const deskName = useDesk((s) => (entry.kind === "live" ? "" : nameIn(s, entry.id)));
   const renaming = useLive((s) => entry.kind === "live" && s.renaming === entry.item.id);
   const name = entry.kind === "live" ? entry.item.name : deskName;
+  const bytes = useSizeText(entryId(entry), entry.kind === "live" ? entry.item : undefined);
   return (
     <div
       className="tile"
@@ -288,6 +290,7 @@ export function EntryTile({ entry, cellW, cellH, size }: { entry: Entry; cellW: 
           </div>
         )
       )}
+      {bytes && !renaming && <div className="tile-size">{bytes}</div>}
     </div>
   );
 }

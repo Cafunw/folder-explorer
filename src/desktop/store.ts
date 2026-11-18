@@ -404,6 +404,7 @@ export function applySettings(next: Settings) {
     prev.grid.labels !== next.grid.labels ||
     prev.grid.labelLines !== next.grid.labelLines ||
     prev.labels.size !== next.labels.size ||
+    prev.labels.showSize !== next.labels.showSize ||
     prev.grid.autoArrange !== next.grid.autoArrange;
   if (env && gridChanged) {
     const { layout, grids: from } = get();

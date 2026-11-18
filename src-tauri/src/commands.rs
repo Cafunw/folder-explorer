@@ -201,6 +201,12 @@ pub async fn list_folder(dir: String) -> R<Vec<DesktopItem>> {
     blocking(move || crate::live::list_folder(dir)).await
 }
 
+/// Total size of the files under a real folder (`labels.showSize`); big trees take a while.
+#[tauri::command]
+pub async fn dir_size(path: String) -> R<u64> {
+    blocking(move || Ok(items::dir_size(&path))).await
+}
+
 #[tauri::command]
 pub async fn watch_folder(dir: String) -> R<()> {
     blocking(move || crate::live::watch(dir)).await

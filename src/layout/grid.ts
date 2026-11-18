@@ -30,20 +30,23 @@ export const GRID_PAD = 3;
 export const ICON_TOP = 5;
 
 const LINE_HEIGHT = 1.28; // .tile-label line-height (font-size = settings.labels.size)
+const SIZE_FONT = 0.85; // .tile-size font-size relative to the label's
 /** Narrower cells break labels mid-word (Windows' own spacing is ~75 px). */
 const MIN_CELL_W = 76;
 
 /** Icon and cell size on one monitor, in CSS px of the desktop window. `winIcon` = `Environment.windowsIconSize`. */
 export function cellMetrics(m: MonitorInfo, scale: number, s: Settings, winIcon: number) {
   const k = s.grid.iconScale || 1;
-  const label = s.grid.labels ? 7 + s.grid.labelLines * s.labels.size * LINE_HEIGHT : 0;
+  // the size line (labels.showSize) is added to the user's own spacing as well
+  const sizeLine = s.labels.showSize ? (s.grid.labels ? 2 : 7) + Math.ceil(s.labels.size * SIZE_FONT * LINE_HEIGHT) : 0;
+  const label = (s.grid.labels ? 7 + s.grid.labelLines * s.labels.size * LINE_HEIGHT : 0) + sizeLine;
   if (!s.grid.autoSize) {
-    if (k === 1) return { iconSize: s.grid.iconSize, cellW: s.grid.cellWidth, cellH: s.grid.cellHeight };
+    if (k === 1) return { iconSize: s.grid.iconSize, cellW: s.grid.cellWidth, cellH: s.grid.cellHeight + sizeLine };
     const iconSize = Math.round(Math.min(256, Math.max(16, s.grid.iconSize * k)));
     return {
       iconSize,
       cellW: Math.max(s.grid.cellWidth, iconSize + 30),
-      cellH: Math.max(s.grid.cellHeight, Math.round(ICON_TOP * 2 + iconSize + label)),
+      cellH: Math.max(s.grid.cellHeight + sizeLine, Math.round(ICON_TOP * 2 + iconSize + label)),
     };
   }
   // automatic = the size Windows' own desktop shows, at this monitor's scaling
